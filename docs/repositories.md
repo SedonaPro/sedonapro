@@ -8,9 +8,10 @@
 | `sedona-esp32-s3` | Sedona runtime port for ESP32-S3 with ESP-IDF integration, SOX and simulation tooling. |
 | `sedona-esp32-p4` | Sedona controller firmware for ESP32-P4: Ethernet, I/O services, Modbus, MQTT and update tooling. |
 
-Source repositories start private while their contents and release inputs are
-reviewed. The community home is public. A shared SDK does not imply that editor
-or firmware editions have identical features or release versions.
+All five source repositories and the community home are public. Historical
+development repositories remain private. Published previews use clean source
+snapshots with per-project licensing and validation notes. A shared SDK does
+not imply that editor or firmware editions have identical features or releases.
 
 Future libraries, hardware designs and third-party integrations should get
 their own repositories when real maintained content and ownership exist.
