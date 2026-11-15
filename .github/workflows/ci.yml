@@ -1,5 +1,7 @@
 name: ci
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
 
 jobs:
   sim:
@@ -37,7 +39,8 @@ jobs:
       - run: ./spro catalog --check
       - run: ./spro ui check && python3 tools/tests/ui_check_test.py
       - run: node --test editor/tests/*.test.mjs
-      - run: ./spro test linux
+      - run: ./spro test linux --quick
+      - run: python3 tools/test_offline.py
       - run: ./spro build linux --profile full && ./spro test linux --profile full --quick
       - run: ./spro build linux --board rpi4 --manifests none
       - run: ./spro build linux --board beaglebone-black --manifests none

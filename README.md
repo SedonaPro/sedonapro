@@ -102,6 +102,12 @@ in `profiles/packs/`. Each configurator has a kit README and source tests.
 Examples include `examples/pump-station.xml` and `examples/heat-station.xml`.
 Build and test commands are documented in the quick start below.
 
+## Validation
+
+The staged amd64 source preview passed runtime smoke checks, 126,101 offline VM
+assertions and 42 web-editor tests. See the [validation report](docs/source-preview-validation.md)
+for commands, exclusions and limits.
+
 ## Get started
 
 This repository contains a source preview, not a production-certified release.
