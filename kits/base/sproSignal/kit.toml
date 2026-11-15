@@ -1,0 +1,2 @@
+summary = "Signals: 4-20 mA, RTD/NTC, curves, filters, validation, sensor selection, totalizers"
+portable_tests = true

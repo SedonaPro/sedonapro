@@ -1,0 +1,9 @@
+# Controllers on NXP i.MX6 (e.g. Forlinx OKMX6DL) as supported by the old
+# sproIoMx6 kit: serial ports only.  Add GPIO channels with pin = global sysfs
+# GPIO number (bank * 32 + line), or switch hal to linux-gpiod.
+name    = "imx6"
+title   = "i.MX6 controller (serial ports)"
+hal     = "linux-sysfs"
+targets = ["linux"]
+# port 1, 2 = USB adapters, 3 = RS-485 (UART2), 4 = UART3
+serial  = ["/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttymxc1", "/dev/ttymxc2"]

@@ -1,0 +1,85 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2018 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+@palette=false
+class ExpressionBase extends Component
+{
+	@readonly
+	property bool ok = false;
+
+	@asStr
+	@summary=true
+	@config
+	property Buf(maxExprLen) expr;
+
+
+	virtual bool parseExpression()
+	{
+		AST = null;
+		return false;
+	}
+
+	virtual void calcExpression()
+	{
+	}
+
+
+	virtual void freeExpression()
+	{
+		AST = null;
+		ok := false;
+	}
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		ok := parseExpression();
+	}
+
+	virtual override void stop()
+	{
+		super.stop();
+		freeExpression();
+	}
+
+	virtual override void changed(Slot slot)
+	{
+		super.changed(slot);
+		if (slot == ExpressionBase.expr) {
+			freeExpression();
+			ok := parseExpression();
+			needUpdate = ok;
+		}
+	}
+
+	virtual override void execute()
+	{
+		super.execute();
+		if (needUpdate) {
+			needUpdate = false;
+			if (AST != null)
+				calcExpression();
+		}
+	}
+
+	define int maxExprLen = 255;
+	define int maxParams = 8;
+
+	Obj AST = null;
+	bool needUpdate = true;
+
+}

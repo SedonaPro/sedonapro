@@ -1,0 +1,122 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2018 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+@palette=false
+class SqlitePoint extends SqliteDatabase
+{
+	@readonly
+	property bool ok = false;
+
+	virtual void forceReinit() {
+		started = false;
+	}
+
+	virtual bool createTable(SqliteDb db)
+	{
+		pnt_ok = true;
+		return true;
+	}
+
+	virtual void doWork(SqliteDb db)
+	{
+		ok := db.isOpen() && pnt_ok;
+		if (!started) {
+			started = createTable(db);
+		}
+	}
+
+	int doExecSql(SqliteDb db, Str sql)
+	{
+		if (!pnt_ok)
+			return -1;
+
+		int ret = db.execSql(sql);
+		if (ret != SqliteDb.SQLITE_BUSY)
+			pnt_ok = ret == SqliteDb.SQLITE_OK;
+		return ret;
+	}
+
+	int doExecInsertSql(SqliteDb db, Str sql, long[] res)
+	{
+		if (!pnt_ok)
+			return -1;
+
+		int ret = db.execInsertSql(sql, res);
+		if (ret != SqliteDb.SQLITE_BUSY)
+			pnt_ok = (ret == SqliteDb.SQLITE_OK);
+		return ret;
+	}
+
+	bool doLimitRecords(SqliteDb db, Str table, int limit)
+	{
+		/*
+		  DELETE FROM var_x1 WHERE id NOT IN (SELECT ID FROM
+		  var_x1 ORDER BY id DESC LIMIT 5)
+		 */
+		strBuf.copyFromStr("DELETE FROM ", strLen);
+		StrUtils.appendStr(strBuf, table, strLen);
+		StrUtils.appendStr(strBuf, " WHERE id NOT in (SELECT ID FROM ", strLen);
+		StrUtils.appendStr(strBuf, table, strLen);
+		StrUtils.appendStr(strBuf, " ORDER BY id DESC LIMIT ", strLen);
+		StrUtils.appendStr(strBuf, Sys.intStr(limit), strLen);
+		StrUtils.appendStr(strBuf, " )", strLen);
+
+		return doExecSql(db, strBuf) == SqliteDb.SQLITE_OK;
+	}
+
+
+	virtual override void execute()
+	{
+		super.execute();
+		doWork(getDatabase());
+	}
+
+
+	virtual Type getPointType()
+	{
+		return SqlitePoint.type;
+	}
+
+	void forceResetChildren(Component parent, Type t)
+	{
+		Component c = Sys.app.lookup(parent.children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			if (c.type.is(t)) {
+				SqlitePoint pnt = (SqlitePoint)c;
+				pnt.forceReinit();
+			}
+			forceResetChildren(c, t);
+		}
+	}
+
+
+	@confirmRequired
+	action void cleanEntireDatabase()
+	{
+		getDatabase().clean();
+		Component root = Sys.app.lookup(0);
+		Type t = getPointType();
+		forceResetChildren(root, t);
+	}
+
+	define int strLen = 256;
+
+        protected inline long[1] tmpLong;
+        protected inline Str(strLen) strBuf = "";
+	protected bool started;
+	protected bool pnt_ok;
+}

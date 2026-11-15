@@ -1,0 +1,123 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Heat recovery: plate exchanger with a bypass, rotary wheel or glycol
+** loop.  out is the recovery in % (bypass damper closed, wheel speed,
+** glycol pump/valve).
+**
+**  - winter and transition: follows the demand of SupplyTemp.recovery;
+**  - icing: the exhaust after the exchanger is kept above iceTemp by a
+**    loop that lowers the recovery (no defrost stops of the plant);
+**    an icing pressure switch starts a defrost: recovery off for
+**    defrostTime;
+**  - summer: recovers coolness while the outdoor air is warmer than the
+**    extract air and cooling is needed, otherwise off (free cooling);
+**  - a rotary wheel keeps minOut while the plant runs (self cleaning).
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Recuperator extends Component
+{
+  ** recovery demand, % (SupplyTemp.recovery)
+  @summary property float demand
+  ** cooling demand, % (SupplyTemp.cooling), for summer
+  property float cooling
+  ** the plant runs
+  property bool run
+  property byte season
+  ** outdoor air, C
+  property float outdoor
+  ** extract air before the exchanger, C
+  property float extract = null
+  ** exhaust air after the exchanger, C
+  property float exhaust = null
+  ** supply air after the exchanger, C (for the efficiency)
+  property float supplyAfter = null
+  ** icing pressure switch: true = iced
+  property bool iceSwitch
+
+  ** exchanger type
+  define Str typeRange = "plate, rotary, glycol"
+  @config @range=typeRange property byte kind = 0
+  ** lowest exhaust temperature after the exchanger, C
+  @config @unit=Units.celsius property float iceTemp = 1.0f
+  ** icing loop: % per K, integral time, s
+  @config @min=0 property float iceKp = 10.0f
+  @config @unit=Units.second @min=0 property float iceTi = 60.0f
+  ** defrost after the icing switch, s
+  @config @unit=Units.second @min=0 property float defrostTime = 300.0f
+  ** least recovery while running, % (rotary wheel cleaning)
+  @config @min=0 @max=100 property float minOut = 0.0f
+  ** summer: recover coolness from the extract air
+  @config property bool coldRecovery = true
+
+  @readonly @summary @precision=1 property float out
+  ** highest recovery the icing loop allows, %
+  @readonly @precision=1 property float iceLimit = 100.0f
+  ** temperature efficiency, %
+  @readonly @precision=0 property float efficiency = null
+  @readonly property bool icing
+  @readonly property bool defrost
+  ** ok, standby, limited (icing loop holds it), waiting (defrost)
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    if (iceSwitch == true && !defrost) { defrost := true; defrostLeft = defrostTime }
+    if (defrost)
+    {
+      defrostLeft -= dt
+      if (defrostLeft <= 0.0f && iceSwitch != true) defrost := false
+    }
+    efficiency := null
+    if (Pro.valid(supplyAfter) && Pro.valid(outdoor) && Pro.valid(extract) && Pro.abs(extract - outdoor) > 3.0f)
+      efficiency := Pro.clamp((supplyAfter - outdoor) * 100.0f / (extract - outdoor), 0.0f, 100.0f)
+
+    if (run != true)
+    {
+      out := 0.0f
+      iceLoop.hold(100.0f)
+      iceLimit := 100.0f
+      icing := false
+      status := Pro.standby
+      return
+    }
+
+    if (!primed) { primed = true; iceLoop.hold(100.0f) }
+    float want = 0.0f
+    if (season == Hvac.summer)
+    {
+      bool warmOutside = Pro.valid(outdoor) && Pro.valid(extract) && outdoor > extract + 1.0f
+      want = coldRecovery && warmOutside && Pro.valid(cooling) && cooling > 0.0f ? 100.0f : 0.0f
+    }
+    else want = Pro.valid(demand) ? demand : 0.0f
+
+    float lim = 100.0f
+    if (Pro.valid(exhaust) && season != Hvac.summer)
+    {
+      iceLoop.kp = iceKp
+      iceLoop.ti = iceTi
+      iceLoop.direct = true
+      lim = iceLoop.run(dt, exhaust, iceTemp, 100.0f, 0.0f, 100.0f, null)
+    }
+    else iceLoop.hold(100.0f)
+    iceLimit := lim
+    icing := lim < 99.9f
+
+    float o = Pro.min(want, lim)
+    if (defrost) o = 0.0f
+    out := Pro.max(o, minOut)
+    if (defrost) status := Pro.waiting
+    else if (want > lim) status := Pro.limited
+    else status := Pro.ok
+  }
+
+  float defrostLeft
+  bool primed
+  inline PidAlgo iceLoop
+  inline Ticker ticker
+}

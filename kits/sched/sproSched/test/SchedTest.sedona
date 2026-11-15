@@ -1,0 +1,252 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+class SchedTest extends Test
+{
+  static bool near(float a, float b, float tol) { return a - b <= tol && b - a <= tol }
+
+  define int sun = 0
+  define int mon = 1
+  define int tue = 2
+  define int fri = 5
+  define int sat = 6
+
+  static void setup()
+  {
+    Sys.app.cleanupApp()
+    Sys.app.initApp(64)
+  }
+
+  static void testDates()
+  {
+    assert(SchedTime.dayNumber(1970, 1, 1) == 0)
+    assert(SchedTime.date(SchedTime.dayNumber(2024, 2, 29)) == 20240229)
+    assert(SchedTime.date(SchedTime.dayNumber(2024, 2, 29) + 1) == 20240301)
+    assert(SchedTime.date(SchedTime.dayNumber(2026, 12, 31) + 1) == 20270101)
+    assert(SchedTime.date(SchedTime.dayNumber(1999, 1, 1) - 1) == 19981231)
+    // 2026-11-14 is a Saturday, 1970-01-01 was a Thursday
+    assert(SchedTime.dayOfWeek(SchedTime.dayNumber(2026, 11, 14)) == sat)
+    assert(SchedTime.dayOfWeek(0) == 4)
+    assert(SchedTime.monthDays(2024, 2) == 29)
+    assert(SchedTime.monthDays(2100, 2) == 28)
+    assert(SchedTime.monthDays(2000, 2) == 29)
+    assert(SchedTime.monthDays(2026, 4) == 30)
+  }
+
+  static inline Buf(48) text
+
+  static void testPeriods()
+  {
+    text.copyFromStr("07:00-10:00, 17:00-21:00")
+    assert(SchedTime.inPeriods(text, 6 * 60 + 59) == 0)
+    assert(SchedTime.inPeriods(text, 7 * 60) == 1)
+    assert(SchedTime.inPeriods(text, 10 * 60) == 0)
+    assert(SchedTime.inPeriods(text, 20 * 60 + 59) == 1)
+    text.copyFromStr("23:00-07:00")
+    assert(SchedTime.inPeriods(text, 23 * 60) == 1 && SchedTime.inPeriods(text, 0) == 1)
+    assert(SchedTime.inPeriods(text, 7 * 60) == 0 && SchedTime.inPeriods(text, 12 * 60) == 0)
+    text.copyFromStr("08:00-09:00 x 25:00-26:00;12:00-24:00")
+    assert(SchedTime.inPeriods(text, 8 * 60 + 30) == 3)
+    assert(SchedTime.inPeriods(text, 23 * 60 + 59) == 3)
+    assert(SchedTime.inPeriods(text, 10 * 60) == 2)
+    text.copyFromStr("")
+    assert(SchedTime.inPeriods(text, 0) == 0)
+  }
+
+  static void testCalendar()
+  {
+    setup()
+    Calendar c = (Calendar)Sys.app.add(Sys.app, "cal", Calendar.type)
+    c.dates.copyFromStr("01-01..01-08, 2026-05-11; 12-31..01-02 bad 03-08 2026-12-28..2027-01-03 02-30")
+    c.parse()
+    assert(c.entries == 5)
+    assert(c.badEntry == 4)
+    assert(c.isHoliday(2027, 1, 5))
+    assert(c.isHoliday(2026, 5, 11))
+    assert(!c.isHoliday(2027, 5, 11))
+    assert(c.isHoliday(2026, 12, 31))
+    assert(c.isHoliday(2030, 1, 2))
+    assert(c.isHoliday(2026, 3, 8))
+    assert(!c.isHoliday(2026, 3, 9))
+    assert(c.isHoliday(2026, 12, 29))
+    assert(!c.isHoliday(2027, 12, 29))
+    c.evaluate(SchedTime.dayNumber(2026, 12, 31))
+    assert(c.today && c.tomorrow && c.yesterday)
+    c.evaluate(SchedTime.dayNumber(2027, 3, 9))
+    assert(!c.today && !c.tomorrow && c.yesterday)
+    assert(c.status == Pro.config)
+    c.dates.copyFromStr("05-09")
+    c.parse()
+    c.evaluate(SchedTime.dayNumber(2026, 5, 8))
+    assert(c.badEntry == 0 && c.status == Pro.ok && !c.today && c.tomorrow)
+    c.start()
+    c.execute()
+    assert(c.status == Pro.inputBad)
+    Sys.app.cleanupApp()
+  }
+
+  static WeekSchedule schedule()
+  {
+    setup()
+    WeekSchedule s = (WeekSchedule)Sys.app.add(Sys.app, "week", WeekSchedule.type)
+    s.mon.copyFromStr("07:00-12:00, 13:00-18:00=21.5")
+    s.parseAll()
+    return s
+  }
+
+  static void testWorkingDay()
+  {
+    WeekSchedule s = schedule()
+    assert(s.badProgram == 0)
+    s.evaluateAt(mon, 6 * 60 + 59, 0.0f)
+    assert(!s.occupied && s.out == 0.0f)
+    assert(s.nextChange == 1 && s.nextOccupied)
+    s.evaluateAt(mon, 7 * 60, 1.0f)
+    assert(s.occupied && s.out == 1.0f)
+    assert(s.nextChange == 300 && !s.nextOccupied)
+    s.evaluateAt(mon, 12 * 60 + 30, 1.0f)
+    assert(!s.occupied && s.nextChange == 30)
+    s.evaluateAt(mon, 14 * 60, 1.0f)
+    assert(s.occupied && near(s.out, 21.5f, 0.001f))
+    s.evaluateAt(mon, 18 * 60, 1.0f)
+    assert(!s.occupied)
+    // next: Tuesday 07:00 (the default working-day program)
+    s.evaluateAt(mon, 19 * 60, 1.0f)
+    assert(s.nextChange == 12 * 60 && s.nextOccupied)
+    // Friday evening: the weekend is empty, nothing within 48 h
+    s.evaluateAt(fri, 20 * 60, 1.0f)
+    assert(!s.occupied && s.nextChange == -1 && !s.nextOccupied)
+    assert(s.status == Pro.ok)
+    // no clock in the app: inputBad, the outputs hold
+    s.start()
+    s.execute()
+    assert(s.status == Pro.inputBad && !s.occupied && s.nextChange == -1)
+    Sys.app.cleanupApp()
+  }
+
+  static void testOverMidnight()
+  {
+    WeekSchedule s = schedule()
+    s.sat.copyFromStr("22:00-06:00")
+    s.sun.copyFromStr("00:00-24:00")
+    s.parseAll()
+    s.evaluateAt(sat, 21 * 60, 0.0f)
+    assert(!s.occupied && s.nextChange == 60 && s.nextOccupied)
+    s.evaluateAt(sat, 23 * 60, 1.0f)
+    assert(s.occupied)
+    // Sunday is occupied all day, so nothing changes before Monday 00:00
+    assert(s.nextChange == 25 * 60 && !s.nextOccupied)
+    s.sun.copyFromStr("")
+    s.parseAll()
+    s.evaluateAt(sun, 5 * 60, 1.0f)
+    assert(s.occupied)
+    s.evaluateAt(sun, 6 * 60, 1.0f)
+    assert(!s.occupied)
+    Sys.app.cleanupApp()
+  }
+
+  static void testHolidays()
+  {
+    WeekSchedule s = schedule()
+    s.hol.copyFromStr("10:00-14:00")
+    s.parseAll()
+    s.holiday := true
+    s.evaluateAt(mon, 8 * 60, 0.0f)
+    assert(!s.occupied && s.nextChange == 120)
+    s.evaluateAt(mon, 11 * 60, 1.0f)
+    assert(s.occupied)
+    s.holiday := false
+    s.holidayTomorrow := true
+    s.evaluateAt(mon, 20 * 60, 1.0f)
+    assert(!s.occupied && s.nextChange == 14 * 60 && s.nextOccupied)
+    Sys.app.cleanupApp()
+  }
+
+  static void testExtensionAndModes()
+  {
+    WeekSchedule s = schedule()
+    s.evaluateAt(sun, 10 * 60, 0.0f)
+    assert(!s.occupied)
+    s.request := true
+    s.evaluateAt(sun, 10 * 60, 1.0f)
+    assert(s.occupied && s.out == 1.0f && near(s.remaining, 60.0f, 0.1f))
+    s.evaluateAt(sun, 10 * 60 + 30, 1800.0f)
+    assert(s.occupied && near(s.remaining, 30.0f, 0.1f))
+    s.evaluateAt(sun, 11 * 60, 1800.0f)
+    assert(!s.occupied && s.remaining == 0.0f)
+    // the request is still true: no new edge, no new extension
+    s.evaluateAt(sun, 11 * 60 + 1, 1.0f)
+    assert(!s.occupied)
+    s.mode := Pro.modeHand
+    s.evaluateAt(sun, 11 * 60 + 2, 1.0f)
+    assert(s.occupied && s.status == Pro.hand)
+    s.mode := Pro.modeOff
+    s.evaluateAt(mon, 8 * 60, 1.0f)
+    assert(!s.occupied && s.status == Pro.off)
+    Sys.app.cleanupApp()
+  }
+
+  static void testWrongProgram()
+  {
+    WeekSchedule s = schedule()
+    s.tue.copyFromStr("07:00-25:00, 08:00-09:00=x 10:00-11:00")
+    s.parseAll()
+    assert(s.badProgram == 2)
+    s.evaluateAt(tue, 10 * 60 + 30, 0.0f)
+    assert(s.occupied && s.status == Pro.config)
+    s.evaluateAt(tue, 8 * 60 + 30, 1.0f)
+    assert(!s.occupied)
+    Sys.app.cleanupApp()
+  }
+
+  static void testOptimumStart()
+  {
+    setup()
+    OptimumStart o = (OptimumStart)Sys.app.add(Sys.app, "opt", OptimumStart.type)
+    o.room := 17.0f
+    o.outdoor := 0.0f
+    o.nextOccupied := true
+    o.nextChange := 90
+    o.update(0.0f)
+    // 15 min per degree x 4 + 2 min per degree x 10 below the outdoor base
+    assert(near(o.lead, 80.0f, 0.01f))
+    assert(!o.preStart && !o.run)
+    o.nextChange := 80
+    o.update(60.0f)
+    assert(o.preStart && o.run)
+    // warmer room: a shorter lead does not stop a start already made
+    o.room := 20.0f
+    o.nextChange := 10
+    o.update(60.0f)
+    assert(o.preStart && near(o.lead, 35.0f, 0.01f))
+    // occupancy begins below sp - band: learn a longer lead
+    o.occupied := true
+    o.update(60.0f)
+    assert(!o.preStart && o.run)
+    assert(near(o.perDegree, 17.25f, 0.01f))
+    // too early: the room was warm long before occupancy
+    o.perDegree := 15.0f
+    o.occupied := false
+    o.room := 17.0f
+    o.nextChange := 80
+    o.update(1.0f)
+    assert(o.preStart)
+    o.room := 21.0f
+    o.update(1.0f)
+    o.update(60.0f * 60.0f)
+    o.occupied := true
+    o.update(1.0f)
+    assert(near(o.perDegree, 13.5f, 0.01f))
+    // no room temperature: the longest lead
+    o.occupied := false
+    o.room := null
+    o.update(1.0f)
+    assert(o.lead == o.maxLead && o.status == Pro.inputBad)
+    o.enable := false
+    o.update(1.0f)
+    assert(!o.preStart && o.status == Pro.disabled)
+    Sys.app.cleanupApp()
+  }
+}

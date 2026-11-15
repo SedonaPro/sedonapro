@@ -1,0 +1,45 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+@palette=false
+class StrUtils
+{
+	static bool appendBytes(Str dst, byte[] src, int bytesCopy, int maxDstLen)
+	{
+		bool res = true;
+
+		if ((src == null) || (dst == null))
+			return false;
+
+		int len = dst.length();
+		if ((len + bytesCopy) > maxDstLen) {
+			bytesCopy = len - maxDstLen;
+			res = false;
+		}
+
+		for(int i = 0; i < bytesCopy; i++) {
+			dst.set(len + i, src[i]);
+		}
+		dst.set(len + bytesCopy, 0);
+		return res;
+	}
+
+	static bool appendStr(Str dst, Str src, int maxDstLen)
+	{
+		int bytesCopy = src.length();
+		return appendBytes(dst, src.toBytes(), bytesCopy, maxDstLen);
+	}
+}

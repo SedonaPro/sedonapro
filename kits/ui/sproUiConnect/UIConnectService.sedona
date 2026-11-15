@@ -1,0 +1,180 @@
+// -*- mode: c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+@palette=false
+class TcpService extends Service
+{
+
+	virtual int getPortNum()
+	{
+		return 8080;
+	}
+
+	virtual  Str getServiceName()
+	{
+		return "";
+	}
+
+////////////////////////////////////////////////////////////////
+// Service
+////////////////////////////////////////////////////////////////
+
+  virtual override void start()
+  {
+	  int port;
+	  port = getPortNum();
+	  serviceName=getServiceName();
+
+	  // init handlers
+	  foreach (TcpHandler h : handlers)
+		  h.start(this);
+
+	  // open server socket
+	  if (!serverSocket.bind(port))
+	  {
+		  log.error("failed to start service ${serviceName} at port=${port}");
+		  return;
+	  }
+
+	  log.message("started port=$port");
+	  Sys.app.platform.notify(serviceName, Sys.intStr(port));
+  }
+
+  override bool work()
+  {
+    // walk thru each of the handlers to see
+    // if they can process their request
+    TcpHandler free = null
+    foreach (TcpHandler h : handlers)
+    {
+      if (h.isFree())
+      {
+        free = h
+      }
+      else
+      {
+        if (h.work()) return true
+      }
+    }
+
+    // if we don't have any handlers ready to process and
+    // we have a free handler, then check for an accept
+    if (free != null)
+    {
+      if (serverSocket.accept(free.socket))
+      {
+        free.accepted()
+        return true
+      }
+    }
+
+    // no pending work
+    return false
+  }
+
+  override void stop()
+  {
+    serverSocket.close();
+    foreach (TcpHandler h : handlers)
+	    h.stop();
+  }
+
+
+
+
+////////////////////////////////////////////////////////////////
+// Fields
+////////////////////////////////////////////////////////////////
+
+  define Log log;
+
+  define int handlersLen = 4;
+
+  internal TcpHandler[handlersLen] handlers;
+  internal inline TcpServerSocket serverSocket;
+
+  internal inline TcpCommandHandlerList tcpCmdHandlers;
+
+  Str serviceName;
+}
+
+
+
+class UIConnectService extends TcpService
+{
+
+////////////////////////////////////////////////////////////////
+// Slots
+////////////////////////////////////////////////////////////////
+	@config
+	property short port = 8088;
+
+
+	define Str _name = "UIConnectService";
+
+	internal inline UIHandler[TcpService.handlersLen] _handlers  = {...}
+
+	override int getPortNum()
+	{
+		return port;
+	}
+
+	override Str getServiceName()
+	{
+		return _name;
+	}
+
+	void checkAllCompIds(Component parent)
+	{
+		Type t = UIReadWritePoint.type;
+		Component c = Sys.app.getFirstChildOfType(parent, t);
+		for (; c != null; c = Sys.app.getNextSiblingOfType(c, t)) {
+			UIReadWritePoint pnt = (UIReadWritePoint)c;
+			countCompId(parent, pnt.dataId);
+		}		
+	}
+
+	int countCompId(Component parent, int dataId)
+	{
+		int  i = 0;
+		Type t = UIReadWritePoint.type;
+		UIReadWritePoint firstFound = null;
+		Component c = Sys.app.getFirstChildOfType(parent, t);
+		for (; c != null; c = Sys.app.getNextSiblingOfType(c, t)) {
+			UIReadWritePoint pnt = (UIReadWritePoint)c;
+
+			if (pnt.dataId == dataId) {
+				i++;
+				if (i>1) {
+					if (firstFound != null)
+						firstFound.fault := true;
+					pnt.fault := true;
+				} else {
+					pnt.fault := false;					
+					firstFound = pnt;
+				}
+			}
+		}
+		return i;
+	}
+
+	override void start()
+	{
+		handlers = _handlers;
+		super.start();
+	}
+}

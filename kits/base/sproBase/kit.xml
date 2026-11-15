@@ -1,0 +1,16 @@
+<!--
+  -  sproBase: foundation of the SedonaPro professional kits.
+  -  Licensed under the Apache License, Version 2.0
+  -->
+<sedonaKit
+ name = "sproBase"
+ vendor = "SPro"
+ description = "Foundation of the pro kits: common status and auto/hand/off mode, run hours, values that survive a power loss"
+ includeSource = "false"
+ doc = "true"
+>
+  <depend on="sys 1.2+" />
+
+  <source dir="." />
+  <source dir="test" testonly="true" />
+</sedonaKit>

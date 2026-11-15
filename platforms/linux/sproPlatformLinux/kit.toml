@@ -1,0 +1,2 @@
+summary = "Platform service of Linux controllers"
+targets = ["linux"]

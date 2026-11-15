@@ -1,0 +1,114 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Helpers of the MQTT kit; the client itself is tested against a broker by
+** targets/esp32/tests/sim_test.py.
+**
+class MqttTest extends Test
+{
+  static inline Buf(128) b
+  static inline Buf(64) o
+  static inline MqttPubJson pj
+
+  static void testTopicMatch()
+  {
+    assert(Mqtt.topicMatch("a/b", "a/b"))
+    assert(!Mqtt.topicMatch("a/b", "a/c"))
+    assert(Mqtt.topicMatch("a/+/c", "a/x/c"))
+    assert(!Mqtt.topicMatch("a/+", "a/x/c"))
+    assert(Mqtt.topicMatch("a/#", "a/x/c"))
+    assert(Mqtt.topicMatch("a/#", "a"))
+    assert(Mqtt.topicMatch("#", "x"))
+    assert(!Mqtt.topicMatch("#", "\$SYS/load"))
+    assert(!Mqtt.topicMatch("ab", "a"))
+  }
+
+  static void testExpandTopic()
+  {
+    assert(Mqtt.expandTopic(b.bytes, b.bytesLen, "~/temp", "site/ahu1") == 14)
+    assert(b.toStr().equals("site/ahu1/temp"))
+    assert(Mqtt.expandTopic(b.bytes, b.bytesLen, "other/x", "site") == 7)
+    assert(b.toStr().equals("other/x"))
+    assert(Mqtt.expandTopic(b.bytes, 6, "~/temp", "site") == -1)
+  }
+
+  static void testFormat()
+  {
+    assert(Mqtt.fmtFloat(b.bytes, b.bytesLen, 21.5, 1) == 4)
+    assert(b.toStr().equals("21.5"))
+    Mqtt.fmtFloat(b.bytes, b.bytesLen, 0.1, -1)
+    assert(b.toStr().equals("0.1"))
+    Mqtt.fmtFloat(b.bytes, b.bytesLen, null, 2)
+    assert(b.toStr().equals("null"))
+    Mqtt.fmtInt(b.bytes, b.bytesLen, -42)
+    assert(b.toStr().equals("-42"))
+  }
+
+  static void testJsonPut()
+  {
+    int n = Mqtt.jsonPut(b.bytes, b.bytesLen, 0, "t", 21.5, 1)
+    n = Mqtt.jsonPut(b.bytes, b.bytesLen, n, "h", 40.0, 0)
+    assert(b.toStr().equals("{\"t\":21.5,\"h\":40}"))
+    assert(n == 17)
+    assert(Mqtt.jsonPut(b.bytes, 20, n, "long", 1.0, 0) == -1)
+    assert(b.toStr().equals("{\"t\":21.5,\"h\":40}"))
+  }
+
+  static void testPubJson()
+  {
+    pj.keys.copyFromStr("temp, hum")
+    pj.decimals := 1
+    pj.in1 := 21.5
+    pj.in2 := 40.0
+    int n = pj.format(pj.out())
+    assert(pj.out().toStr().equals("{\"temp\":21.5,\"hum\":40.0}"))
+    assert(n == 24)
+    assert(pj.differs())
+    pj.sent()
+    assert(!pj.differs())
+    pj.deadband := 0.5
+    pj.in1 := 21.7
+    assert(!pj.differs())
+    pj.in1 := 22.0
+    assert(pj.differs())
+  }
+
+  static void testJsonGet()
+  {
+    b.copyFromStr("{\"a\": {\"t\": 21.5, \"s\": \"on\"}, \"v\": [1, [2, 3]], \"x\": null}")
+    int len = b.toStr().length()
+    assert(Mqtt.jsonGet(b.bytes, len, "a.t", o.bytes, o.bytesLen) == 4)
+    assert(o.toStr().equals("21.5"))
+    assert(Mqtt.jsonGet(b.bytes, len, "a.s", o.bytes, o.bytesLen) == 2)
+    assert(o.toStr().equals("on"))
+    Mqtt.jsonGet(b.bytes, len, "v.1.0", o.bytes, o.bytesLen)
+    assert(o.toStr().equals("2"))
+    Mqtt.jsonGet(b.bytes, len, "x", o.bytes, o.bytesLen)
+    assert(o.toStr().equals("null"))
+    assert(Mqtt.jsonGet(b.bytes, len, "a.nope", o.bytes, o.bytesLen) == -1)
+    assert(Mqtt.jsonGet(b.bytes, len, "v.5", o.bytes, o.bytesLen) == -1)
+  }
+
+  static void testParse()
+  {
+    b.copyFromStr(" 21.5 ")
+    assert(Mqtt.parseFloat(b.bytes, 6) == 21.5)
+    b.copyFromStr("abc")
+    assert(Mqtt.parseFloat(b.bytes, 3) == null)
+    b.copyFromStr("null")
+    assert(Mqtt.parseFloat(b.bytes, 4) == null)
+    b.copyFromStr("-7")
+    assert(Mqtt.parseInt(b.bytes, 2) == -7)
+    b.copyFromStr("ON")
+    assert(Mqtt.parseBool(b.bytes, 2) == 1)
+    b.copyFromStr("false")
+    assert(Mqtt.parseBool(b.bytes, 5) == 0)
+    b.copyFromStr("2")
+    assert(Mqtt.parseBool(b.bytes, 1) == 1)
+    b.copyFromStr("maybe")
+    assert(Mqtt.parseBool(b.bytes, 5) == -1)
+  }
+}

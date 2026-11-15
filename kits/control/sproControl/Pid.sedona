@@ -1,0 +1,353 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** PID controller for building and process plants.
+**
+**  - Gains in engineering terms: kp in % of out per unit of error, ti and
+**    td in seconds (from the core LP: ti = 60 / ki).
+**  - Reverse acting by default (heating: out rises while pv is below sp),
+**    'direct' for cooling and exhaust.
+**  - No windup: at outMin/outMax or the rate limit the integral stops
+**    where the output is, so the loop leaves the limit as soon as the
+**    error turns.
+**  - Bumpless: start, hand/off/disable back to auto, tracking, a change
+**    of kp, and a bad pv all continue from the current out without a jump.
+**  - D acts on pv (a setpoint step gives no kick) through a filter.
+**  - spWeight < 1 softens the P reaction to setpoint changes.
+**  - deadband stops integration near the setpoint (no valve hunting).
+**  - Override control (low/high limit loops): link LoopSelect.out to
+**    'feedback' of every loop and set useFeedback; each loop's integral
+**    then follows the selected output and the loops hand over smoothly.
+**    At its start such a loop stands at the feedback plus its P part:
+**    a limit loop far from its limit does not take the actuator over.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Pid extends Component
+{
+  ** measured value
+  @summary property float pv
+  ** setpoint
+  @config @summary property float sp
+  ** feedforward, % added to out
+  property float ff = 0.0f
+  ** false: out is offValue (status disabled)
+  @config property bool enable = true
+  ** while true out follows trackValue (start sequence, forced position)
+  property bool track = false
+  property float trackValue = 0.0f
+  ** selected output of a LoopSelect (used with useFeedback)
+  property float feedback = null
+
+  ** auto, hand (out = handValue), off (out = offValue)
+  @config @range=Pro.modeRange property byte mode = 0
+  @config property float handValue = 0.0f
+  ** out in off and while enable is false
+  @config property float offValue = 0.0f
+
+  ** out rises when pv rises above sp (cooling, exhaust fan); default: out rises when pv falls (heating)
+  @config property bool direct = false
+
+  ** proportional gain: % of out per unit of error
+  @config @min=0 @precision=3 property float kp = 10.0f
+  ** integral time, s; 0 = no integral (P or PD with a fixed bias)
+  @config @unit=Units.second @min=0 property float ti = 120.0f
+  ** derivative time, s; 0 = no derivative
+  @config @unit=Units.second @min=0 property float td = 0.0f
+  ** filter of the derivative: time constant as a share of td
+  @config @min=0.01 @max=1 property float tdFilter = 0.125f
+  ** weight of sp in the P part: 1 classic, 0 no kick on setpoint changes
+  @config @min=0 @max=1 property float spWeight = 1.0f
+  ** no integration while |error| is below this (stops hunting)
+  @config @min=0 property float deadband = 0.0f
+
+  ** out range, %
+  @config property float outMin = 0.0f
+  @config property float outMax = 100.0f
+  ** fastest change of out, % per second; 0 = no limit
+  @config @min=0 property float outRate = 0.0f
+  ** sampling period, s; 0 = every scan
+  @config @unit=Units.second @min=0 property float period = 1.0f
+
+  define Str badRange = "hold, safe"
+  ** while pv or sp is invalid: hold out, or go to safeValue
+  @config @range=badRange property byte onBad = 0
+  @config property float safeValue = 0.0f
+  ** out at start-up and after reset; the loop continues from it
+  @config property float startValue = 0.0f
+
+  ** use feedback as the integral's reference (override control with LoopSelect)
+  @config property bool useFeedback = false
+
+  ** integral time while out decreases, s; 0 = ti (e.g. a heating valve
+  ** that must open fast and close slowly near frost)
+  @config @unit=Units.second @min=0 property float tiDown = 0.0f
+
+  ** dynamic low limit of out (null = none): a minimum valve opening
+  ** computed from the outdoor temperature; wins over highLimit
+  property float lowLimit = null
+  ** dynamic high limit of out (null = none)
+  property float highLimit = null
+  ** multiplies kp (gain scheduling: a more aggressive loop near a limit)
+  property float gainScale = 1.0f
+
+  ** the output, %
+  @readonly @summary @precision=2 property float out
+  ** error: sp - pv (pv - sp when direct)
+  @readonly @precision=3 property float error
+  ** P, I and D parts of out (for tuning)
+  @readonly @precision=2 property float pPart
+  @readonly @precision=2 property float iPart
+  @readonly @precision=2 property float dPart
+  ** out is held by outMin/outMax or outRate
+  @readonly property bool limited
+  ** ok, limited, hand, off, disabled, inputBad, config (outMin >= outMax)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** start over from startValue
+  action void reset()
+  {
+    primed = false
+  }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  ** one step of dt seconds
+  void update(float dt)
+  {
+    acc += dt
+    if (primed && period > 0.0f && acc < period) return
+    float h = acc
+    acc = 0.0f
+
+    float lo = outMin
+    float hi = outMax
+    if (!Pro.valid(lo) || !Pro.valid(hi) || lo >= hi)
+    {
+      hold(offValue, Pro.config)
+      return
+    }
+    // dynamic limits narrow the range; the low limit wins (protection)
+    if (Pro.valid(highLimit) && highLimit < hi) hi = Pro.max(highLimit, lo)
+    if (Pro.valid(lowLimit) && lowLimit > lo) lo = Pro.min(lowLimit, outMax)
+    if (lo > hi) hi = lo
+    if (!primed)
+    {
+      primed = true
+      algo.hold(Pro.clamp(startValue, lo, hi))
+      h = 0.0f
+    }
+
+    if (mode == Pro.modeHand) { hold(handValue, Pro.hand); return }
+    if (mode == Pro.modeOff) { hold(offValue, Pro.off); return }
+    if (enable != true) { hold(offValue, Pro.disabled); return }
+    if (track == true)
+    {
+      if (Pro.valid(trackValue)) hold(Pro.clamp(trackValue, lo, hi), Pro.ok)
+      else algo.bumpless = true
+      return
+    }
+    float g = Pro.valid(gainScale) && gainScale > 0.0f ? gainScale : 1.0f
+    if (!Pro.valid(pv) || !Pro.valid(sp) || !Pro.valid(kp))
+    {
+      if (onBad == 1) algo.out = Pro.clamp(safeValue, lo, hi)
+      else algo.out = Pro.clamp(algo.out, lo, hi)
+      algo.bumpless = true
+      out := algo.out
+      error := null
+      limited := false
+      status := Pro.inputBad
+      return
+    }
+
+    algo.kp = kp * g
+    algo.ti = ti
+    algo.tiDown = tiDown
+    algo.td = td
+    algo.tdFilter = tdFilter
+    algo.spWeight = spWeight
+    algo.deadband = deadband
+    algo.outRate = outRate
+    algo.direct = direct
+    float fbk = null
+    if (useFeedback) fbk = feedback
+    algo.run(h, pv, sp, Pro.valid(ff) ? ff : 0.0f, lo, hi, fbk)
+
+    out := algo.out
+    error := algo.error
+    pPart := algo.p
+    iPart := algo.i
+    dPart := algo.d
+    limited := algo.limited
+    status := limited ? Pro.limited : Pro.ok
+  }
+
+  ** out held by hand/off/disable/track/config: the loop follows it
+  private void hold(float value, int st)
+  {
+    algo.hold(value)
+    out := algo.out
+    limited := false
+    status := st
+    if (Pro.valid(pv) && Pro.valid(sp)) error := direct ? pv - sp : sp - pv
+    else error := null
+  }
+
+  float acc
+  bool primed
+  inline PidAlgo algo
+  inline Ticker ticker
+}
+
+**
+** The PID algorithm of Pid without the component: the larger control
+** blocks (sproHvac) keep several of them inside.  Set the fields, call
+** run() each sample with valid pv and sp, or hold() while the loop is
+** overridden; the next run() continues from out without a jump.  With a
+** feedback (external reset) it starts from the feedback plus the P part,
+** as the loop of an override (select) pair would stand anyway.
+**
+class PidAlgo
+{
+  float kp = 10.0f
+  float ti = 120.0f
+  ** integral time while out decreases; 0 = ti
+  float tiDown = 0.0f
+  float td = 0.0f
+  float tdFilter = 0.125f
+  float spWeight = 1.0f
+  float deadband = 0.0f
+  float outRate = 0.0f
+  bool direct = false
+
+  float out
+  float error
+  float p
+  float i
+  float d
+  bool limited
+  bool bumpless = true
+
+  ** out is held at value by something else; the loop continues from it
+  void hold(float value)
+  {
+    if (Pro.valid(value)) out = value
+    bumpless = true
+    limited = false
+  }
+
+  ** one sample of h seconds; feedback null = no external reset; returns out
+  float run(float h, float pv, float sp, float ff, float lo, float hi, float feedback)
+  {
+    float sign = direct ? -1.0f : 1.0f
+    float e = sign * (sp - pv)
+    float pp = kp * sign * (spWeight * sp - pv)
+
+    if (bumpless)
+    {
+      // with an external reset the integral is the selected output from
+      // the start (the steady state of override control): a limit loop far
+      // from its limit must not hold the actuator until it catches up
+      bumpless = false
+      d = 0.0f
+      lastPv = pv
+      i = Pro.valid(feedback) ? feedback - ff : out - pp - ff
+      lastKp = kp
+      lastW = spWeight
+    }
+    else if (kp != lastKp || spWeight != lastW)
+    {
+      // gain changed: shift the integral so out does not jump
+      i += lastKp * sign * (lastW * sp - pv) - pp
+      lastKp = kp
+      lastW = spWeight
+    }
+
+    // derivative on pv, filtered
+    if (td > 0.0f && h > 0.0f)
+    {
+      float raw = -kp * td * sign * (pv - lastPv) / h
+      d += (raw - d) * h / (td * tdFilter + h)
+    }
+    else
+      d = 0.0f
+    lastPv = pv
+
+    bool fb = Pro.valid(feedback)
+    if (fb)
+    {
+      // external reset: the integral is a lag of the selected output
+      if (ti > 0.0f && h > 0.0f)
+        i += (feedback - ff - i) * Pro.min(1.0f, h / ti)
+    }
+    else if (ti > 0.0f && Pro.abs(e) > deadband)
+    {
+      float di = kp * e * h / ti
+      if (di < 0.0f && tiDown > 0.0f) di = kp * e * h / tiDown
+      i += di
+    }
+
+    float v = pp + i + d + ff
+    float u = Pro.clamp(v, lo, hi)
+    if (outRate > 0.0f && !bumpless)
+      u = Pro.clamp(u, out - outRate * h, out + outRate * h)
+    if (u != v && ti > 0.0f && !fb)
+      i += u - v          // anti-windup: the integral stops where out is
+
+    out = u
+    error = e
+    p = pp
+    limited = u != v
+    return u
+  }
+
+  float lastPv
+  float lastKp
+  float lastW
+}
+
+**
+** Low or high select of loop outputs for override control: a supply
+** air low limit over a room loop, a pressure limit over a flow loop.
+** Link out to the actuator and to 'feedback' of every Pid (with
+** useFeedback); the loop that asks for less (min) or more (max) wins
+** and the others follow it without windup.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class LoopSelect extends Component
+{
+  property float in1 = null
+  property float in2 = null
+  property float in3 = null
+
+  ** choose the lowest (true) or the highest (false) input
+  @config property bool low = true
+
+  @readonly @summary property float out
+  ** input that won, 1..3 (0: none valid)
+  @readonly property int selected
+  ** ok, inputBad (no valid input: out holds)
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute()
+  {
+    int best = 0
+    float v = null
+    for (int k = 1; k <= 3; k++)
+    {
+      float x = k == 1 ? in1 : (k == 2 ? in2 : in3)
+      if (!Pro.valid(x)) continue
+      if (best == 0 || (low ? x < v : x > v)) { best = k; v = x }
+    }
+    selected := best
+    if (best == 0)
+    {
+      status := Pro.inputBad
+      return
+    }
+    out := v
+    status := Pro.ok
+  }
+}

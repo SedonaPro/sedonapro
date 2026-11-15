@@ -1,0 +1,265 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Heating substation (ИТП) configurator: up to two weather-compensated
+** heating circuits with single or twin pumps, hot water and make-up.
+** Choose the parts and run 'build': the component fills itself with the
+** sproHeat and sproEquip blocks, the I/O points of the board and the
+** links.
+**
+**   outT -> curve1 -> circ1 (supply PI, return limit, frost) -> valve1
+**                     circ1.pump -> lead1 (duty/standby) -> p1a, p1b -> do1a, do1b
+**   dhwT -> dhw (scald limit, disinfection, priority) -> dhwV, dhwP
+**   press -> makeup -> fill;  all alarms -> alarms -> alarm (DO)
+**
+** Inputs: request (heating and hot water allowed: a BMS, a season),
+** setback (night setback of the curves: a schedule) and disinfect (a
+** rising edge starts the hot water disinfection: a weekly schedule).
+** Circuit 2 is another curve and valve (ventilation, a second building)
+** with its own settings.  The hot water priority (dhwPriority) caps the
+** heating valves while the hot water lacks heat.
+**
+** A rebuild after changing the options keeps every block whose type is
+** still right, with its settings and run hours.  Everything inside belongs
+** to the configurator: put your own logic next to it, not inside.
+**
+@niagaraIcon="module://icons/x16/folder.png"
+@widget="heat"
+class HeatStation extends Assembly
+{
+  ** heating and hot water allowed (a BMS, a season)
+  @summary property bool request = true
+  ** night setback of the heating curves (link a schedule)
+  property bool setback
+  ** a rising edge starts the hot water disinfection (link a weekly schedule)
+  property bool disinfect
+
+  ** heating circuits, 0..2
+  @config @min=0 @max=2 property int circuits = 1
+
+  define Str pumpsRange = "single, twin"
+  ** circulation pumps of a heating circuit: one, or a duty/standby pair
+  @config @range=pumpsRange property byte pumps = 1
+  ** a fault input per pump (thermal relay, pump fault)
+  @config property bool faultInputs = true
+  ** a differential pressure switch per circuit proves the circulation
+  ** (without it the running pump does)
+  @config property bool flowSwitch = false
+  ** return temperature sensor per circuit (return limit, frost)
+  @config property bool returnSensor = true
+  ** room temperature sensor (corrects the curve of circuit 1)
+  @config property bool roomSensor = false
+  ** hot water circuit
+  @config property bool dhw = true
+  ** hot water circulation pump
+  @config property bool dhwCirc = true
+  ** hot water priority over heating
+  @config property bool dhwPriority = false
+  ** make-up of the heating circuits
+  @config property bool makeUp = true
+  ** common alarm output
+  @config property bool alarmOutput = true
+
+  ** take free board channels for new points
+  @config property bool autoChannels = true
+  ** build at start when empty
+  @config property bool buildOnStart = true
+
+  ** components inside
+  @readonly property int parts
+  ** points without a channel (the board has too few)
+  @readonly property int missing
+  ** "AI1 outT, AI2 ret1 ..."
+  @readonly @asStr property Buf(300) ioList = ""
+  ** ok, config (points without a channel or a part could not be added)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** build or rebuild the substation from the options
+  action void build()
+  {
+    beginBuild()
+    assemble()
+    parts := endBuild()
+    missing := assignChannels(autoChannels, ioList)
+    changed(HeatStation.ioList)
+    status := missing > 0 || failed > 0 ? Pro.config : Pro.ok
+  }
+
+  override void start()
+  {
+    if (buildOnStart && children == nullId) startBuild = true
+  }
+
+  virtual override void execute()
+  {
+    if (startBuild) { startBuild = false; build() }
+  }
+
+  private void assemble()
+  {
+    int n = circuits < 0 ? 0 : (circuits > 2 ? 2 : circuits)
+
+    AnalogInput outT = ai("outT", true)
+    AnalogInput roomT = ai("roomT", roomSensor && n > 0)
+
+    // hot water first: the circuits link its heatingLimit
+    DhwCircuit hw = null
+    if (dhw)
+    {
+      hw = (DhwCircuit)need("dhw", DhwCircuit.type)
+      if (hw != null) hw.usePriority := dhwPriority
+    }
+
+    AlarmSum sum = (AlarmSum)need("alarms", AlarmSum.type)
+    for (int k = 1; k <= 2; k++) circuit(k, k <= n, outT, roomT, hw, sum)
+
+    // hot water
+    AnalogInput dhwT = ai("dhwT", dhw)
+    AnalogOutput dhwV = aout("dhwV", dhw)
+    DigitalOutput dhwP = dout("dhwP", dhw && dhwCirc)
+    if (hw != null)
+    {
+      link(dhwT, AnalogInput.out, hw, DhwCircuit.temp)
+      link(this, HeatStation.request, hw, DhwCircuit.enable)
+      link(this, HeatStation.disinfect, hw, DhwCircuit.disinfect)
+      link(hw, DhwCircuit.valve, dhwV, AnalogOutput.in)
+      if (dhwP != null) link(hw, DhwCircuit.circPump, dhwP, DigitalOutput.in)
+    }
+    alarmIn(sum, AlarmSum.in3, hw, DhwCircuit.alarm)
+
+    // make-up
+    AnalogInput press = ai("press", makeUp)
+    MakeUp mu = null
+    if (makeUp) mu = (MakeUp)need("makeup", MakeUp.type)
+    DigitalOutput fill = dout("fill", makeUp)
+    if (mu != null)
+    {
+      link(press, AnalogInput.out, mu, MakeUp.pressure)
+      link(mu, MakeUp.out, fill, DigitalOutput.in)
+    }
+    alarmIn(sum, AlarmSum.in4, mu, MakeUp.alarm)
+
+    DigitalOutput al = dout("alarm", alarmOutput)
+    link(sum, AlarmSum.any, al, DigitalOutput.in)
+  }
+
+  ** heating circuit k: curve, circuit, pumps, their points and links
+  private void circuit(int k, bool want, AnalogInput outT, AnalogInput roomT, DhwCircuit hw, AlarmSum sum)
+  {
+    bool twin = pumps == 1
+    HeatCurve curve = null
+    HeatingCircuit circ = null
+    LeadLag lead = null
+    if (want)
+    {
+      curve = (HeatCurve)need(nameOf("curve", k, 0), HeatCurve.type)
+      circ = (HeatingCircuit)need(nameOf("circ", k, 0), HeatingCircuit.type)
+      if (twin)
+      {
+        lead = (LeadLag)need(nameOf("lead", k, 0), LeadLag.type)
+        if (lead != null)
+        {
+          lead.units := 2
+          if (fresh) lead.overlap := 3.0f
+        }
+      }
+    }
+    Motor pa = motor(nameOf("p", k, 'a'), want)
+    Motor pb = motor(nameOf("p", k, 'b'), want && twin)
+
+    AnalogInput ret = ai(nameOf("ret", k, 0), want && returnSensor)
+    AnalogInput sup = ai(nameOf("sup", k, 0), want)
+    AnalogOutput valve = aout(nameOf("valve", k, 0), want)
+    DigitalInput dp = di(nameOf("dp", k, 0), want && flowSwitch)
+    DigitalInput fa = di(nameOf("flt", k, 'a'), want && faultInputs)
+    DigitalInput fb = di(nameOf("flt", k, 'b'), want && twin && faultInputs)
+    DigitalOutput da = dout(nameOf("do", k, 'a'), want)
+    DigitalOutput db = dout(nameOf("do", k, 'b'), want && twin)
+
+    Slot inCirc = k == 1 ? AlarmSum.in1 : AlarmSum.in2
+    Slot inA = k == 1 ? AlarmSum.in5 : AlarmSum.in7
+    Slot inB = k == 1 ? AlarmSum.in6 : AlarmSum.in8
+    alarmIn(sum, inCirc, circ, HeatingCircuit.alarm)
+    alarmIn(sum, inA, pa, Motor.alarm)
+    alarmIn(sum, inB, pb, Motor.alarm)
+    if (curve == null || circ == null) return
+
+    // the curve
+    link(outT, AnalogInput.out, curve, HeatCurve.outdoor)
+    if (k == 1 && roomT != null) link(roomT, AnalogInput.out, curve, HeatCurve.room)
+    else { unlink(curve, HeatCurve.room); curve.room := null }
+    link(this, HeatStation.setback, curve, HeatCurve.setback)
+
+    // the circuit
+    link(this, HeatStation.request, circ, HeatingCircuit.enable)
+    link(curve, HeatCurve.supplySp, circ, HeatingCircuit.supplySp)
+    link(curve, HeatCurve.heating, circ, HeatingCircuit.heating)
+    link(curve, HeatCurve.returnSp, circ, HeatingCircuit.returnMax)
+    link(outT, AnalogInput.out, circ, HeatingCircuit.outdoor)
+    link(sup, AnalogInput.out, circ, HeatingCircuit.supply)
+    if (ret != null) link(ret, AnalogInput.out, circ, HeatingCircuit.returnTemp)
+    else { unlink(circ, HeatingCircuit.returnTemp); circ.returnTemp := null }
+    link(circ, HeatingCircuit.valve, valve, AnalogOutput.in)
+    if (hw != null) link(hw, DhwCircuit.heatingLimit, circ, HeatingCircuit.limit)
+    else { unlink(circ, HeatingCircuit.limit); circ.limit := 100.0f }
+
+    // the pumps
+    if (lead != null)
+    {
+      link(circ, HeatingCircuit.pump, lead, LeadLag.request)
+      link(lead, LeadLag.req1, pa, Motor.request)
+      link(lead, LeadLag.req2, pb, Motor.request)
+      link(pa, Motor.available, lead, LeadLag.avail1)
+      link(pb, Motor.available, lead, LeadLag.avail2)
+    }
+    else link(circ, HeatingCircuit.pump, pa, Motor.request)
+    link(pa, Motor.cmd, da, DigitalOutput.in)
+    link(pb, Motor.cmd, db, DigitalOutput.in)
+    if (fa != null) link(fa, DigitalInput.out, pa, Motor.fault)
+    if (fb != null) link(fb, DigitalInput.out, pb, Motor.fault)
+
+    // circulation: the switch, or a running pump
+    if (dp != null)
+    {
+      link(dp, DigitalInput.out, circ, HeatingCircuit.flow)
+      unlink(circ, HeatingCircuit.flow2)
+      circ.flow2 := false
+    }
+    else
+    {
+      link(pa, Motor.running, circ, HeatingCircuit.flow)
+      if (pb != null) link(pb, Motor.running, circ, HeatingCircuit.flow2)
+      else { unlink(circ, HeatingCircuit.flow2); circ.flow2 := false }
+    }
+  }
+
+  ** a circulation pump, null when not wanted
+  private Motor motor(Str name, bool want)
+  {
+    if (!want) return null
+    Motor m = (Motor)need(name, Motor.type)
+    if (m != null && fresh)
+    {
+      m.startDelay := 2.0f
+      m.minStop := 5.0f
+      // a weekly run in summer: the pump does not seize
+      m.exerciseHours := 168.0f
+      m.exerciseTime := 30.0f
+    }
+    return m
+  }
+
+  ** c.s into an input of the alarm sum, or the input cleared without c
+  private void alarmIn(AlarmSum sum, Slot to, Component c, Slot s)
+  {
+    if (sum == null) return
+    if (c != null) { link(c, s, sum, to); return }
+    unlink(sum, to)
+    sum.setBool(to, false)
+  }
+
+  bool startBuild
+}

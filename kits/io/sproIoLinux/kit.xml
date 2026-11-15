@@ -1,0 +1,15 @@
+<sedonaKit
+    name="sproIoLinux"
+    vendor="SPro"
+    description="Serial ports of a Linux controller (from the board file)"
+    >
+
+  <depend on="sys 1.2+" />
+  <depend on="inet 1.2+" />
+  <depend on="sproLib 1.2+" />
+  <depend on="sproUtil 1.2+" />
+  <depend on="sproIo 1.2+" />
+  <depend on="sproHal 1.2+" />
+
+  <source dir="." />
+</sedonaKit>

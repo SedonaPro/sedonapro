@@ -1,0 +1,7306 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "name": "app",
+      "type": "sys::App",
+      "kitPart": "sys-d3984c51",
+      "parent": 65535,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 6,
+          "name": "deviceName",
+          "type": "sys::Buf",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 7,
+          "name": "appName",
+          "type": "sys::Buf",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 8,
+          "name": "scanPeriod",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 9,
+          "name": "guardTime",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 10,
+          "name": "timeToSteadyState",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 11,
+          "name": "hibernationResetsSteadyState",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "service",
+      "type": "sys::Folder",
+      "kitPart": "sys-d3984c51",
+      "parent": 0,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "play",
+      "type": "sys::Folder",
+      "kitPart": "sys-d3984c51",
+      "parent": 0,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "sim",
+      "type": "sys::Folder",
+      "kitPart": "sys-d3984c51",
+      "parent": 0,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "plat",
+      "type": "sys::PlatformService",
+      "kitPart": "sys-d3984c51",
+      "parent": 1,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "platformId",
+          "type": "sys::Buf",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "platformVer",
+          "type": "sys::Buf",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "memAvailable",
+          "type": "sys::long",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "users",
+      "type": "sys::UserService",
+      "kitPart": "sys-d3984c51",
+      "parent": 1,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "sox",
+      "type": "sox::SoxService",
+      "kitPart": "sox-397a84dd",
+      "parent": 1,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "port",
+          "type": "sys::short",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "receiveMax",
+          "type": "sys::byte",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "eventsPerSec",
+          "type": "sys::short",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "web",
+      "type": "web::WebService",
+      "kitPart": "web-0462d43e",
+      "parent": 1,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "port",
+          "type": "sys::short",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 80,
+      "name": "ui",
+      "type": "bclimateUIConnect::UIConnectService",
+      "kitPart": "bclimateUIConnect-72868fa0",
+      "parent": 1,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "port",
+          "type": "sys::short",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "pstore",
+      "type": "pstore::PstoreService",
+      "kitPart": "pstore-7ea2cb06",
+      "parent": 1,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "filename",
+          "type": "sys::Buf",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "fileSize",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "size",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "time",
+      "type": "datetimeStd::DateTimeServiceStd",
+      "kitPart": "datetimeStd-fc5628d7",
+      "parent": 1,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "nanos",
+          "type": "sys::long",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 2,
+          "name": "hour",
+          "type": "sys::byte",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "minute",
+          "type": "sys::byte",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "second",
+          "type": "sys::byte",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "year",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "month",
+          "type": "sys::byte",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "day",
+          "type": "sys::byte",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 8,
+          "name": "dayOfWeek",
+          "type": "sys::byte",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 9,
+          "name": "utcOffset",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 10,
+          "name": "osUtcOffset",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 11,
+          "name": "tz",
+          "type": "sys::Buf",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "rampA",
+      "type": "func::Ramp",
+      "kitPart": "func-821b7396",
+      "parent": 10,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 2,
+          "name": "min",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "max",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "period",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "rampType",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "rampB",
+      "type": "func::Ramp",
+      "kitPart": "func-821b7396",
+      "parent": 10,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 2,
+          "name": "min",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "max",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "period",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "rampType",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "adder",
+      "type": "math::Add2",
+      "kitPart": "math-c22b255c",
+      "parent": 10,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 2,
+          "name": "in1",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "in2",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "name": "expr",
+      "type": "bclimateExpression::ExpressionFloat",
+      "kitPart": "bclimateExpression-2e0a7393",
+      "parent": 10,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "ok",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 2,
+          "name": "expr",
+          "type": "sys::Buf",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "in1",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "in2",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "in3",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "in4",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 8,
+          "name": "in5",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 9,
+          "name": "in6",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 10,
+          "name": "in7",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 11,
+          "name": "in8",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "name": "blk1",
+      "type": "bclimateMath::Abs",
+      "kitPart": "bclimateMath-8a78be5b",
+      "parent": 10,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "in",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 2,
+          "name": "out",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "name": "blk2",
+      "type": "control::Add4",
+      "kitPart": "control-808b7db3",
+      "parent": 10,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 2,
+          "name": "in1",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "in2",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "in3",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "in4",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "compare",
+      "type": "sys::Folder",
+      "kitPart": "sys-d3984c51",
+      "parent": 16,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "name": "cascade",
+      "type": "bccSim::SimClock",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 16,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "run",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 2,
+          "name": "autoRun",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "dt",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "rate",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "maxSteps",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 6,
+          "name": "time",
+          "type": "sys::double",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "steps",
+          "type": "sys::long",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 8,
+          "name": "backlog",
+          "type": "sys::double",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 9,
+          "name": "overloaded",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 10,
+          "name": "fault",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "admin",
+      "type": "sys::User",
+      "kitPart": "sys-d3984c51",
+      "parent": 3,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "perm",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "prov",
+          "type": "sys::byte",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "UIReadW",
+      "type": "bclimateUIConnect::UIReadWritePointFloat",
+      "kitPart": "bclimateUIConnect-72868fa0",
+      "parent": 80,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "debugEnable",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "debugExecuteEnable",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "debugChangedEnable",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "dataId",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "fault",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "val",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "UIRead1",
+      "type": "bclimateUIConnect::UIReadWritePointInt",
+      "kitPart": "bclimateUIConnect-72868fa0",
+      "parent": 80,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "debugEnable",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "debugExecuteEnable",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "debugChangedEnable",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "dataId",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "fault",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "val",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "UIRead2",
+      "type": "bclimateUIConnect::UIReadWritePointStr",
+      "kitPart": "bclimateUIConnect-72868fa0",
+      "parent": 80,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "debugEnable",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "debugExecuteEnable",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "debugChangedEnable",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "dataId",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "fault",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "val",
+          "type": "sys::Buf",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "UIRead3",
+      "type": "bclimateUIConnect::UIReadWritePointBool",
+      "kitPart": "bclimateUIConnect-72868fa0",
+      "parent": 80,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "debugEnable",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "debugExecuteEnable",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "debugChangedEnable",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "dataId",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "fault",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "val",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "valIn",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "name": "plain",
+      "type": "bccSim::SimClock",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 18,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "run",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 2,
+          "name": "autoRun",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "dt",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "rate",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "maxSteps",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 6,
+          "name": "time",
+          "type": "sys::double",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "steps",
+          "type": "sys::long",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 8,
+          "name": "backlog",
+          "type": "sys::double",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 9,
+          "name": "overloaded",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 10,
+          "name": "fault",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "name": "assist",
+      "type": "bccSim::SimClock",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 18,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "run",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 2,
+          "name": "autoRun",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "dt",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "rate",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "maxSteps",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 6,
+          "name": "time",
+          "type": "sys::double",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "steps",
+          "type": "sys::long",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 8,
+          "name": "backlog",
+          "type": "sys::double",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 9,
+          "name": "overloaded",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 10,
+          "name": "fault",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "name": "water",
+      "type": "bccSim::StepSignal",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 40,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "before",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "after",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "at",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "name": "setpt",
+      "type": "bccSim::StepSignal",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 40,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "before",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "after",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "at",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "name": "resetOn",
+      "type": "bccSim::BoolStep",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 40,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "before",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "after",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "at",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "out",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "name": "manual",
+      "type": "bccSim::BoolStep",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 40,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "before",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "after",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "at",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "out",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "name": "hand",
+      "type": "bccSim::StepSignal",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 40,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "before",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "after",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "at",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "name": "master",
+      "type": "bccSim::SimPid",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 40,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "sp",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "pv",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "feedforward",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "enabled",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "manual",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "manualOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 8,
+          "name": "tracking",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 9,
+          "name": "trackOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 10,
+          "name": "externalReset",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 11,
+          "name": "resetOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 12,
+          "name": "useLimits",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 13,
+          "name": "limitLo",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 14,
+          "name": "limitHi",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 15,
+          "name": "kp",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 16,
+          "name": "ti",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 17,
+          "name": "td",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 18,
+          "name": "tf",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 19,
+          "name": "tt",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 20,
+          "name": "beta",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 21,
+          "name": "lo",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 22,
+          "name": "hi",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 23,
+          "name": "slew",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 24,
+          "name": "initial",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 25,
+          "name": "safeOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 26,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 27,
+          "name": "integral",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 28,
+          "name": "derivative",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 29,
+          "name": "limited",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 30,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "name": "ff",
+      "type": "bccSim::CoilFeedforward",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 40,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "target",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "waterIn",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "airIn",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "airScale",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "waterFlow",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 7,
+          "name": "airFlow",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 8,
+          "name": "cpWater",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 9,
+          "name": "cpAir",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 10,
+          "name": "ua",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 11,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 12,
+          "name": "reachable",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 13,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "name": "slave",
+      "type": "bccSim::SimPid",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 40,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "sp",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "pv",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "feedforward",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "enabled",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "manual",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "manualOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 8,
+          "name": "tracking",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 9,
+          "name": "trackOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 10,
+          "name": "externalReset",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 11,
+          "name": "resetOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 12,
+          "name": "useLimits",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 13,
+          "name": "limitLo",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 14,
+          "name": "limitHi",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 15,
+          "name": "kp",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 16,
+          "name": "ti",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 17,
+          "name": "td",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 18,
+          "name": "tf",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 19,
+          "name": "tt",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 20,
+          "name": "beta",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 21,
+          "name": "lo",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 22,
+          "name": "hi",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 23,
+          "name": "slew",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 24,
+          "name": "initial",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 25,
+          "name": "safeOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 26,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 27,
+          "name": "integral",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 28,
+          "name": "derivative",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 29,
+          "name": "limited",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 30,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "name": "valve",
+      "type": "bccSim::Valve",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 40,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "command",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "travel",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "initial",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "stuck",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "name": "coil",
+      "type": "bccSim::WaterCoil",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 40,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "waterIn",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "airIn",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "opening",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "waterScale",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "airScale",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "waterFlow",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 8,
+          "name": "airFlow",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 9,
+          "name": "cpWater",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 10,
+          "name": "cpAir",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 11,
+          "name": "ua",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 12,
+          "name": "waterCapacity",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 13,
+          "name": "airCapacity",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 14,
+          "name": "initialWater",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 15,
+          "name": "initialAir",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 16,
+          "name": "waterOut",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 17,
+          "name": "airOut",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 18,
+          "name": "heat",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 19,
+          "name": "waterPower",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 20,
+          "name": "airPower",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 21,
+          "name": "storagePower",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 22,
+          "name": "balanceError",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 23,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "name": "room",
+      "type": "bccSim::Room",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 40,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "supply",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "outdoor",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "load",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "flowScale",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "airFlow",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 7,
+          "name": "cpAir",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 8,
+          "name": "envelope",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 9,
+          "name": "capacity",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 10,
+          "name": "initial",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 11,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 12,
+          "name": "supplyPower",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 13,
+          "name": "envelopePower",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 14,
+          "name": "balanceError",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 15,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "name": "water",
+      "type": "bccSim::StepSignal",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 19,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "before",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "after",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "at",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "target",
+      "type": "bccSim::StepSignal",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 19,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "before",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "after",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "at",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "name": "limits",
+      "type": "bccSim::BoolStep",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 19,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "before",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "after",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "at",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "out",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "name": "cap",
+      "type": "bccSim::Lookup5",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 19,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "in",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "x0",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "x1",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "x2",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 6,
+          "name": "x3",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 7,
+          "name": "x4",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 8,
+          "name": "y0",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 9,
+          "name": "y1",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 10,
+          "name": "y2",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 11,
+          "name": "y3",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 12,
+          "name": "y4",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 13,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 14,
+          "name": "clamped",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 15,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "name": "ff",
+      "type": "bccSim::CoilFeedforward",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 19,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "target",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "waterIn",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "airIn",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "airScale",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "waterFlow",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 7,
+          "name": "airFlow",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 8,
+          "name": "cpWater",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 9,
+          "name": "cpAir",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 10,
+          "name": "ua",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 11,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 12,
+          "name": "reachable",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 13,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "name": "pid",
+      "type": "bccSim::SimPid",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 19,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "sp",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "pv",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "feedforward",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "enabled",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "manual",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "manualOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 8,
+          "name": "tracking",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 9,
+          "name": "trackOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 10,
+          "name": "externalReset",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 11,
+          "name": "resetOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 12,
+          "name": "useLimits",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 13,
+          "name": "limitLo",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 14,
+          "name": "limitHi",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 15,
+          "name": "kp",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 16,
+          "name": "ti",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 17,
+          "name": "td",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 18,
+          "name": "tf",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 19,
+          "name": "tt",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 20,
+          "name": "beta",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 21,
+          "name": "lo",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 22,
+          "name": "hi",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 23,
+          "name": "slew",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 24,
+          "name": "initial",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 25,
+          "name": "safeOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 26,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 27,
+          "name": "integral",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 28,
+          "name": "derivative",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 29,
+          "name": "limited",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 30,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "name": "valve",
+      "type": "bccSim::Valve",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 19,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "command",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "travel",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "initial",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "stuck",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "name": "coil",
+      "type": "bccSim::WaterCoil",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 19,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "waterIn",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "airIn",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "opening",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "waterScale",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "airScale",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "waterFlow",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 8,
+          "name": "airFlow",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 9,
+          "name": "cpWater",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 10,
+          "name": "cpAir",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 11,
+          "name": "ua",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 12,
+          "name": "waterCapacity",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 13,
+          "name": "airCapacity",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 14,
+          "name": "initialWater",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 15,
+          "name": "initialAir",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 16,
+          "name": "waterOut",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 17,
+          "name": "airOut",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 18,
+          "name": "heat",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 19,
+          "name": "waterPower",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 20,
+          "name": "airPower",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 21,
+          "name": "storagePower",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 22,
+          "name": "balanceError",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 23,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "name": "sensor",
+      "type": "bccSim::Sensor",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 19,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "in",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "offset",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "tau",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "initial",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 6,
+          "name": "frozen",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 8,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "name": "water",
+      "type": "bccSim::StepSignal",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 30,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "before",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "after",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "at",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "name": "target",
+      "type": "bccSim::StepSignal",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 30,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "before",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "after",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "at",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "name": "limits",
+      "type": "bccSim::BoolStep",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 30,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "before",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 3,
+          "name": "after",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "at",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "out",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "name": "cap",
+      "type": "bccSim::Lookup5",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 30,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "in",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "x0",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "x1",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "x2",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 6,
+          "name": "x3",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 7,
+          "name": "x4",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 8,
+          "name": "y0",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 9,
+          "name": "y1",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 10,
+          "name": "y2",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 11,
+          "name": "y3",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 12,
+          "name": "y4",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 13,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 14,
+          "name": "clamped",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 15,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "name": "ff",
+      "type": "bccSim::CoilFeedforward",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 30,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "target",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "waterIn",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "airIn",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "airScale",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "waterFlow",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 7,
+          "name": "airFlow",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 8,
+          "name": "cpWater",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 9,
+          "name": "cpAir",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 10,
+          "name": "ua",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 11,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 12,
+          "name": "reachable",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 13,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "name": "pid",
+      "type": "bccSim::SimPid",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 30,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "sp",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "pv",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "feedforward",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "enabled",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "manual",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "manualOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 8,
+          "name": "tracking",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 9,
+          "name": "trackOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 10,
+          "name": "externalReset",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 11,
+          "name": "resetOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 12,
+          "name": "useLimits",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 13,
+          "name": "limitLo",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 14,
+          "name": "limitHi",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 15,
+          "name": "kp",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 16,
+          "name": "ti",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 17,
+          "name": "td",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 18,
+          "name": "tf",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 19,
+          "name": "tt",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 20,
+          "name": "beta",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 21,
+          "name": "lo",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 22,
+          "name": "hi",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 23,
+          "name": "slew",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 24,
+          "name": "initial",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 25,
+          "name": "safeOut",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 26,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 27,
+          "name": "integral",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 28,
+          "name": "derivative",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 29,
+          "name": "limited",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 30,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "name": "valve",
+      "type": "bccSim::Valve",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 30,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "command",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "travel",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "initial",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "stuck",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "name": "coil",
+      "type": "bccSim::WaterCoil",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 30,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "waterIn",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "airIn",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 4,
+          "name": "opening",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 5,
+          "name": "waterScale",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 6,
+          "name": "airScale",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "waterFlow",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 8,
+          "name": "airFlow",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 9,
+          "name": "cpWater",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 10,
+          "name": "cpAir",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 11,
+          "name": "ua",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 12,
+          "name": "waterCapacity",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 13,
+          "name": "airCapacity",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 14,
+          "name": "initialWater",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 15,
+          "name": "initialAir",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 16,
+          "name": "waterOut",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 17,
+          "name": "airOut",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 18,
+          "name": "heat",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 19,
+          "name": "waterPower",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 20,
+          "name": "airPower",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 21,
+          "name": "storagePower",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 22,
+          "name": "balanceError",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 23,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "name": "sensor",
+      "type": "bccSim::Sensor",
+      "kitPart": "bccSim-7cc03286",
+      "parent": 30,
+      "ports": [
+        {
+          "id": 0,
+          "name": "meta",
+          "type": "sys::int",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 1,
+          "name": "phase",
+          "type": "sys::int",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 2,
+          "name": "in",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 3,
+          "name": "offset",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 4,
+          "name": "tau",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 5,
+          "name": "initial",
+          "type": "sys::float",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": true,
+          "hidden": false,
+          "summary": false
+        },
+        {
+          "id": 6,
+          "name": "frozen",
+          "type": "sys::bool",
+          "input": true,
+          "output": true,
+          "readonly": false,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 7,
+          "name": "out",
+          "type": "sys::float",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        },
+        {
+          "id": 8,
+          "name": "good",
+          "type": "sys::bool",
+          "input": false,
+          "output": true,
+          "readonly": true,
+          "config": false,
+          "hidden": false,
+          "summary": true
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": 7,
+      "sourceSlot": 1,
+      "target": 2,
+      "targetSlot": 2
+    },
+    {
+      "source": 8,
+      "sourceSlot": 1,
+      "target": 2,
+      "targetSlot": 3
+    },
+    {
+      "source": 2,
+      "sourceSlot": 1,
+      "target": 53,
+      "targetSlot": 2
+    },
+    {
+      "source": 41,
+      "sourceSlot": 5,
+      "target": 50,
+      "targetSlot": 2
+    },
+    {
+      "source": 41,
+      "sourceSlot": 5,
+      "target": 47,
+      "targetSlot": 3
+    },
+    {
+      "source": 42,
+      "sourceSlot": 5,
+      "target": 46,
+      "targetSlot": 2
+    },
+    {
+      "source": 43,
+      "sourceSlot": 5,
+      "target": 46,
+      "targetSlot": 10
+    },
+    {
+      "source": 44,
+      "sourceSlot": 5,
+      "target": 46,
+      "targetSlot": 8
+    },
+    {
+      "source": 44,
+      "sourceSlot": 5,
+      "target": 48,
+      "targetSlot": 6
+    },
+    {
+      "source": 45,
+      "sourceSlot": 5,
+      "target": 48,
+      "targetSlot": 7
+    },
+    {
+      "source": 51,
+      "sourceSlot": 11,
+      "target": 46,
+      "targetSlot": 3
+    },
+    {
+      "source": 50,
+      "sourceSlot": 17,
+      "target": 46,
+      "targetSlot": 9
+    },
+    {
+      "source": 50,
+      "sourceSlot": 17,
+      "target": 46,
+      "targetSlot": 11
+    },
+    {
+      "source": 46,
+      "sourceSlot": 26,
+      "target": 47,
+      "targetSlot": 2
+    },
+    {
+      "source": 46,
+      "sourceSlot": 26,
+      "target": 48,
+      "targetSlot": 2
+    },
+    {
+      "source": 47,
+      "sourceSlot": 11,
+      "target": 48,
+      "targetSlot": 4
+    },
+    {
+      "source": 50,
+      "sourceSlot": 17,
+      "target": 48,
+      "targetSlot": 3
+    },
+    {
+      "source": 48,
+      "sourceSlot": 26,
+      "target": 49,
+      "targetSlot": 2
+    },
+    {
+      "source": 49,
+      "sourceSlot": 6,
+      "target": 50,
+      "targetSlot": 4
+    },
+    {
+      "source": 50,
+      "sourceSlot": 17,
+      "target": 51,
+      "targetSlot": 2
+    },
+    {
+      "source": 20,
+      "sourceSlot": 5,
+      "target": 24,
+      "targetSlot": 2
+    },
+    {
+      "source": 20,
+      "sourceSlot": 5,
+      "target": 25,
+      "targetSlot": 3
+    },
+    {
+      "source": 20,
+      "sourceSlot": 5,
+      "target": 28,
+      "targetSlot": 2
+    },
+    {
+      "source": 21,
+      "sourceSlot": 5,
+      "target": 25,
+      "targetSlot": 2
+    },
+    {
+      "source": 21,
+      "sourceSlot": 5,
+      "target": 26,
+      "targetSlot": 2
+    },
+    {
+      "source": 22,
+      "sourceSlot": 5,
+      "target": 26,
+      "targetSlot": 12
+    },
+    {
+      "source": 24,
+      "sourceSlot": 13,
+      "target": 26,
+      "targetSlot": 14
+    },
+    {
+      "source": 29,
+      "sourceSlot": 7,
+      "target": 26,
+      "targetSlot": 3
+    },
+    {
+      "source": 26,
+      "sourceSlot": 26,
+      "target": 27,
+      "targetSlot": 2
+    },
+    {
+      "source": 27,
+      "sourceSlot": 6,
+      "target": 28,
+      "targetSlot": 4
+    },
+    {
+      "source": 28,
+      "sourceSlot": 17,
+      "target": 29,
+      "targetSlot": 2
+    },
+    {
+      "source": 31,
+      "sourceSlot": 5,
+      "target": 34,
+      "targetSlot": 2
+    },
+    {
+      "source": 31,
+      "sourceSlot": 5,
+      "target": 35,
+      "targetSlot": 3
+    },
+    {
+      "source": 31,
+      "sourceSlot": 5,
+      "target": 38,
+      "targetSlot": 2
+    },
+    {
+      "source": 32,
+      "sourceSlot": 5,
+      "target": 35,
+      "targetSlot": 2
+    },
+    {
+      "source": 32,
+      "sourceSlot": 5,
+      "target": 36,
+      "targetSlot": 2
+    },
+    {
+      "source": 33,
+      "sourceSlot": 5,
+      "target": 36,
+      "targetSlot": 12
+    },
+    {
+      "source": 34,
+      "sourceSlot": 13,
+      "target": 36,
+      "targetSlot": 14
+    },
+    {
+      "source": 35,
+      "sourceSlot": 11,
+      "target": 36,
+      "targetSlot": 4
+    },
+    {
+      "source": 39,
+      "sourceSlot": 7,
+      "target": 36,
+      "targetSlot": 3
+    },
+    {
+      "source": 36,
+      "sourceSlot": 26,
+      "target": 37,
+      "targetSlot": 2
+    },
+    {
+      "source": 37,
+      "sourceSlot": 6,
+      "target": 38,
+      "targetSlot": 4
+    },
+    {
+      "source": 38,
+      "sourceSlot": 17,
+      "target": 39,
+      "targetSlot": 2
+    }
+  ],
+  "values": {
+    "n0": {
+      "meta": "1",
+      "deviceName": "",
+      "appName": "BclimateDev",
+      "scanPeriod": "50",
+      "guardTime": "5",
+      "timeToSteadyState": "0",
+      "hibernationResetsSteadyState": "false"
+    },
+    "n1": {
+      "meta": "33685505"
+    },
+    "n10": {
+      "meta": "34013185"
+    },
+    "n16": {
+      "meta": "1174536193"
+    },
+    "n9": {
+      "meta": "1",
+      "platformId": "bclimate-linux-amd64-1.2.29",
+      "platformVer": "1.2.29-bclimate",
+      "memAvailable": "8833581056"
+    },
+    "n3": {
+      "meta": "17367041"
+    },
+    "n5": {
+      "meta": "17104897",
+      "port": "11876",
+      "receiveMax": "8",
+      "eventsPerSec": "100"
+    },
+    "n6": {
+      "meta": "504627201",
+      "port": "18080"
+    },
+    "n80": {
+      "meta": "386531329",
+      "port": "18088"
+    },
+    "n13": {
+      "meta": "235143169",
+      "filename": "data.pstore",
+      "fileSize": "32768",
+      "size": "32769"
+    },
+    "n17": {
+      "meta": "168689665",
+      "nanos": "847627762000000000",
+      "hour": "15",
+      "minute": "9",
+      "second": "22",
+      "year": "2026",
+      "month": "11",
+      "day": "10",
+      "dayOfWeek": "2",
+      "utcOffset": "10800",
+      "osUtcOffset": "true",
+      "tz": ""
+    },
+    "n7": {
+      "meta": "336461825",
+      "out": "56.46424",
+      "min": "20.0",
+      "max": "80.0",
+      "period": "50.0",
+      "rampType": "true"
+    },
+    "n8": {
+      "meta": "271056897",
+      "out": "98.8",
+      "min": "0.0",
+      "max": "100.0",
+      "period": "10.0",
+      "rampType": "true"
+    },
+    "n2": {
+      "meta": "958005249",
+      "out": "156.14424",
+      "in1": "56.944244",
+      "in2": "99.2"
+    },
+    "n23": {
+      "meta": "16842753",
+      "ok": "false",
+      "expr": "",
+      "out": "0.0",
+      "in1": "0.0",
+      "in2": "0.0",
+      "in3": "0.0",
+      "in4": "0.0",
+      "in5": "0.0",
+      "in6": "0.0",
+      "in7": "0.0",
+      "in8": "0.0"
+    },
+    "n52": {
+      "meta": "1530724353",
+      "in": "0",
+      "out": "0"
+    },
+    "n53": {
+      "meta": "1393688577",
+      "out": "151.56825",
+      "in1": "151.56825",
+      "in2": "0.0",
+      "in3": "0.0",
+      "in4": "0.0"
+    },
+    "n18": {
+      "meta": "1"
+    },
+    "n40": {
+      "meta": "537001985",
+      "run": "true",
+      "autoRun": "true",
+      "dt": "0.25",
+      "rate": "10.0",
+      "maxSteps": "100",
+      "time": "258422.0",
+      "steps": "1033688",
+      "backlog": "4.6629367034256575E-14",
+      "overloaded": "false",
+      "fault": "0"
+    },
+    "n4": {
+      "meta": "1",
+      "perm": "2147483647",
+      "prov": "255"
+    },
+    "n11": {
+      "meta": "470155265",
+      "debugEnable": "true",
+      "debugExecuteEnable": "false",
+      "debugChangedEnable": "false",
+      "dataId": "1",
+      "fault": "false",
+      "val": "0.9"
+    },
+    "n12": {
+      "meta": "789118977",
+      "debugEnable": "true",
+      "debugExecuteEnable": "false",
+      "debugChangedEnable": "false",
+      "dataId": "0",
+      "fault": "false",
+      "val": "83"
+    },
+    "n14": {
+      "meta": "487653377",
+      "debugEnable": "true",
+      "debugExecuteEnable": "false",
+      "debugChangedEnable": "false",
+      "dataId": "3",
+      "fault": "false",
+      "val": "String from Sedona!"
+    },
+    "n15": {
+      "meta": "840761345",
+      "debugEnable": "true",
+      "debugExecuteEnable": "false",
+      "debugChangedEnable": "false",
+      "dataId": "5",
+      "fault": "false",
+      "val": "true",
+      "valIn": "null"
+    },
+    "n19": {
+      "meta": "33685505",
+      "run": "true",
+      "autoRun": "true",
+      "dt": "0.25",
+      "rate": "10.0",
+      "maxSteps": "100",
+      "time": "258642.0",
+      "steps": "1034568",
+      "backlog": "0.10000000000004527",
+      "overloaded": "false",
+      "fault": "0"
+    },
+    "n30": {
+      "meta": "537001985",
+      "run": "true",
+      "autoRun": "true",
+      "dt": "0.25",
+      "rate": "10.0",
+      "maxSteps": "100",
+      "time": "258536.0",
+      "steps": "1034144",
+      "backlog": "4.618527782440651E-14",
+      "overloaded": "false",
+      "fault": "0"
+    },
+    "n41": {
+      "meta": "33685505",
+      "phase": "0",
+      "before": "60.0",
+      "after": "45.0",
+      "at": "600.0",
+      "out": "45.0"
+    },
+    "n42": {
+      "meta": "738328577",
+      "phase": "0",
+      "before": "22.0",
+      "after": "23.0",
+      "at": "1800.0",
+      "out": "23.0"
+    },
+    "n43": {
+      "meta": "1442971649",
+      "phase": "0",
+      "before": "true",
+      "after": "true",
+      "at": "0.0",
+      "out": "true"
+    },
+    "n44": {
+      "meta": "1493827585",
+      "phase": "0",
+      "before": "false",
+      "after": "false",
+      "at": "2400.0",
+      "out": "false"
+    },
+    "n45": {
+      "meta": "-1711013887",
+      "phase": "0",
+      "before": "0.3",
+      "after": "0.3",
+      "at": "0.0",
+      "out": "0.3"
+    },
+    "n46": {
+      "meta": "37945345",
+      "phase": "1",
+      "sp": "23.0",
+      "pv": "22.998856",
+      "feedforward": "0.0",
+      "enabled": "true",
+      "manual": "false",
+      "manualOut": "0.0",
+      "tracking": "false",
+      "trackOut": "26.584661",
+      "externalReset": "true",
+      "resetOut": "26.584661",
+      "useLimits": "false",
+      "limitLo": "0.0",
+      "limitHi": "1.0",
+      "kp": "2.0",
+      "ti": "600.0",
+      "td": "0.0",
+      "tf": "0.1",
+      "tt": "60.0",
+      "beta": "1.0",
+      "lo": "18.0",
+      "hi": "35.0",
+      "slew": "0.0",
+      "initial": "25.37972",
+      "safeOut": "18.0",
+      "out": "26.58466",
+      "integral": "26.58237",
+      "derivative": "0.0",
+      "limited": "false",
+      "good": "true"
+    },
+    "n47": {
+      "meta": "742588417",
+      "phase": "2",
+      "target": "26.58466",
+      "waterIn": "45.0",
+      "airIn": "15.0",
+      "airScale": "1.0",
+      "waterFlow": "0.2",
+      "airFlow": "0.5",
+      "cpWater": "4180.0",
+      "cpAir": "1006.0",
+      "ua": "1000.0",
+      "out": "0.5537062",
+      "reachable": "true",
+      "good": "true"
+    },
+    "n48": {
+      "meta": "1128792065",
+      "phase": "3",
+      "sp": "26.58466",
+      "pv": "26.584661",
+      "feedforward": "0.5537062",
+      "enabled": "true",
+      "manual": "false",
+      "manualOut": "0.3",
+      "tracking": "false",
+      "trackOut": "0.0",
+      "externalReset": "false",
+      "resetOut": "0.0",
+      "useLimits": "false",
+      "limitLo": "0.0",
+      "limitHi": "1.0",
+      "kp": "0.02",
+      "ti": "60.0",
+      "td": "0.0",
+      "tf": "0.1",
+      "tt": "5.0",
+      "beta": "1.0",
+      "lo": "0.0",
+      "hi": "1.0",
+      "slew": "0.0",
+      "initial": "0.0",
+      "safeOut": "0.0",
+      "out": "0.55367804",
+      "integral": "-2.8155378E-5",
+      "derivative": "0.0",
+      "limited": "false",
+      "good": "true"
+    },
+    "n49": {
+      "meta": "1665597441",
+      "phase": "4",
+      "command": "0.55367804",
+      "travel": "10.0",
+      "initial": "0.214",
+      "stuck": "false",
+      "out": "0.55367804"
+    },
+    "n50": {
+      "meta": "-2058944511",
+      "phase": "5",
+      "waterIn": "45.0",
+      "airIn": "15.0",
+      "opening": "0.55367804",
+      "waterScale": "1.0",
+      "airScale": "1.0",
+      "waterFlow": "0.2",
+      "airFlow": "0.5",
+      "cpWater": "4180.0",
+      "cpAir": "1006.0",
+      "ua": "1000.0",
+      "waterCapacity": "50000.0",
+      "airCapacity": "10000.0",
+      "initialWater": "30.60072",
+      "initialAir": "25.37972",
+      "waterOut": "32.41178",
+      "airOut": "26.584661",
+      "heat": "5827.117",
+      "waterPower": "5826.7705",
+      "airPower": "5827.085",
+      "storagePower": "-0.3145567",
+      "balanceError": "-5.172751E-10",
+      "good": "true"
+    },
+    "n51": {
+      "meta": "308084737",
+      "phase": "6",
+      "supply": "26.584661",
+      "outdoor": "5.0",
+      "load": "0.0",
+      "flowScale": "1.0",
+      "airFlow": "0.5",
+      "cpAir": "1006.0",
+      "envelope": "100.0",
+      "capacity": "1000000.0",
+      "initial": "22.0",
+      "out": "22.998856",
+      "supplyPower": "1803.6599",
+      "envelopePower": "-1799.8856",
+      "balanceError": "-2.9922376E-9",
+      "good": "true"
+    },
+    "n20": {
+      "meta": "33685505",
+      "phase": "0",
+      "before": "60.0",
+      "after": "45.0",
+      "at": "300.0",
+      "out": "45.0"
+    },
+    "n21": {
+      "meta": "738328577",
+      "phase": "0",
+      "before": "25.0",
+      "after": "32.0",
+      "at": "900.0",
+      "out": "32.0"
+    },
+    "n22": {
+      "meta": "1442971649",
+      "phase": "0",
+      "before": "true",
+      "after": "true",
+      "at": "0.0",
+      "out": "true"
+    },
+    "n24": {
+      "meta": "-2147352575",
+      "phase": "1",
+      "in": "45.0",
+      "x0": "40.0",
+      "x1": "45.0",
+      "x2": "60.0",
+      "x3": "70.0",
+      "x4": "80.0",
+      "y0": "1.0",
+      "y1": "0.6",
+      "y2": "0.3",
+      "y3": "0.25",
+      "y4": "0.2",
+      "out": "0.6",
+      "clamped": "false",
+      "good": "true"
+    },
+    "n25": {
+      "meta": "-1442709503",
+      "phase": "1",
+      "target": "32.0",
+      "waterIn": "45.0",
+      "airIn": "15.0",
+      "airScale": "1.0",
+      "waterFlow": "0.2",
+      "airFlow": "0.5",
+      "cpWater": "4180.0",
+      "cpAir": "1006.0",
+      "ua": "1000.0",
+      "out": "1.0",
+      "reachable": "false",
+      "good": "true"
+    },
+    "n26": {
+      "meta": "37945345",
+      "phase": "2",
+      "sp": "32.0",
+      "pv": "26.97192",
+      "feedforward": "0.0",
+      "enabled": "true",
+      "manual": "false",
+      "manualOut": "0.0",
+      "tracking": "false",
+      "trackOut": "0.0",
+      "externalReset": "false",
+      "resetOut": "0.0",
+      "useLimits": "true",
+      "limitLo": "0.0",
+      "limitHi": "0.6",
+      "kp": "0.02",
+      "ti": "60.0",
+      "td": "0.0",
+      "tf": "0.1",
+      "tt": "5.0",
+      "beta": "1.0",
+      "lo": "0.0",
+      "hi": "1.0",
+      "slew": "0.0",
+      "initial": "0.2007585",
+      "safeOut": "0.0",
+      "out": "0.6",
+      "integral": "0.5078182",
+      "derivative": "0.0",
+      "limited": "true",
+      "good": "true"
+    },
+    "n27": {
+      "meta": "742588417",
+      "phase": "3",
+      "command": "0.6",
+      "travel": "10.0",
+      "initial": "0.2007585",
+      "stuck": "false",
+      "out": "0.6"
+    },
+    "n28": {
+      "meta": "1447231489",
+      "phase": "4",
+      "waterIn": "45.0",
+      "airIn": "15.0",
+      "opening": "0.6",
+      "waterScale": "1.0",
+      "airScale": "1.0",
+      "waterFlow": "0.2",
+      "airFlow": "0.5",
+      "cpWater": "4180.0",
+      "cpAir": "1006.0",
+      "ua": "1000.0",
+      "waterCapacity": "50000.0",
+      "airCapacity": "10000.0",
+      "initialWater": "30.03",
+      "initialAir": "25.0",
+      "waterOut": "32.99383",
+      "airOut": "26.97192",
+      "heat": "6021.9126",
+      "waterPower": "6022.2935",
+      "airPower": "6021.8765",
+      "storagePower": "0.41720173",
+      "balanceError": "1.2785222E-9",
+      "good": "true"
+    },
+    "n29": {
+      "meta": "-2143092735",
+      "phase": "5",
+      "in": "26.97192",
+      "offset": "0.0",
+      "tau": "0.0",
+      "initial": "25.0",
+      "frozen": "false",
+      "out": "26.97192",
+      "good": "true"
+    },
+    "n31": {
+      "meta": "33685505",
+      "phase": "0",
+      "before": "60.0",
+      "after": "45.0",
+      "at": "300.0",
+      "out": "45.0"
+    },
+    "n32": {
+      "meta": "738328577",
+      "phase": "0",
+      "before": "25.0",
+      "after": "32.0",
+      "at": "900.0",
+      "out": "32.0"
+    },
+    "n33": {
+      "meta": "1442971649",
+      "phase": "0",
+      "before": "true",
+      "after": "true",
+      "at": "0.0",
+      "out": "true"
+    },
+    "n34": {
+      "meta": "-2147352575",
+      "phase": "1",
+      "in": "45.0",
+      "x0": "40.0",
+      "x1": "45.0",
+      "x2": "60.0",
+      "x3": "70.0",
+      "x4": "80.0",
+      "y0": "1.0",
+      "y1": "0.6",
+      "y2": "0.3",
+      "y3": "0.25",
+      "y4": "0.2",
+      "out": "0.6",
+      "clamped": "false",
+      "good": "true"
+    },
+    "n35": {
+      "meta": "-1442709503",
+      "phase": "1",
+      "target": "32.0",
+      "waterIn": "45.0",
+      "airIn": "15.0",
+      "airScale": "1.0",
+      "waterFlow": "0.2",
+      "airFlow": "0.5",
+      "cpWater": "4180.0",
+      "cpAir": "1006.0",
+      "ua": "1000.0",
+      "out": "1.0",
+      "reachable": "false",
+      "good": "true"
+    },
+    "n36": {
+      "meta": "37945345",
+      "phase": "2",
+      "sp": "32.0",
+      "pv": "26.97192",
+      "feedforward": "1.0",
+      "enabled": "true",
+      "manual": "false",
+      "manualOut": "0.0",
+      "tracking": "false",
+      "trackOut": "0.0",
+      "externalReset": "false",
+      "resetOut": "0.0",
+      "useLimits": "true",
+      "limitLo": "0.0",
+      "limitHi": "0.6",
+      "kp": "0.02",
+      "ti": "60.0",
+      "td": "0.0",
+      "tf": "0.1",
+      "tt": "5.0",
+      "beta": "1.0",
+      "lo": "0.0",
+      "hi": "1.0",
+      "slew": "0.0",
+      "initial": "0.0",
+      "safeOut": "0.0",
+      "out": "0.6",
+      "integral": "-0.49218145",
+      "derivative": "0.0",
+      "limited": "true",
+      "good": "true"
+    },
+    "n37": {
+      "meta": "742588417",
+      "phase": "3",
+      "command": "0.6",
+      "travel": "10.0",
+      "initial": "0.2007585",
+      "stuck": "false",
+      "out": "0.6"
+    },
+    "n38": {
+      "meta": "1447231489",
+      "phase": "4",
+      "waterIn": "45.0",
+      "airIn": "15.0",
+      "opening": "0.6",
+      "waterScale": "1.0",
+      "airScale": "1.0",
+      "waterFlow": "0.2",
+      "airFlow": "0.5",
+      "cpWater": "4180.0",
+      "cpAir": "1006.0",
+      "ua": "1000.0",
+      "waterCapacity": "50000.0",
+      "airCapacity": "10000.0",
+      "initialWater": "30.03",
+      "initialAir": "25.0",
+      "waterOut": "32.99383",
+      "airOut": "26.97192",
+      "heat": "6021.9126",
+      "waterPower": "6022.2935",
+      "airPower": "6021.8765",
+      "storagePower": "0.41720173",
+      "balanceError": "1.2785222E-9",
+      "good": "true"
+    },
+    "n39": {
+      "meta": "-2143092735",
+      "phase": "5",
+      "in": "26.97192",
+      "offset": "0.0",
+      "tau": "0.0",
+      "initial": "25.0",
+      "frozen": "false",
+      "out": "26.97192",
+      "good": "true"
+    }
+  },
+  "origin": {
+    "parts": [
+      "sys-d3984c51",
+      "basicSchedule-7fdca638",
+      "bccSim-7cc03286",
+      "bclimateExpression-2e0a7393",
+      "bclimateInOutGeneric-43bdb1e1",
+      "bclimateInOutUnix-8317d790",
+      "bclimateLib-f8f59e36",
+      "bclimateLibNative-e343f277",
+      "bclimateMath-8a78be5b",
+      "bclimateModbusMaster-93ffb325",
+      "bclimateModbusSlave-cb2852f6",
+      "bclimatePlatform-1359ce48",
+      "bclimateSerialProtocol-593c04ce",
+      "bclimateSpi-8d98fd30",
+      "bclimateSqlite-d468a3de",
+      "bclimateUIConnect-72868fa0",
+      "communityMQTT-a263eb8e",
+      "control-808b7db3",
+      "datetime-3a280dce",
+      "datetimeStd-fc5628d7",
+      "func-821b7396",
+      "hvac-7264c67c",
+      "inet-25648ba7",
+      "logic-9fe95ce1",
+      "math-c22b255c",
+      "pricomp-b5cd6698",
+      "pstore-7ea2cb06",
+      "serial-87314b6e",
+      "sox-397a84dd",
+      "timing-aeaac82a",
+      "tutorial-12fb10cf",
+      "types-10936551",
+      "web-0462d43e"
+    ],
+    "platformId": "bclimate-linux-amd64-1.2.29",
+    "capturedAt": "2026-11-10T12:09:23.606050200Z"
+  }
+}

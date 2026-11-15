@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Filter with offset and reproducible freeze fault. Phase 3 is recommended.
+class Sensor extends SimBlock
+{
+  property float in
+  @config property float offset
+  @config property float tau = 0.0f
+  @config property float initial
+  property bool frozen = false
+  @readonly property float out
+  @readonly property bool good = true
+  virtual override bool acceptsInput(Slot slot)
+  { return slot == Sensor.in || slot == Sensor.frozen }
+  virtual override bool valid()
+  {
+    return super.valid() && finite(tau) && tau >= 0.0f && finite(offset) && finite(initial)
+  }
+  virtual override void resetState() { out := initial; good := true }
+  override void tick(float dt, double time)
+  {
+    good := !frozen && finite(in) && finite(in+offset)
+    if (!good) return
+    float alpha = dt/(tau+dt)
+    out := (1.0f-alpha)*out + alpha*(in+offset)
+  }
+}
+
+

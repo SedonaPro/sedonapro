@@ -1,0 +1,272 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+class SimulationTest extends Test
+{
+  static SimClock setup()
+  {
+    Sys.app.cleanupApp()
+    Sys.app.initApp(64)
+    return (SimClock)Sys.app.add(Sys.app, "sim", SimClock.type)
+  }
+  static bool near(float a, float b) { return a-b < 0.0001f && a-b > -0.0001f }
+
+  static void testIndependentClocks()
+  {
+    SimClock a = setup()
+    SimClock b = (SimClock)Sys.app.add(Sys.app, "other", SimClock.type)
+    a.dt := 0.125f
+    b.dt := 0.25f
+    b.rate := 10.0f
+    a.run := true
+    b.run := true
+    a.advance(1.0d)
+    b.advance(1.0d)
+    assert(a.steps == 8L)
+    assert(b.steps == 40L)
+    assert(a.time == 1.0d)
+    assert(b.time == 10.0d)
+    a.run := false
+    a.advance(5.0d)
+    assert(a.steps == 8L)
+    a.step()
+    assert(a.steps == 9L)
+    assert(b.steps == 40L)
+    Sys.app.cleanupApp()
+  }
+
+  static void testBudgetAndNoLostTime()
+  {
+    SimClock c = setup()
+    c.dt := 0.125f
+    c.maxSteps := 2
+    c.run := true
+    c.advance(1.0d)
+    assert(c.steps == 2L)
+    assert(c.overloaded)
+    assert(c.backlog == 0.75d)
+    c.advance(0.0d)
+    c.advance(0.0d)
+    c.advance(0.0d)
+    assert(c.steps == 8L)
+    assert(!c.overloaded)
+    assert(c.backlog == 0.0d)
+  }
+
+  static void testResetAndDtLock()
+  {
+    SimClock c = setup()
+    FirstOrder p = (FirstOrder)Sys.app.add(c, "plant", FirstOrder.type)
+    p.initial := 4.0f
+    p.in := 12.0f
+    c.reset()
+    assert(p.out == 4.0f)
+    c.step()
+    float first = p.out
+    c.dt := 0.25f
+    c.step()
+    assert(c.fault == 1)
+    assert(c.steps == 1L)
+    c.dt := 0.1f
+    c.reset()
+    c.step()
+    assert(p.out == first)
+    assert(!c.run)
+    Sys.app.cleanupApp()
+  }
+
+  static void testTopologyRejectsForeignAndNested()
+  {
+    SimClock c = setup()
+    FirstOrder p = (FirstOrder)Sys.app.add(c, "plant", FirstOrder.type)
+    FirstOrder foreign = (FirstOrder)Sys.app.add(Sys.app, "foreign", FirstOrder.type)
+    assert(Sys.app.addLink(foreign, FirstOrder.out, p, FirstOrder.in) != null)
+    c.step()
+    assert(c.fault == 2)
+    assert(c.steps == 0L)
+    c = setup()
+    Sys.app.add(c, "folder", Folder.type)
+    c.step()
+    assert(c.fault == 2)
+  }
+
+  static void testInvalidConfiguration()
+  {
+    SimClock c = setup()
+    c.dt := 0.0f
+    c.step()
+    assert(c.fault == 1)
+    assert(c.steps == 0L)
+    c.dt := 0.1f
+    FirstOrder p = (FirstOrder)Sys.app.add(c, "plant", FirstOrder.type)
+    p.tau := -1.0f
+    c.step()
+    assert(c.fault == 3)
+    assert(c.steps == 0L)
+    Sys.app.cleanupApp()
+  }
+
+  static void testFirstOrderAndValve()
+  {
+    SimClock c = setup()
+    FirstOrder p = (FirstOrder)Sys.app.add(c, "plant", FirstOrder.type)
+    Valve v = (Valve)Sys.app.add(c, "valve", Valve.type)
+    c.dt := 0.5f
+    p.tau := 0.5f
+    p.in := 10.0f
+    v.travel := 2.0f
+    v.command := 1.0f
+    c.reset()
+    c.step()
+    assert(near(p.out, 5.0f))
+    assert(near(v.out, 0.25f))
+    v.stuck := true
+    c.step()
+    assert(near(p.out, 7.5f))
+    assert(near(v.out, 0.25f))
+    v.stuck := false
+    v.command := -5.0f
+    c.step()
+    assert(v.out == 0.0f)
+  }
+
+  static void testDelayAndSensor()
+  {
+    SimClock c = setup()
+    SampleDelay d = (SampleDelay)Sys.app.add(c, "delay", SampleDelay.type)
+    Sensor s = (Sensor)Sys.app.add(c, "sensor", Sensor.type)
+    d.samples := 2
+    d.initial := 3.0f
+    d.in := 8.0f
+    s.in := 10.0f
+    s.offset := 2.0f
+    c.reset()
+    c.step()
+    assert(d.out == 3.0f)
+    assert(s.out == 12.0f)
+    c.step()
+    assert(d.out == 3.0f)
+    c.step()
+    assert(d.out == 8.0f)
+    s.frozen := true
+    s.in := 90.0f
+    c.step()
+    assert(s.out == 12.0f)
+    assert(!s.good)
+    Sys.app.cleanupApp()
+  }
+
+  static void testPiTrackingAndWindup()
+  {
+    SimClock c = setup()
+    SimPi p = (SimPi)Sys.app.add(c, "pi", SimPi.type)
+    p.sp := 100.0f
+    c.reset()
+    for (int i=0; i<100; ++i) c.step()
+    assert(p.out == 1.0f)
+    assert(p.integral == 0.0f)
+    p.sp := 0.0f
+    p.manual := true
+    p.manualOut := 0.4f
+    c.step()
+    assert(near(p.out, 0.4f))
+    p.manual := false
+    c.step()
+    assert(near(p.out, 0.4f))
+  }
+
+  static void testClosedLoopAndRepeatability()
+  {
+    SimClock c = setup()
+    SimPi pi = (SimPi)Sys.app.add(c, "pi", SimPi.type)
+    FirstOrder p = (FirstOrder)Sys.app.add(c, "plant", FirstOrder.type)
+    Sensor s = (Sensor)Sys.app.add(c, "sensor", Sensor.type)
+    pi.phase := 1
+    p.phase := 2
+    s.phase := 3
+    pi.sp := 0.6f
+    pi.ti := 2.0f
+    p.tau := 2.0f
+    assert(Sys.app.addLink(pi, SimPi.out, p, FirstOrder.in) != null)
+    assert(Sys.app.addLink(p, FirstOrder.out, s, Sensor.in) != null)
+    assert(Sys.app.addLink(s, Sensor.out, pi, SimPi.pv) != null)
+    c.reset()
+    for (int i=0; i<1000; ++i) c.step()
+    assert(near(p.out, 0.6f))
+    float result = p.out
+    c.reset()
+    for (int i=0; i<1000; ++i) c.step()
+    assert(p.out == result)
+    assert(c.fault == 0)
+    Sys.app.cleanupApp()
+  }
+  static void testAccuracyImprovesWithSmallerDt()
+  {
+    SimClock c = setup()
+    FirstOrder p = (FirstOrder)Sys.app.add(c, "plant", FirstOrder.type)
+    p.in := 1.0f
+    p.tau := 10.0f
+    c.dt := 0.1f
+    c.reset()
+    for (int i=0; i<100; ++i) c.step()
+    float coarse = p.out
+    c.dt := 0.05f
+    c.reset()
+    for (int i=0; i<200; ++i) c.step()
+    assert(p.out > coarse)
+    assert(p.out < 0.632121f)
+    assert(p.out > 0.630f)
+    Sys.app.cleanupApp()
+  }
+
+  static void testCannotOverwriteStateViaLink()
+  {
+    SimClock c = setup()
+    FirstOrder a = (FirstOrder)Sys.app.add(c, "a", FirstOrder.type)
+    FirstOrder b = (FirstOrder)Sys.app.add(c, "b", FirstOrder.type)
+    assert(Sys.app.addLink(a, FirstOrder.out, b, FirstOrder.out) != null)
+    c.step()
+    assert(c.fault == 2)
+    assert(c.steps == 0L)
+    Sys.app.cleanupApp()
+  }
+
+  static void testStartupAndRunningStepGuard()
+  {
+    SimClock c = setup()
+    FirstOrder p = (FirstOrder)Sys.app.add(c, "plant", FirstOrder.type)
+    p.initial := 7.0f
+    c.autoRun := true
+    c.start()
+    assert(c.run)
+    assert(p.out == 7.0f)
+    c.step()
+    assert(c.steps == 0L)
+    c.run := false
+    c.step()
+    assert(c.steps == 1L)
+    Sys.app.cleanupApp()
+  }
+  static void testDeterministicFaultEvent()
+  {
+    SimClock c = setup()
+    BoolStep event = (BoolStep)Sys.app.add(c, "fault", BoolStep.type)
+    Sensor sensor = (Sensor)Sys.app.add(c, "sensor", Sensor.type)
+    event.phase := 0
+    event.at := 0.5f
+    sensor.phase := 3
+    sensor.in := 10.0f
+    c.dt := 0.25f
+    assert(Sys.app.addLink(event, BoolStep.out, sensor, Sensor.frozen) != null)
+    c.reset()
+    c.step()
+    c.step()
+    assert(sensor.good)
+    sensor.in := 20.0f
+    c.step()
+    assert(!sensor.good)
+    assert(sensor.out == 10.0f)
+    c.reset()
+    assert(!event.out)
+    Sys.app.cleanupApp()
+  }
+}

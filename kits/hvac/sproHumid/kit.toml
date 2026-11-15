@@ -1,0 +1,2 @@
+summary = "Humid air: dew point, absolute humidity, enthalpy, wet bulb; humidifier with high limit; dehumidification; enthalpy economizer"
+portable_tests = true

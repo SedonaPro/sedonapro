@@ -1,0 +1,102 @@
+{
+  "jar": "C:\\MCSconfigurator_Windows_03_03_2026\\MCSconfigurator\\modules\\kitPxMcs4svg-wb.jar",
+  "jarSha256": "a2315cac6558181341e0193d3f450ba54dae685720a01d9e86bb740b13320205",
+  "sources": [
+    {
+      "assetId": "mcs-fan-right",
+      "state": "off",
+      "resource": "Fans/Fans_Horz/Fans_Horz_Right/Fans_Horz_Right_Off.svg",
+      "sha256": "8963d394212851670ade5fa168008d75f176e34742415aa31c411bc68ab65054"
+    },
+    {
+      "assetId": "mcs-fan-right",
+      "state": "on",
+      "resource": "Fans/Fans_Horz/Fans_Horz_Right/Fans_Horz_Right_On.svg",
+      "sha256": "02e2256d608086b11943e4c4dd83b97e636e2f3940c34e3430e4c1ee0d1d16ea"
+    },
+    {
+      "assetId": "mcs-damper",
+      "state": "off",
+      "resource": "Dampers/Damper_Horz_Parallel/Damper_Horz_Parallel_0.svg",
+      "sha256": "562a9f2c41b9fe76da61ec0ef6fb60bbc641792e2089b41d75167921bc1f50f4"
+    },
+    {
+      "assetId": "mcs-damper",
+      "state": "p25",
+      "resource": "Dampers/Damper_Horz_Parallel/Damper_Horz_Parallel_1.svg",
+      "sha256": "95b849f1fdb33131c6abee1c3c587a6d8d980b0f968b20f123ca52e28c5eb791"
+    },
+    {
+      "assetId": "mcs-damper",
+      "state": "p50",
+      "resource": "Dampers/Damper_Horz_Parallel/Damper_Horz_Parallel_2.svg",
+      "sha256": "1cac237e4bb2205ecdf1f21a156791e4cbc733416cd4811e984e5ed5d3345fe2"
+    },
+    {
+      "assetId": "mcs-damper",
+      "state": "p75",
+      "resource": "Dampers/Damper_Horz_Parallel/Damper_Horz_Parallel_3.svg",
+      "sha256": "e171c0546af5da992bc514b1b88860e458e52f72b3738eabdd138bc038918d56"
+    },
+    {
+      "assetId": "mcs-damper",
+      "state": "on",
+      "resource": "Dampers/Damper_Horz_Parallel/Damper_Horz_Parallel_4.svg",
+      "sha256": "914401c9d9acccf4e3df51fa9ea7cd5ae0a20d7a950708b3736f03eae4ad41cc"
+    },
+    {
+      "assetId": "mcs-heater",
+      "state": "off",
+      "resource": "Coils/Coils_Heating/Coils_Heating_0.svg",
+      "sha256": "08795008ee66fb32eefed90974cd42a82ed9dbc1e2f034287caf1ea037dc10df"
+    },
+    {
+      "assetId": "mcs-heater",
+      "state": "p25",
+      "resource": "Coils/Coils_Heating/Coils_Heating_1.svg",
+      "sha256": "e4c4fbff80bf246505c5a18cd9c948ca641fd8278fa0578241d492b95e576d4a"
+    },
+    {
+      "assetId": "mcs-heater",
+      "state": "p50",
+      "resource": "Coils/Coils_Heating/Coils_Heating_2.svg",
+      "sha256": "9ac8143a1ee99246237c6c7621a9137f026bdbfc689b1e983b462149487cebc8"
+    },
+    {
+      "assetId": "mcs-heater",
+      "state": "p75",
+      "resource": "Coils/Coils_Heating/Coils_Heating_3.svg",
+      "sha256": "832aed59cc6479b3c2d8c341d01c3635044f21b0c0e4014751efc70f7ba2fe48"
+    },
+    {
+      "assetId": "mcs-heater",
+      "state": "on",
+      "resource": "Coils/Coils_Heating/Coils_Heating_4.svg",
+      "sha256": "4524b107cccd0437284f431dbb734b92a3d2ca854b7df9cc0c5bd8e753855ea5"
+    },
+    {
+      "assetId": "mcs-filter",
+      "state": "off",
+      "resource": "Filters/Filter_Double/Filter_Double_0.svg",
+      "sha256": "69ee57dea164aa1fbfd4f4100cf8b237372763f01a703705ea49a592e3853fa7"
+    },
+    {
+      "assetId": "mcs-duct-short",
+      "state": "off",
+      "resource": "Ductwork/Duct_Horz_Short.svg",
+      "sha256": "62904eb97990f359ccbcf680f15fddbf99f3fa0d9362e70e9caba0f0bd5fb492"
+    },
+    {
+      "assetId": "mcs-duct-inlet",
+      "state": "off",
+      "resource": "Ductwork/Duct_Horz_End_Left.svg",
+      "sha256": "3f790cc0a429b00f87f83471e434e3fae3c2ca79a5600be189e40d6f6c8ca1f9"
+    },
+    {
+      "assetId": "mcs-duct-outlet",
+      "state": "off",
+      "resource": "Ductwork/Duct_Horz_End_Right.svg",
+      "sha256": "0299cd4bbabc5c85a85c5f2dceb2c7644054e0c63dfbd2b46bbbe650af21a915"
+    }
+  ]
+}

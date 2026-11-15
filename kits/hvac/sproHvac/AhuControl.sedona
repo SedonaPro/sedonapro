@@ -1,0 +1,143 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Sequencer of an air handling unit: modes, start and stop sequences,
+** fire and frost.
+**
+**  start: preheat the water coil (heaterReady) -> open the dampers
+**  (damperTime and the end switch) -> exhaust fan, supply fan after
+**  supplyDelay -> run (temperature control on after controlDelay);
+**  stop:  temperature control off -> fans run on while the electric
+**  heater purges (purge) and for runOn -> fans off, dampers closed;
+**  fire:  fans off at once (or only the exhaust fan with fireMode
+**  exhaustOnly), dampers closed;
+**  frost: fans off, outdoor damper closed, the water heater keeps the
+**  valve open; the plant starts again when frost clears.
+**  A fan fault stops the plant until reset.
+**
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class AhuControl extends Component
+{
+  ** run request in auto (schedule, BMS)
+  @summary property bool request
+  ** fire alarm: true = fire
+  property bool fire
+  ** frost trip (WaterHeater.frost)
+  property bool frost
+  ** the coil is warm (WaterHeater.ready); unlinked = ready
+  property bool heaterReady = true
+  ** the electric heater needs the fans (ElectricHeater.purge)
+  property bool purge
+  ** dampers are open (end switch); unlinked = open
+  property bool damperOpen = true
+  ** a fan or another fault that must stop the plant
+  property bool fault
+
+  define Str modeRange = "auto, on, off"
+  ** auto follows request; on and off are the hand modes
+  @config @range=modeRange property byte mode = 0
+  ** dampers open this long before the fans, s
+  @config @unit=Units.second @min=0 property float damperTime = 30.0f
+  ** supply fan starts this long after the exhaust fan, s
+  @config @unit=Units.second @min=0 property float supplyDelay = 5.0f
+  ** temperature control starts this long after the supply fan, s
+  @config @unit=Units.second @min=0 property float controlDelay = 10.0f
+  ** fans run on after a stop, s
+  @config @unit=Units.second @min=0 property float runOn = 10.0f
+  ** the unit has an exhaust fan
+  @config property bool hasExhaust = true
+
+  define Str fireRange = "stop, exhaustOnly"
+  @config @range=fireRange property byte fireMode = 0
+
+  @readonly property bool damper
+  @readonly @summary property bool supplyFan
+  @readonly property bool exhaustFan
+  ** start the coil preheat (WaterHeater.startReq)
+  @readonly property bool heaterStart
+  ** air flows (WaterHeater.airflow, ElectricHeater.airflow)
+  @readonly property bool airflow
+  ** temperature control on (SupplyTemp.run, Recuperator.run, FanSpeed.run)
+  @readonly property bool control
+  @readonly property bool alarm
+
+  define Str stateRange = "off, preheat, opening, starting, run, stopping, fire, frost, fault"
+  define int stOff = 0
+  define int stPreheat = 1
+  define int stOpening = 2
+  define int stStarting = 3
+  define int stRun = 4
+  define int stStopping = 5
+  define int stFire = 6
+  define int stFrost = 7
+  define int stFault = 8
+  @readonly @summary @range=stateRange property byte state
+  ** ok (running), standby (off), starting, stopping, hand, off, alarm, locked (fault)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** clear a fault stop
+  action void reset() { if (fault != true) faulted = false }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    t += dt
+    if (fault == true) faulted = true
+    bool want = mode == 1 || (mode == 0 && request == true)
+
+    int s = state
+    if (fire == true) s = stFire
+    else if (faulted) s = stFault
+    else if (frost == true) s = stFrost
+    else if (s == stFire || s == stFault || s == stFrost) s = stOff
+    else if (want)
+    {
+      if (s == stOff) s = stPreheat
+      else if (s == stStopping) s = stRun     // the fans still run
+    }
+    else if (s != stOff) s = stStopping
+
+    if (s != state) { state := s; t = 0.0f }
+
+    // advance the start sequence
+    if (state == stPreheat && heaterReady == true) go(stOpening)
+    else if (state == stOpening && t >= damperTime && damperOpen == true) go(stStarting)
+    else if (state == stStarting && t >= (hasExhaust ? supplyDelay : 0.0f) + controlDelay) go(stRun)
+    else if (state == stStopping && purge != true && t >= runOn) go(stOff)
+
+    int st = state
+    damper := st == stOpening || st == stStarting || st == stRun || st == stStopping ||
+              (st == stFire && fireMode == 1)
+    exhaustFan := hasExhaust && (st == stStarting || st == stRun || st == stStopping ||
+                  (st == stFire && fireMode == 1))
+    supplyFan := st == stRun || st == stStopping ||
+                 (st == stStarting && t >= (hasExhaust ? supplyDelay : 0.0f))
+    airflow := supplyFan
+    heaterStart := st == stPreheat || st == stOpening || st == stStarting
+    control := st == stRun
+    alarm := st == stFire || st == stFrost || st == stFault
+
+    if (st == stFault) status := Pro.locked
+    else if (alarm) status := Pro.alarm
+    else if (mode == 1) status := Pro.hand
+    else if (mode == 2) status := Pro.off
+    else if (st == stRun) status := Pro.ok
+    else if (st == stOff) status := Pro.standby
+    else if (st == stStopping) status := Pro.stopping
+    else status := Pro.starting
+  }
+
+  private void go(int s)
+  {
+    state := s
+    t = 0.0f
+  }
+
+  bool faulted
+  float t
+  inline Ticker ticker
+}

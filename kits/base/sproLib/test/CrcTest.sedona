@@ -1,0 +1,88 @@
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+class ChecksumTest extends Test
+{
+	define int crc32DataSize = 8;
+	define byte[crc32DataSize] crc32Data = { 0x31, 0x32, 0x33, 0x34, 0xF5, 0x17, 0x00, 0xFB};
+	define int crc32CorrectCrc = 0x47482B40;
+
+	static inline Crc32 crc32;
+	static inline ChecksumNone checksumNone;
+
+	static void testChecksumNone()
+	{
+		assert(checksumNone.len() == 0);
+
+		checksumNone.init();
+		for(int i=0; i<crc32DataSize; i++)
+			checksumNone.update(crc32Data[i]);
+		assert(checksumNone.get() == 0)
+	}
+
+	static void testCrc32()
+	{
+		assert(crc32.len() == 4);
+
+		// check correct crc32 calculation
+		crc32.init();
+		for(int i=0; i<crc32DataSize; i++)
+			crc32.update(crc32Data[i]);
+		assert(crc32.get() == crc32CorrectCrc);
+
+		// check wrong crc32 calculation
+		crc32.init();
+		for(int i=0; i<crc32DataSize-1; i++)
+			crc32.update(crc32Data[i]);
+		assert(crc32.get() != crc32CorrectCrc);
+
+		// check crc32.init()
+		crc32.init();
+		for(int i=0; i<crc32DataSize; i++)
+			crc32.update(crc32Data[i]);
+		assert(crc32.get() == crc32CorrectCrc);
+	}
+
+
+	define int crc16DataSize = 6;
+	define byte[crc16DataSize] crc16Data = { 0x04, 0x02, 0x00, 0x0A, 0x00, 0x0D};
+	define int crc16CorrectCrc = 0x9899;
+	static inline Crc16IBM crc16;
+
+
+	static void testCrc16()
+	{
+		assert(crc16.len() == 2);
+
+		// check correct crc32 calculation
+		crc16.init();
+		for(int i=0; i<crc16DataSize; i++)
+			crc16.update(crc16Data[i]);
+		assert(crc16.get() == crc16CorrectCrc);
+
+		// check wrong crc16 calculation
+		crc16.init();
+		for(int i=0; i<crc16DataSize-1; i++)
+			crc16.update(crc16Data[i]);
+		assert(crc16.get() != crc16CorrectCrc);
+
+		// check crc16.init()
+		crc16.init();
+		for(int i=0; i<crc16DataSize; i++)
+			crc16.update(crc16Data[i]);
+		assert(crc16.get() == crc16CorrectCrc);
+	}
+}

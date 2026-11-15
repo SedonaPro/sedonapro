@@ -1,0 +1,52 @@
+public class Add extends DebugComponent
+{
+	@readonly property float out;
+	property float in1;
+	property float in2;
+
+        @config property int address = 15;
+
+        native void rememberAddress(Slot slot);
+        native int  checkAddress();
+        native int  forgetAddress();
+
+        int addressLast;
+
+	internal Slot lookupSlotByName(Component comp, Str str) {
+		if ((comp != null) && (str != null)) {
+			Type type = comp.type;
+			foreach(Slot s: type.slots, type.slotsLen)
+				if (s.name == str)
+					return s;
+		}
+		return null;
+		
+	}
+	
+        virtual override void loaded() {
+                 super.loaded();
+                 rememberAddress(lookupSlotByName(this, "address"));
+
+                 addressLast = address;
+        }
+
+        virtual override void stop() {
+                super.stop();
+                forgetAddress();
+        }
+
+	virtual override void execute() {
+                 super.execute();
+                 int tmp;
+                 tmp = checkAddress();
+                 // Sys.out.print("addr = $tmp\n");
+                 
+                 if (addressLast != address) {
+	                 changed(lookupSlotByName(this, "address"));
+                 }
+                 
+                 // address := address + 1;
+                 out := in1 + in2;
+        }
+
+}

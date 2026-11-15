@@ -1,0 +1,5 @@
+import test from'node:test';import assert from'node:assert/strict';import{validateUi}from'../web/src/uiDocument.js';import{widgetLibrary}from'../web/src/sceneTools.js';import{fraction}from'../web/src/widgetRules.js';
+const base={id:'w',kind:'value',label:'T',path:'.',slot:'out',type:'float',x:1,y:2,unit:'°C',decimals:1};
+const doc=w=>({format:'mcs-sedona-ui',version:1,id:'widgets',title:'W',views:[{id:'v',title:'V',folder:'app',svg:'',widgets:[w]}]});
+test('all 19 templates survive document roundtrip',()=>{assert.equal(widgetLibrary.length,19);for(const t of widgetLibrary){const w={...base,kind:t.kind,...Object.fromEntries(['appearance','width','showLabel','showQuality','min','max','command'].filter(k=>t[k]!==undefined).map(k=>[k,t[k]]))};assert.deepEqual(validateUi(doc(w)).views[0].widgets[0],w)}});
+test('invalid sizes, flags and reversed ranges rejected',()=>{for(const patch of [{width:0},{fontSize:999},{appearance:'script'},{min:50,max:2},{showLabel:'yes'},{command:'true'},{max:NaN}])assert.throws(()=>validateUi(doc({...base,...patch})));assert.equal(fraction(50,{min:0,max:100}),.5);assert.equal(fraction(200,{min:0,max:100}),1)});

@@ -1,0 +1,266 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Integrates a rate into a total: flow m3/h into m3, power kW into kWh.
+** The total survives a restart and a power loss when the app has a
+** RetainService (sproBase).
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Totalizer extends Retained
+{
+  ** the rate (flow, power)
+  @summary property float in
+
+  define Str perRange = "second, minute, hour"
+  ** time unit of in: m3/h -> hour
+  @config @range=perRange property byte per = 2
+
+  ** count negative rates (otherwise they are ignored)
+  @config property bool allowNegative = false
+
+  ** pause counting
+  property bool hold = false
+
+  ** the total
+  @readonly @summary @precision=3 property float total
+
+  ** ok, inputBad (in is null: nothing counted)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** total to 0
+  @confirmRequired
+  action void reset() { setTotal(0.0f) }
+
+  ** set the total (from the meter's display)
+  @confirmRequired
+  action void setTotal(float v)
+  {
+    if (!Pro.valid(v)) return
+    sum = (double)v
+    total := v
+    Retained.retainChanged()
+  }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    if (!Pro.valid(in))
+    {
+      status := Pro.inputBad
+      return
+    }
+    status := Pro.ok
+    if (hold == true || dt <= 0.0f || (in < 0.0f && !allowNegative)) return
+    float div = per == 0 ? 1.0f : (per == 1 ? 60.0f : 3600.0f)
+    sum += (double)(in * dt / div)
+    total := (float)sum
+  }
+
+  override int retainSize() { return 8 }
+  override void saveRetain(OutStream out) { out.writeF8(sum) }
+  override void loadRetain(InStream in)
+  {
+    double v = in.readF8()
+    if (v == v) sum = v
+    total := (float)sum
+  }
+
+  double sum
+  inline Ticker ticker
+}
+
+**
+** Counts pulses of a meter (water, gas, electricity) into a total and a
+** rate.  The scan must see every pulse: this suits pulses up to a few
+** per second (a pulse and the pause after it must each last longer than
+** a scan).  The total survives a restart with a RetainService.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class PulseCounter extends Retained
+{
+  ** pulse input
+  @summary property bool in
+
+  ** quantity per pulse (10 L = 0.01 m3, 1000 imp/kWh = 0.001 kWh)
+  @config @min=0 property float perPulse = 0.01f
+
+  ** rate falls to 0 when no pulse came for this long, s
+  @config @unit=Units.second @min=1 property float rateTimeout = 300.0f
+
+  ** the total (pulses * perPulse + setTotal offset)
+  @readonly @summary @precision=3 property float total
+
+  ** quantity per hour, from the time between the last two pulses
+  @readonly @precision=3 property float rate
+
+  ** pulses counted
+  @readonly property int pulses
+
+  ** total to 0
+  @confirmRequired
+  action void reset() { setTotal(0.0f) }
+
+  ** set the total (from the meter's display)
+  @confirmRequired
+  action void setTotal(float v)
+  {
+    if (!Pro.valid(v)) return
+    sum = (double)v
+    total := v
+    Retained.retainChanged()
+  }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    bool p = in == true
+    since += dt
+    if (p && !last)
+    {
+      pulses := pulses + 1
+      sum += (double)perPulse
+      total := (float)sum
+      if (seen && since > 0.0f) rate := perPulse * 3600.0f / since
+      seen = true
+      since = 0.0f
+    }
+    last = p
+    if (since >= rateTimeout) rate := 0.0f
+    else if (seen && since > 0.0f && rate > perPulse * 3600.0f / since)
+      rate := perPulse * 3600.0f / since    // no pulse yet: the rate is at most this
+  }
+
+  override int retainSize() { return 12 }
+  override void saveRetain(OutStream out) { out.writeF8(sum); out.writeI4(pulses) }
+  override void loadRetain(InStream in)
+  {
+    double v = in.readF8()
+    if (v == v) sum = v
+    pulses := in.readS4()
+    total := (float)sum
+  }
+
+  double sum
+  bool last
+  bool seen
+  float since
+  inline Ticker ticker
+}
+
+**
+** Rate of change of a value: per second, minute or hour, measured over
+** 'interval' seconds (a longer interval is smoother).
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class RateOfChange extends Component
+{
+  @summary property float in
+
+  define Str perRange = "second, minute, hour"
+  @config @range=perRange property byte per = 1
+
+  ** measuring interval, s
+  @config @unit=Units.second @min=0.1 property float interval = 10.0f
+
+  @readonly @summary property float out
+
+  ** ok, inputBad
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    if (!Pro.valid(in))
+    {
+      status := Pro.inputBad
+      first = null
+      return
+    }
+    status := Pro.ok
+    if (!Pro.valid(first))
+    {
+      first = in
+      age = 0.0f
+      return
+    }
+    age += dt
+    if (age < interval) return
+    float mul = per == 0 ? 1.0f : (per == 1 ? 60.0f : 3600.0f)
+    out := (in - first) / age * mul
+    first = in
+    age = 0.0f
+  }
+
+  float first = null
+  float age
+  inline Ticker ticker
+}
+
+**
+** Switch on a level with hysteresis and delays: an alarm limit, a
+** frost thermostat, a pressure switch.  With on above off it switches on
+** rising (high limit), with on below off on falling (low limit).
+**
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class Threshold extends Component
+{
+  @summary property float in
+
+  ** switches on when in crosses this
+  @config property float on = 80.0f
+  ** switches off when in crosses back past this
+  @config property float off = 75.0f
+
+  ** the on condition must last this long, s
+  @config @unit=Units.second @min=0 property float onDelay = 0.0f
+  ** the off condition must last this long, s
+  @config @unit=Units.second @min=0 property float offDelay = 0.0f
+
+  define Str badRange = "hold, false, true"
+  ** out while in is null: hold, false or true
+  @config @range=badRange property byte onBad = 0
+
+  @readonly @summary property bool out
+
+  ** ok, inputBad
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    if (!Pro.valid(in))
+    {
+      status := Pro.inputBad
+      timer = 0.0f
+      if (onBad == 1) out := false
+      else if (onBad == 2) out := true
+      return
+    }
+    status := Pro.ok
+    bool rising = on >= off
+    bool wantOn = rising ? in >= on : in <= on
+    bool wantOff = rising ? in <= off : in >= off
+    if (!out && wantOn)
+    {
+      timer += dt
+      if (timer >= onDelay) { out := true; timer = 0.0f }
+    }
+    else if (out && wantOff)
+    {
+      timer += dt
+      if (timer >= offDelay) { out := false; timer = 0.0f }
+    }
+    else
+      timer = 0.0f
+  }
+
+  float timer
+  inline Ticker ticker
+}

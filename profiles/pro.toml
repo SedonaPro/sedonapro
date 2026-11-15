@@ -1,0 +1,15 @@
+# pro: the SedonaPro build for Linux controllers - full plus the professional
+# kits (docs/pro-kits.md).  47 kits: the SOX schema is larger than the classic
+# 512-byte packet, clients need dasp.absMax=1024 (Sedona Studio and the web
+# editor use it; for other Sedona tools build --profile full).
+summary = "SedonaPro: full + pro kits (signals, PID, pumps and pump stations, alarms, schedules, HVAC, AHU, humidity, heating substations, energy)"
+kits = [
+  "sys", "sox", "inet", "web", "pstore", "logManager", "serial",
+  "datetime", "datetimeStd", "basicSchedule", "control",
+  "func", "hvac", "logic", "math", "timing", "types", "pricomp",
+  "sproLib", "sproMath", "sproUtil", "sproHal", "sproIo", "sproIoLinux", "sproExpr", "sproUiConnect",
+  "sproSpi", "sproSerialProtocol", "sproModbusMaster", "sproModbusSlave", "sproMqtt",
+  "sproSqlite", "sproSim",
+  "sproBase", "sproSignal", "sproControl", "sproEquip", "sproAlarm", "sproSched", "sproHvac", "sproAhu",
+  "sproHumid", "sproHeat", "sproEnergy", "sproPumpSt", "sproHeatSt",
+]

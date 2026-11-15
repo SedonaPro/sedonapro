@@ -1,0 +1,25 @@
+<module>
+  <!-- Level 2: room thermostat.  Temperature from AI2 (sim board: -20..80 °C),
+       setpoint 21 °C, hysteresis 1 °C, heater on DO3.
+       Move the AI2 slider below 20.5 / above 21.5 and watch DO3.
+       Build: spro build sim, option example=thermostat (see README.md) -->
+  <kit name="hvac"/>
+  <kit name="sproHal"/>
+  <into path="">
+    <comp name="room" type="sys::Folder">
+      <comp name="temp" type="sproHal::AnalogInput">
+        <prop name="channel" val="AI2"/>
+      </comp>
+      <comp name="tstat" type="hvac::Tstat">
+        <prop name="sp" val="21.0"/>
+        <prop name="diff" val="1.0"/>
+        <prop name="isHeating" val="true"/>
+      </comp>
+      <comp name="heater" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO3"/>
+      </comp>
+    </comp>
+  </into>
+  <link from="/room/temp.out" to="/room/tstat.cv"/>
+  <link from="/room/tstat.out" to="/room/heater.in"/>
+</module>

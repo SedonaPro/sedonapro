@@ -1,0 +1,188 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Base of subscribe points: out follows the last message on the topic (or the
+** value at jsonPath in it).  Wildcards + and # are allowed in the topic.
+**
+@palette=false
+abstract class MqttSub extends MqttPoint
+{
+  ** value inside a JSON message: "temp", "sensor.temp", "values.0"; empty = whole message
+  @config @asStr property Buf(32) jsonPath = ""
+
+  ** status becomes stale if no message came for this time (0 = never)
+  @config @unit=Units.second @min=0
+  property int staleTime = 0
+
+  ** set out from the text; false if it is not a valid value
+  abstract bool apply(Buf text, int len)
+
+  override virtual void changed(Slot slot)
+  {
+    super.changed(slot)
+    if (slot == MqttPoint.topic || slot == MqttPoint.qos)
+      resubscribe = true
+  }
+
+  override void stop()
+  {
+    MqttClient c = client()
+    if (c != null && c.handle != null && subSlot >= 0)
+      Mqtt.unsubscribe(c.handle, subSlot)
+    subSlot = -1
+  }
+
+  override virtual void execute()
+  {
+    MqttClient c = client()
+    if (c == null || c.handle == null)
+    {
+      status := noClient
+      return
+    }
+    if (generation != c.generation)
+    {
+      // new native client: old slots are gone
+      generation = c.generation
+      subSlot = -1
+      seq = 0
+    }
+    if (resubscribe || subSlot < 0)
+    {
+      if (subSlot >= 0)
+        Mqtt.unsubscribe(c.handle, subSlot)
+      subSlot = -1
+      resubscribe = false
+      if (!expand(c))
+      {
+        status := badTopic
+        return
+      }
+      subSlot = Mqtt.subscribe(c.handle, fullTopic.toStr(), qos, payloadMax)
+      seq = 0
+      lastRx = Sys.ticks()
+      if (subSlot < 0)
+      {
+        status := busy
+        resubscribe = true
+        return
+      }
+      status := waiting
+    }
+    int s = Mqtt.fetch(c.handle, subSlot, jsonPath.toStr(), text.bytes, text.bytesLen)
+    long now = Sys.ticks()
+    if (s != seq)
+    {
+      seq = s
+      lastRx = now
+      int n = Mqtt.fetchLen()
+      if (n >= 0 && apply(text, n))
+      {
+        count := count + 1
+        status := ok
+      }
+      else
+        status := badValue
+      return
+    }
+    if (staleTime > 0 && status == ok && now - lastRx > (long)staleTime * 1sec)
+      status := stale
+  }
+
+  ** longest message kept (longer ones are cut, JSON values in the cut part are lost)
+  define int payloadMax = 512
+
+  int subSlot = -1
+  int seq = 0
+  int generation = -1
+  bool resubscribe = true
+  long lastRx = 0L
+  inline Buf(72) text
+}
+
+**
+** Boolean from true/false, on/off, yes/no or a number (0 = false).
+**
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class MqttSubBool extends MqttSub
+{
+  @readonly property bool out
+
+  ** out until the first message arrives (after start and after a restart)
+  @config property bool initial = false
+
+  override void start() { out := initial }
+
+  override bool apply(Buf text, int len)
+  {
+    int v = Mqtt.parseBool(text.bytes, len)
+    if (v < 0)
+      return false
+    out := v == 1
+    return true
+  }
+}
+
+**
+** Integer from a number (rounded).
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class MqttSubInt extends MqttSub
+{
+  @readonly property int out
+
+  ** out until the first message arrives (after start and after a restart)
+  @config property int initial = 0
+
+  override void start() { out := initial }
+
+  override bool apply(Buf text, int len)
+  {
+    if (Mqtt.parseFloat(text.bytes, len) == null)
+      return false
+    out := Mqtt.parseInt(text.bytes, len)
+    return true
+  }
+}
+
+**
+** Number; "null" or text that is not a number gives status badValue.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class MqttSubFloat extends MqttSub
+{
+  @readonly property float out
+
+  ** out until the first message arrives (after start and after a restart)
+  @config property float initial = 0.0
+
+  override void start() { out := initial }
+
+  override bool apply(Buf text, int len)
+  {
+    float v = Mqtt.parseFloat(text.bytes, len)
+    if (v == null)
+      return false
+    out := v
+    return true
+  }
+}
+
+**
+** String (up to 63 characters).
+**
+@niagaraIcon="module://icons/x16/control/stringPoint.png"
+class MqttSubStr extends MqttSub
+{
+  @readonly @asStr property Buf(64) out = ""
+
+  override bool apply(Buf text, int len)
+  {
+    out.copyFromStr(text.toStr())
+    changed(MqttSubStr.out)
+    return true
+  }
+}

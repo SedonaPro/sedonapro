@@ -1,0 +1,12 @@
+<sedonaKit
+    name="sproSerialProtocol"
+    vendor="SPro"
+    description="SedonaPro FBs to construct simple protocol over serial line">
+  <depend on="sys 1.2+" />
+  <depend on="inet 1.2+" />
+  <depend on="serial 1.2+" />
+  <depend on="sproLib 1.2+" />
+  <depend on="sproUtil 1.2+" />
+
+  <source dir="." />
+</sedonaKit>

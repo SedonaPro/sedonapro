@@ -1,0 +1,4 @@
+# hvac: air handling units (supply, supply/extract, water or electric heating,
+# heat recovery, cooling) on top of control, equipment and alarms.
+summary = "Air handling: schedules and holidays, optimum start, season, AHU sequencer, supply temperature cascade, water heater with frost protection, electric heater, heat recovery, fans, humidity (psychrometrics, humidifier, dehumidification, enthalpy economizer)"
+kits = ["sproBase", "sproSignal", "sproControl", "sproEquip", "sproAlarm", "sproSched", "sproHvac", "sproAhu", "sproHumid"]

@@ -1,0 +1,201 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Domestic hot water of a substation: the valve of the hot water heat
+** exchanger, the circulation pump, thermal disinfection and priority
+** over the heating.
+**
+**  - a fast PI loop keeps 'temp' at sp;
+**  - scald protection: above highLimit the valve closes at once (during
+**    a disinfection the limit is at least spDisinfect + 5) and after
+**    alarmDelay an alarm is raised;
+**  - thermal disinfection (legionella): a rising edge of 'disinfect' (a
+**    WeekSchedule) or the action raises the setpoint to spDisinfect; it
+**    is done once the water was at least spDisinfect - 2 for
+**    disinfectHold minutes, and fails (alarm, back to sp) when that did
+**    not happen within disinfectMax minutes;
+**  - priority (usePriority): while the valve stays above priorityAt for
+**    priorityDelay and the water is more than priorityBand below its
+**    setpoint, heatingLimit drops to priorityLimit; link it to
+**    HeatingCircuit.limit.  It returns to 100 % once the water is back
+**    within the band;
+**  - a failed sensor closes the valve (scalding is worse than cold water).
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class DhwCircuit extends Component
+{
+  ** hot water temperature after the heat exchanger, C
+  @summary @unit=Units.celsius property float temp
+  ** a rising edge starts a thermal disinfection
+  property bool disinfect
+  ** run the circulation pump (a schedule; default always)
+  property bool circulate = true
+
+  @config property bool enable = true
+  ** auto, hand (valve at handValue), off (valve closed, circulation off)
+  @config @range=Pro.modeRange property byte mode
+  @config @min=0 @max=100 property float handValue = 0.0f
+
+  ** hot water setpoint, C
+  @config @unit=Units.celsius property float sp = 60.0f
+  ** loop: % per K, integral time
+  @config @min=0 property float kp = 3.0f
+  @config @unit=Units.second @min=0 property float ti = 30.0f
+  ** above this the valve closes at once, C
+  @config @unit=Units.celsius property float highLimit = 75.0f
+  @config @unit=Units.second @min=0 property float alarmDelay = 30.0f
+
+  ** disinfection setpoint, C
+  @config @unit=Units.celsius property float spDisinfect = 70.0f
+  ** disinfection: minutes at spDisinfect - 2 or above
+  @config @unit=Units.minute @min=1 @max=600 property float disinfectHold = 30.0f
+  ** disinfection: give up after this many minutes
+  @config @unit=Units.minute @min=1 @max=1440 property float disinfectMax = 180.0f
+
+  ** hot water first: limit the heating while the hot water is short
+  @config property bool usePriority = false
+  @config @min=0 @max=100 property float priorityAt = 95.0f
+  @config @unit=Units.second @min=0 property float priorityDelay = 60.0f
+  @config @min=0 property float priorityBand = 5.0f
+  ** heating valve limit during priority, %
+  @config @min=0 @max=100 property float priorityLimit = 30.0f
+
+  ** valve, %
+  @readonly @summary @precision=1 property float valve
+  ** circulation pump request
+  @readonly property bool circPump
+  ** a disinfection is running
+  @readonly property bool disinfecting
+  ** the last disinfection reached its temperature and time
+  @readonly property bool disinfectOk
+  ** highest heating valve allowed, % (link to HeatingCircuit.limit)
+  @readonly property float heatingLimit = 100.0f
+  ** priority over the heating is active
+  @readonly property bool priority
+  ** setpoint now, C
+  @readonly @unit=Units.celsius property float spNow
+  ** overheat, failed sensor or failed disinfection (reset clears the last)
+  @readonly property bool alarm
+
+  define Str stateRange = "off, run, disinfect, overheat, hand"
+  @readonly @range=stateRange property byte state
+  @readonly @range=Pro.statusRange property byte status
+
+  ** start a thermal disinfection now
+  @confirmRequired
+  action void startDisinfection()
+  {
+    disOn = true
+    disFor = 0.0f
+    disHot = 0.0f
+  }
+
+  ** stop a running disinfection
+  action void stopDisinfection() { disOn = false }
+
+  ** clear the failed-disinfection alarm
+  action void reset() { disFailed = false }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  ** one step of dt seconds
+  void update(float dt)
+  {
+    if (disinfect == true && !lastDis) startDisinfection()
+    lastDis = disinfect == true
+    bool ok = Pro.valid(temp)
+    bool on = enable == true && mode == Pro.modeAuto
+
+    // disinfection
+    if (disOn && on)
+    {
+      disFor += dt
+      if (ok && temp >= spDisinfect - 2.0f) disHot += dt
+      if (disHot >= disinfectHold * 60.0f)
+      {
+        disOn = false
+        disinfectOk := true
+      }
+      else if (disFor >= disinfectMax * 60.0f)
+      {
+        disOn = false
+        disFailed = true
+        disinfectOk := false
+      }
+    }
+    else if (!on) disOn = false
+    disinfecting := disOn
+    float s = disOn ? spDisinfect : sp
+    spNow := s
+
+    float high = disOn ? Pro.max(highLimit, spDisinfect + 5.0f) : highLimit
+    bool hot = ok && temp > high
+    if (hot) hotFor += dt
+    else hotFor = 0.0f
+
+    float v = 0.0f
+    int st = 0
+    int stat = Pro.ok
+    if (mode == Pro.modeOff) stat = Pro.off
+    else if (mode == Pro.modeHand)
+    {
+      v = handValue
+      st = 4
+      stat = Pro.hand
+    }
+    else if (enable != true) stat = Pro.disabled
+    if (hot)
+    {
+      v = 0.0f
+      st = 3
+      stat = Pro.alarm
+    }
+    else if (on)
+    {
+      st = disOn ? 2 : 1
+      if (!ok)
+      {
+        v = 0.0f
+        stat = Pro.inputBad
+      }
+      else
+      {
+        algo.kp = kp
+        algo.ti = ti
+        algo.direct = false
+        v = algo.run(dt, temp, s, 0.0f, 0.0f, 100.0f, null)
+        stat = algo.limited ? Pro.limited : Pro.ok
+      }
+    }
+    if (!on || hot || !ok) algo.hold(v)
+    valve := Pro.clamp(v, 0.0f, 100.0f)
+    circPump := mode == Pro.modeHand || (on && (circulate == true || disOn))
+
+    // priority over the heating
+    bool lacking = on && ok && temp < s - priorityBand
+    if (usePriority && lacking && valve >= priorityAt) prioFor += dt
+    else if (!lacking) prioFor = 0.0f
+    if (prioFor >= priorityDelay && usePriority) prio = true
+    if (!lacking || !usePriority) prio = false
+    priority := prio
+    heatingLimit := prio ? priorityLimit : 100.0f
+
+    state := st
+    status := stat
+    alarm := hotFor >= alarmDelay || (on && !ok) || disFailed
+  }
+
+  bool lastDis
+  bool disOn
+  bool disFailed
+  bool prio
+  float disFor
+  float disHot
+  float hotFor
+  float prioFor
+  inline PidAlgo algo
+  inline Ticker ticker
+}

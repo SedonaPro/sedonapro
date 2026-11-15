@@ -1,0 +1,49 @@
+<module replaces="hal">
+  <!-- Level 2: the heating substation of example heating, made by the
+       configurator sproHeatSt::HeatStation instead of by hand: one heating
+       circuit with twin pumps, hot water with priority and circulation,
+       make-up, common alarm.  At the first start the station builds itself
+       and takes the board channels in order (see itp.ioList):
+       AI1 outdoor, AI2 return, AI3 supply, AI4 hot water, AI5 pressure;
+       AO1 heating valve, AO2 hot water valve; DI1, DI2 pump faults;
+       DO1, DO2 pumps, DO3 hot water circulation, DO4 make-up, DO5 alarm.
+       The panel starts AI5 at 21 (the high pressure alarm): set it to 1.8.
+       Night setback 22:00-06:00 and the disinfection on Sunday 02:00 come
+       from the schedules next to the station (they need the clock).
+       Change the options (circuits, pumps, dhw ...) and invoke build, or
+       open the widget "Heating substation" in an editor.
+       Build: spro build sim, options pack=heat board=sim-large
+       example=heat-station (see README.md) -->
+  <kit name="sproHeatSt"/>
+  <kit name="sproSched"/>
+  <kit name="sproHal"/>
+  <kit name="sproBase"/>
+  <kit name="logic"/>
+  <into path="">
+    <comp name="itp" type="sproHeatSt::HeatStation">
+      <prop name="dhwPriority" val="true"/>
+    </comp>
+    <comp name="week" type="sproSched::WeekSchedule">
+      <prop name="mon" val="06:00-22:00"/>
+      <prop name="tue" val="06:00-22:00"/>
+      <prop name="wed" val="06:00-22:00"/>
+      <prop name="thu" val="06:00-22:00"/>
+      <prop name="fri" val="06:00-22:00"/>
+      <prop name="sat" val="06:00-22:00"/>
+      <prop name="sun" val="06:00-22:00"/>
+    </comp>
+    <comp name="night" type="logic::Not"/>
+    <comp name="disinf" type="sproSched::WeekSchedule">
+      <prop name="mon" val=""/>
+      <prop name="tue" val=""/>
+      <prop name="wed" val=""/>
+      <prop name="thu" val=""/>
+      <prop name="fri" val=""/>
+      <prop name="sun" val="02:00-03:00"/>
+    </comp>
+    <comp name="retain" type="sproBase::RetainService"/>
+  </into>
+  <link from="/week.occupied" to="/night.in"/>
+  <link from="/night.out" to="/itp.setback"/>
+  <link from="/disinf.occupied" to="/itp.disinfect"/>
+</module>

@@ -1,0 +1,353 @@
+// -*- mode: c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+abstract class TcpCommandHandler
+  extends Component
+{
+
+	// Used for linked list of CommandHandlers
+	TcpCommandHandler nextCmdHandler;
+
+	virtual bool serviceRequest(TcpHandler h, byte[] d, int len)
+	{
+		return false;
+	}
+}
+
+@palette=false
+class UICmdHandler extends TcpCommandHandler
+{
+
+	int  getPacketDataLen(byte[] d, int len)
+	{
+		return len - UIHandler.minRequestLen;
+	}
+
+	bool canServiceRequest(byte[] d, int len, int cmd)
+	{
+
+		return (d[UIHandler.requestTypeOffset] == cmd)
+	}
+}
+
+@palette=false
+class UIReadWritePoint extends DebugComponent
+{
+	int  dataType = dataTypeNone;
+	int  dataLen = 0;
+
+	@summary
+	@config
+	property int dataId;
+
+	@readonly @AlllowNull=false
+	property bool fault;
+
+	// 0     4    data length
+	// 4     4    id
+	// 8     1    data type
+
+	define int dataTypeNone  = 0;
+	define int dataTypeInt   = 1;
+	define int dataTypeBool  = 2;
+	define int dataTypeFloat = 3;
+	define int dataTypeStr   = 4;
+
+	static int dataLenOffset      = 0;
+	static int dataIdOffset       = dataLenOffset + 4;
+	static int dataTypeOffset     = dataIdOffset + 4;
+	static int dataValueOffset    = dataTypeOffset + 4;
+
+	bool checkUniqueId()
+	{
+		bool ret;
+		Component comp = Sys.app.lookup(parent);
+		if (comp.type.is(UIConnectService.type)) {
+			UIConnectService s = (UIConnectService)comp;
+
+			// countCompId updates fault field
+			ret = (s.countCompId(s, dataId) == 1);
+		} else {
+			ret = false;
+			fault := true;
+		}
+		return ret;
+	}
+
+	void checkAllCompIds()
+	{
+		Component comp = Sys.app.lookup(parent);
+		if (comp.type.is(UIConnectService.type)) {
+			UIConnectService s = (UIConnectService)comp;
+
+			// countCompId updates fault field
+			s.checkAllCompIds(s);
+		}
+	}
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		checkUniqueId();
+	}
+
+	virtual override void changed(Slot slot) {
+                super.changed(slot);
+
+		if (slot == UIReadWritePoint.dataId)
+			checkAllCompIds();
+	}
+
+	bool canProcessData(TcpHandler h, byte[] d, int offset, int len)
+	{
+		bool ret = (h.readInt(offset + dataIdOffset,   4) == dataId) &&
+		(h.readInt(offset + dataTypeOffset, 1) == dataType) &&
+		(getRecordSizeRead(h, offset) == getRecordSizeWrite()) &&
+		(checkUniqueId());
+		return ret;
+	}
+
+	static int getRecordSizeRead(TcpHandler h, int offset)
+	{
+		return h.readInt(offset + dataLenOffset, 4);
+	}
+
+	int getRecordSizeWrite()
+	{
+		return dataValueOffset + dataLen;
+	}
+
+	virtual void readData(TcpHandler h, byte[] d, int offset, int len)
+	{
+
+	}
+
+	virtual void writeData(TcpHandler h)
+	{
+		h.writeInt(getRecordSizeWrite(), 4);
+		h.writeInt(dataId, 4);
+		h.writeInt(dataType, 4);
+	}
+
+
+}
+
+@niagaraIcon="module://icons/x16/control/numericPointWr.png"
+class UIReadWritePointFloat extends UIReadWritePoint
+{
+	@summary
+	@config
+	property float val;
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		dataLen = TypesToBytesConvertEx.floatSize;
+		dataType = dataTypeFloat;
+	}
+
+	virtual override void readData(TcpHandler h, byte[] d, int offset, int len)
+	{
+		val := h.readFloat(offset + dataValueOffset);
+	}
+
+	virtual override void writeData(TcpHandler h)
+	{
+		super.writeData(h);
+		h.writeFloat(val);
+	}
+}
+
+@niagaraIcon="module://icons/x16/control/numericPointWr.png"
+class UIReadWritePointInt extends UIReadWritePoint
+{
+	@summary
+	@config
+	property int val;
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		dataLen  = 4;
+		dataType = dataTypeInt;
+	}
+
+	virtual override void readData(TcpHandler h, byte[] d, int offset, int len)
+	{
+		val := h.readInt(offset + dataValueOffset, dataLen);
+	}
+
+	virtual override void writeData(TcpHandler h)
+	{
+		super.writeData(h);
+		h.writeInt(val, dataLen);
+	}
+}
+
+@niagaraIcon="module://icons/x16/control/booleanPointWr.png"
+class UIReadWritePointBool extends UIReadWritePoint
+{
+	@summary
+	@config
+	property bool val;
+
+	@summary
+	property bool valIn = null;
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		dataLen  = 4;
+		dataType = dataTypeBool;
+	}
+
+	virtual override void readData(TcpHandler h, byte[] d, int offset, int len)
+	{
+		val := h.readInt(offset + dataValueOffset, dataLen) != 0;
+	}
+
+	virtual override void writeData(TcpHandler h)
+	{
+		if (val != null) {
+			super.writeData(h);
+			int tmp = val ? 1 : 0;
+			h.writeInt(tmp, dataLen);
+		}
+	}
+
+	virtual override void execute()
+	{
+		super.execute();
+		if (valIn != null) {
+			val := valIn;
+		}
+	}
+}
+
+class UIReadWritePointStr extends UIReadWritePoint
+{
+	define int strLen = 127;
+
+	@config
+	@asStr
+	@max = strLen
+	property Buf(strLen) val = "###";
+
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		dataLen  = strLen;
+		dataType = dataTypeStr;
+	}
+
+	virtual override void writeData(TcpHandler h)
+	{
+		super.writeData(h);
+		for(int i=0; i<strLen; i++)
+			h.writeByte(val.get(i));
+	}
+}
+
+
+@palette=false
+class UICmdHandlerRead extends UICmdHandler
+{
+	int getAnswerSize(TcpHandler h)
+	{
+		int  len = 0;
+		Type t = UIReadWritePoint.type;
+		Component p = h.service;
+		Component c = Sys.app.getFirstChildOfType(p, t);
+		for (; c != null; c = Sys.app.getNextSiblingOfType(c, t)) {
+			UIReadWritePoint pnt = (UIReadWritePoint)c;
+			if (pnt.checkUniqueId())
+				len += pnt.getRecordSizeWrite();
+		}
+		return len;
+	}
+
+	virtual override bool serviceRequest(TcpHandler h, byte[] d, int len)
+	{
+		int cmd = UIHandler.requestTypeRead;
+		if (!canServiceRequest(d, len, cmd) || (getPacketDataLen(d, len) > 0))
+			return false;
+
+		UIHandler.writeHeader(h, cmd, getAnswerSize(h));
+
+		// write all point to the output stream
+		Type t = UIReadWritePoint.type;
+		Component p = h.service;
+		Component c = Sys.app.getFirstChildOfType(p, t);
+		for (; c != null; c = Sys.app.getNextSiblingOfType(c, t)) {
+			UIReadWritePoint pnt = (UIReadWritePoint)c;
+			if (pnt.checkUniqueId())
+				pnt.writeData(h);
+		}
+		return true;
+	}
+}
+
+
+@palette=false
+class UICmdHandlerWrite extends UICmdHandler
+{
+	virtual override bool serviceRequest(TcpHandler h, byte[] d, int len)
+	{
+		bool ret = true;
+		int offset;
+		int cmd = UIHandler.requestTypeWrite;
+		int recLen = 0;
+		if (!canServiceRequest(d, len, cmd))
+			return false;
+
+		offset = UIHandler.minRequestLen;
+
+		// read all points
+		int i_max = 256;
+		int i = 0;
+		for(;offset < len; offset += recLen) {
+			recLen += UIReadWritePoint.getRecordSizeRead(h, offset);
+
+			// find point to handler write request
+			bool found = false;
+			Type t = UIReadWritePoint.type;
+			Component p = h.service;
+			Component c = Sys.app.getFirstChildOfType(p, t);
+			for (; c != null; c = Sys.app.getNextSiblingOfType(c, t)) {
+				UIReadWritePoint pnt = (UIReadWritePoint)c;
+				if (pnt.canProcessData(h, d, offset, len)) {
+					pnt.readData(h, d, offset, len);
+					found = true;
+					break;
+				}
+			}
+
+			ret = ret && found;
+
+			// to avoid infinite loop
+			i++;
+			if (i<i_max)
+				break;
+		}
+
+		UIHandler.writeHeader(h, cmd, 1);
+		h.writeByte(ret ? 1 : 0);
+
+		return true;
+	}
+}

@@ -1,0 +1,116 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Run hours and starts of a pump, fan or compressor, with a service
+** reminder.  The counts survive a restart and a power loss when the app
+** has a RetainService.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class RunCounter extends Retained
+{
+  ** the equipment runs (a contactor feedback or a run command)
+  @summary property bool run
+
+  ** total run hours
+  @readonly @unit=Units.hour @precision=2 @summary
+  property float hours
+
+  ** total starts
+  @readonly property int starts
+
+  ** hours between services; 0 = no reminder
+  @config @unit=Units.hour @min=0
+  property float serviceInterval = 0.0f
+
+  ** run hours since the last service
+  @readonly @unit=Units.hour @precision=2
+  property float sinceService
+
+  ** service is due (sinceService reached serviceInterval)
+  @readonly property bool serviceDue
+
+  ** service done: sinceService starts again from 0
+  @confirmRequired
+  action void serviceDone()
+  {
+    serviceNs = 0L
+    publish()
+    Retained.retainChanged()
+  }
+
+  ** set the total hours (after replacing a counter or a motor)
+  @confirmRequired
+  action void setHours(float h)
+  {
+    if (!Pro.valid(h) || h < 0.0f) return
+    runNs = (long)(h * 3600.0f) * 1sec
+    publish()
+    Retained.retainChanged()
+  }
+
+  ** hours, starts and sinceService to 0
+  @confirmRequired
+  action void resetAll()
+  {
+    runNs = 0L
+    serviceNs = 0L
+    starts := 0
+    publish()
+    Retained.retainChanged()
+  }
+
+  virtual override void execute()
+  {
+    update(ticker.next())
+  }
+
+  ** one step of dt seconds
+  void update(float dt)
+  {
+    bool r = run == true
+    if (r && !wasRunning)
+      starts := starts + 1
+    wasRunning = r
+    if (r && dt > 0.0f)
+    {
+      long ns = (long)(dt * 1000000.0f) * 1000L
+      runNs += ns
+      serviceNs += ns
+    }
+    publish()
+  }
+
+  private void publish()
+  {
+    hours := (float)(runNs / 1000000L) / 3600000.0f
+    sinceService := (float)(serviceNs / 1000000L) / 3600000.0f
+    serviceDue := serviceInterval > 0.0f && sinceService >= serviceInterval
+  }
+
+  override int retainSize() { return 20 }
+
+  override void saveRetain(OutStream out)
+  {
+    out.writeI8(runNs)
+    out.writeI8(serviceNs)
+    out.writeI4(starts)
+  }
+
+  override void loadRetain(InStream in)
+  {
+    runNs = in.readS8()
+    serviceNs = in.readS8()
+    starts := in.readS4()
+    if (runNs < 0L) runNs = 0L
+    if (serviceNs < 0L) serviceNs = 0L
+    publish()
+  }
+
+  long runNs
+  long serviceNs
+  bool wasRunning
+  inline Ticker ticker
+}

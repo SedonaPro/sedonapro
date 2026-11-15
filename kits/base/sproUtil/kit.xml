@@ -1,0 +1,20 @@
+<sedonaKit
+    name="sproUtil"
+    vendor="SPro"
+    description="library with general useful native functions"
+    >
+
+  <depend on="sys 1.2+" />
+  <depend on="inet 1.2+" />
+  <depend on="sproLib 1.2+" />
+
+  <native qname="sproUtil::ConvertFloat.Float2Int" id="111::1" />
+  <native qname="sproUtil::ConvertFloat.Int2Float" id="111::2" />
+
+  <native qname="sproUtil::SerialInfoPlatform.setMaxPortNumNative" id="111::3" />
+  <native qname="sproUtil::SerialInfoPlatform.setPortNameNative" id="111::4" />
+
+
+  <native qname="sproUtil::NetworkConfig.checkNetConfig" id="111::15" />
+  <source dir="." />
+</sedonaKit>

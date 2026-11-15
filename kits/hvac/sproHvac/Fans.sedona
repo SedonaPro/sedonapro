@@ -1,0 +1,96 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Speed of a fan on a VFD: fixed comfort/economy speeds or a duct
+** pressure loop, raised by CO2, limited by the frost protection
+** (WaterHeater.fanLimit) and ramped.  A limit below speedMin wins:
+** protecting the coil comes first.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class FanSpeed extends Component
+{
+  ** the fan runs
+  @summary property bool run
+  ** economy level (night, few people)
+  property bool eco
+  ** highest speed allowed, % (WaterHeater.fanLimit)
+  property float limit = 100.0f
+  ** duct pressure, Pa (mode pressure)
+  property float pressure = null
+  ** CO2, ppm (null: no CO2 control)
+  property float co2 = null
+
+  define Str modeRange = "fixed, pressure"
+  @config @range=modeRange property byte mode = 0
+  ** speeds, %
+  @config @min=0 @max=100 property float speed = 80.0f
+  @config @min=0 @max=100 property float speedEco = 50.0f
+  @config @min=0 @max=100 property float speedMin = 20.0f
+  @config @min=0 @max=100 property float speedMax = 100.0f
+  ** duct pressure setpoints, Pa
+  @config property float pressureSp = 250.0f
+  @config property float pressureSpEco = 150.0f
+  ** pressure loop: % per Pa, integral time, s
+  @config @min=0 property float pKp = 0.1f
+  @config @unit=Units.second @min=0 property float pTi = 20.0f
+  ** CO2: speed rises from co2Lo to speedMax at co2Hi, ppm
+  @config property float co2Lo = 800.0f
+  @config property float co2Hi = 1200.0f
+  ** time from 0 to 100 %, s
+  @config @unit=Units.second @min=0 property float rampTime = 30.0f
+
+  @readonly @summary @precision=1 property float out
+  ** ok, standby (not running), limited (held down by limit), inputBad (no pressure)
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    if (run != true)
+    {
+      out := 0.0f
+      loop.hold(speedMin)
+      status := Pro.standby
+      return
+    }
+    float t = eco == true ? speedEco : speed
+    int st = Pro.ok
+    if (mode == 1)
+    {
+      if (Pro.valid(pressure))
+      {
+        loop.kp = pKp
+        loop.ti = pTi
+        loop.direct = false
+        t = loop.run(dt, pressure, eco == true ? pressureSpEco : pressureSp, 0.0f, speedMin, speedMax, null)
+      }
+      else
+      {
+        t = loop.out
+        loop.bumpless = true
+        st = Pro.inputBad
+      }
+    }
+    if (Pro.valid(co2) && co2Hi > co2Lo)
+      t = Pro.max(t, Hvac.line(co2, co2Lo, t, co2Hi, speedMax))
+    t = Pro.clamp(t, speedMin, speedMax)
+    float lim = Pro.valid(limit) ? limit : 100.0f
+    if (t > lim) { t = lim; st = Pro.limited }
+    // ramp: up at the ramp rate, down at once when limited
+    float step = rampTime > 0.0f ? 100.0f * dt / rampTime : 100.0f
+    float o = out
+    if (t > o) o = Pro.min(t, o + step)
+    else if (st == Pro.limited) o = t
+    else o = Pro.max(t, o - step)
+    out := o
+    status := st
+    if (mode != 1) loop.hold(Pro.max(o, speedMin))   // a later pressure mode starts from here
+  }
+
+  inline PidAlgo loop
+  inline Ticker ticker
+}

@@ -1,0 +1,114 @@
+<module replaces="hal">
+  <!-- Level 3: water pressure booster set with 3 pumps on a common VFD.
+       Pressure from AI1 (sim board: 0..10, read as bar), setpoint 4 bar.
+       Pumps on DO1..DO3, VFD speed on AO1 (%), pump faults (thermal
+       relays) on DI1..DI3, low suction pressure (dry run) on DI4.
+       Move AI1 below 4: the speed rises and after 10 s at full speed one
+       more pump starts; above 4 they stop one by one.  Set DI2: pump 2
+       trips and another one takes over.  Set DI4 for 3 s: all pumps stop,
+       a retry follows in 30 s.
+       Build: spro build sim, options pack=pumps example=booster (see README.md) -->
+  <kit name="sproHal"/>
+  <kit name="sproBase"/>
+  <kit name="sproControl"/>
+  <kit name="sproEquip"/>
+  <kit name="sproAlarm"/>
+  <into path="">
+    <comp name="booster" type="sys::Folder">
+      <comp name="retain" type="sproBase::RetainService"/>
+      <comp name="alarms" type="sproAlarm::AlarmService"/>
+      <comp name="press" type="sproHal::AnalogInput">
+        <prop name="channel" val="AI1"/>
+      </comp>
+      <comp name="pid" type="sproControl::Pid">
+        <prop name="sp" val="4.0"/>
+        <prop name="kp" val="15.0"/>
+        <prop name="ti" val="10.0"/>
+        <prop name="startValue" val="50.0"/>
+      </comp>
+      <comp name="casc" type="sproEquip::PumpCascade">
+        <prop name="maxPumps" val="3"/>
+        <prop name="upDelay" val="10.0"/>
+        <prop name="downAt" val="40.0"/>
+        <prop name="downDelay" val="15.0"/>
+        <prop name="sp" val="4.0"/>
+      </comp>
+      <comp name="lead" type="sproEquip::LeadLag">
+        <prop name="units" val="3"/>
+        <prop name="overlap" val="3.0"/>
+      </comp>
+      <comp name="m1" type="sproEquip::Motor">
+        <prop name="startDelay" val="2.0"/>
+        <prop name="minRun" val="10.0"/>
+        <prop name="minStop" val="10.0"/>
+      </comp>
+      <comp name="m2" type="sproEquip::Motor">
+        <prop name="startDelay" val="2.0"/>
+        <prop name="minRun" val="10.0"/>
+        <prop name="minStop" val="10.0"/>
+      </comp>
+      <comp name="m3" type="sproEquip::Motor">
+        <prop name="startDelay" val="2.0"/>
+        <prop name="minRun" val="10.0"/>
+        <prop name="minStop" val="10.0"/>
+      </comp>
+      <comp name="dryIn" type="sproHal::DigitalInput">
+        <prop name="channel" val="DI4"/>
+      </comp>
+      <comp name="dry" type="sproAlarm::Trip">
+        <prop name="text" val="Dry run"/>
+        <prop name="priority" val="0"/>
+        <prop name="delay" val="3.0"/>
+        <prop name="retryDelay" val="30.0"/>
+      </comp>
+      <comp name="f1" type="sproHal::DigitalInput">
+        <prop name="channel" val="DI1"/>
+      </comp>
+      <comp name="f2" type="sproHal::DigitalInput">
+        <prop name="channel" val="DI2"/>
+      </comp>
+      <comp name="f3" type="sproHal::DigitalInput">
+        <prop name="channel" val="DI3"/>
+      </comp>
+      <comp name="do1" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO1"/>
+      </comp>
+      <comp name="do2" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO2"/>
+      </comp>
+      <comp name="do3" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO3"/>
+      </comp>
+      <comp name="vfd" type="sproHal::AnalogOutput">
+        <prop name="channel" val="AO1"/>
+      </comp>
+    </comp>
+  </into>
+  <link from="/booster/press.out" to="/booster/pid.pv"/>
+  <link from="/booster/press.out" to="/booster/casc.pv"/>
+  <link from="/booster/pid.out" to="/booster/casc.in"/>
+  <link from="/booster/casc.sleeping" to="/booster/pid.track"/>
+  <link from="/booster/casc.count" to="/booster/lead.demand"/>
+  <link from="/booster/lead.availableCount" to="/booster/casc.available"/>
+  <link from="/booster/casc.speed" to="/booster/vfd.in"/>
+  <link from="/booster/dryIn.out" to="/booster/dry.in"/>
+
+  <link from="/booster/lead.req1" to="/booster/m1.request"/>
+  <link from="/booster/lead.req2" to="/booster/m2.request"/>
+  <link from="/booster/lead.req3" to="/booster/m3.request"/>
+  <link from="/booster/m1.available" to="/booster/lead.avail1"/>
+  <link from="/booster/m2.available" to="/booster/lead.avail2"/>
+  <link from="/booster/m3.available" to="/booster/lead.avail3"/>
+  <link from="/booster/casc.speed" to="/booster/m1.speedIn"/>
+  <link from="/booster/casc.speed" to="/booster/m2.speedIn"/>
+  <link from="/booster/casc.speed" to="/booster/m3.speedIn"/>
+  <link from="/booster/dry.ok" to="/booster/m1.permit"/>
+  <link from="/booster/dry.ok" to="/booster/m2.permit"/>
+  <link from="/booster/dry.ok" to="/booster/m3.permit"/>
+  <link from="/booster/f1.out" to="/booster/m1.fault"/>
+  <link from="/booster/f2.out" to="/booster/m2.fault"/>
+  <link from="/booster/f3.out" to="/booster/m3.fault"/>
+  <link from="/booster/m1.cmd" to="/booster/do1.in"/>
+  <link from="/booster/m2.cmd" to="/booster/do2.in"/>
+  <link from="/booster/m3.cmd" to="/booster/do3.in"/>
+</module>

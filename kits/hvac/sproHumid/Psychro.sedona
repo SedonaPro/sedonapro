@@ -1,0 +1,144 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Humid air from a temperature and relative humidity sensor: dew point,
+** absolute humidity, enthalpy, wet bulb.  Use the absolute humidity or
+** the dew point as the controlled value when the air is heated or cooled
+** on its way (relative humidity changes with temperature, they do not).
+** A failed input gives null outputs and status inputBad.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Psychro extends Component
+{
+  ** air temperature, C
+  @summary @unit=Units.celsius property float temp
+  ** relative humidity, %
+  @unit=Units.percent_relative_humidity property float rh
+  ** air pressure, kPa (altitude: 1000 m is about 90 kPa)
+  @config @unit=Units.kilopascal @min=50 @max=120 property float pressure = 101.325f
+
+  ** dew point, C
+  @readonly @summary @unit=Units.celsius @precision=1 property float dewPoint
+  ** absolute humidity (humidity ratio), g/kg
+  @readonly @unit=Units.grams_of_water_per_kilogram_dry_air @precision=2 property float absHumidity
+  ** enthalpy, kJ/kg
+  @readonly @unit=Units.kilojoules_per_kilogram_dry_air @precision=1 property float enthalpy
+  ** wet bulb temperature, C
+  @readonly @unit=Units.celsius @precision=1 property float wetBulb
+  ** ok, inputBad (an input failed or rh outside 0..100)
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute()
+  {
+    if (!Pro.valid(temp) || !Pro.valid(rh) || !Pro.valid(pressure) || rh < 0.0f || rh > 103.0f)
+    {
+      dewPoint := null
+      absHumidity := null
+      enthalpy := null
+      wetBulb := null
+      status := Pro.inputBad
+      return
+    }
+    float r = Pro.min(rh, 100.0f)
+    float x = Air.ratio(temp, r, pressure)
+    dewPoint := Air.dewPoint(temp, r)
+    absHumidity := x
+    if (Pro.valid(x)) enthalpy := Air.enthalpy(temp, x)
+    else enthalpy := null
+    wetBulb := Air.wetBulb(temp, r, pressure)
+    status := Pro.ok
+  }
+}
+
+**
+** Relative humidity the same air has at another temperature: after a
+** heater or a cooler, or at a cold surface (condensation risk).
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class RelHumidity extends Component
+{
+  ** absolute humidity of the air, g/kg (Psychro.absHumidity)
+  @summary @unit=Units.grams_of_water_per_kilogram_dry_air property float absHumidity
+  ** temperature to evaluate at, C
+  @unit=Units.celsius property float temp
+  @config @unit=Units.kilopascal @min=50 @max=120 property float pressure = 101.325f
+
+  ** relative humidity at temp, % (limited to 100)
+  @readonly @summary @unit=Units.percent_relative_humidity @precision=1 property float rh
+  ** the air would condense at temp
+  @readonly property bool condensing
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute()
+  {
+    if (!Pro.valid(temp) || !Pro.valid(absHumidity) || !Pro.valid(pressure) || absHumidity < 0.0f)
+    {
+      rh := null
+      status := Pro.inputBad
+      return
+    }
+    float r = Air.relative(temp, absHumidity, pressure)
+    condensing := r >= 100.0f
+    rh := Pro.min(r, 100.0f)
+    status := Pro.ok
+  }
+}
+
+**
+** Enthalpy economizer: is the outdoor air better for cooling than the
+** room (extract) air?  outdoorLower is true while the outdoor enthalpy is
+** at least 'margin' below the indoor one (it turns off at the same
+** values: no flicker).  Use it to open the outdoor dampers in summer
+** (free cooling) or to stop a recovery that would bring heat in.  With a
+** humidity sensor failed it compares temperatures (tempMargin) and sets
+** status = inputBad.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Economizer extends Component
+{
+  @unit=Units.celsius property float outdoorTemp
+  @unit=Units.percent_relative_humidity property float outdoorRh
+  @unit=Units.celsius property float indoorTemp
+  @unit=Units.percent_relative_humidity property float indoorRh
+  @config @unit=Units.kilopascal @min=50 @max=120 property float pressure = 101.325f
+  ** outdoor must be this much lower, kJ/kg
+  @config @min=0 property float margin = 3.0f
+  ** temperature margin when a humidity is missing, K
+  @config @min=0 property float tempMargin = 2.0f
+
+  @readonly @unit=Units.kilojoules_per_kilogram_dry_air @precision=1 property float outdoorH
+  @readonly @unit=Units.kilojoules_per_kilogram_dry_air @precision=1 property float indoorH
+  ** the outdoor air is better for cooling
+  @readonly @summary property bool outdoorLower
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute()
+  {
+    if (!Pro.valid(outdoorTemp) || !Pro.valid(indoorTemp))
+    {
+      status := Pro.inputBad
+      return
+    }
+    float xo = null
+    float xi = null
+    if (Pro.valid(outdoorRh)) xo = Air.ratio(outdoorTemp, outdoorRh, pressure)
+    if (Pro.valid(indoorRh)) xi = Air.ratio(indoorTemp, indoorRh, pressure)
+    if (Pro.valid(xo) && Pro.valid(xi))
+    {
+      float ho = Air.enthalpy(outdoorTemp, xo)
+      float hi = Air.enthalpy(indoorTemp, xi)
+      outdoorH := ho
+      indoorH := hi
+      outdoorLower := outdoorLower ? ho < hi : ho < hi - margin
+      status := Pro.ok
+      return
+    }
+    outdoorH := null
+    indoorH := null
+    outdoorLower := outdoorLower ? outdoorTemp < indoorTemp : outdoorTemp < indoorTemp - tempMargin
+    status := Pro.inputBad
+  }
+}

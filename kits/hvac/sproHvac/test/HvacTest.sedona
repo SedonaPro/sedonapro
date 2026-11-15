@@ -1,0 +1,301 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+class HvacTest extends Test
+{
+  static inline Season se
+  static inline AhuControl ahu
+  static inline FanSpeed fan
+  static inline Recuperator rec
+  static inline ElectricHeater eh
+  static inline SupplyTemp st
+
+  static bool near(float a, float b, float tol) { return a - b <= tol && b - a <= tol }
+
+  static void testLine()
+  {
+    assert(Hvac.line(-25.0f, -25.0f, 30.0f, 5.0f, 0.0f) == 30.0f)
+    assert(Hvac.line(-40.0f, -25.0f, 30.0f, 5.0f, 0.0f) == 30.0f)
+    assert(near(Hvac.line(-10.0f, -25.0f, 30.0f, 5.0f, 0.0f), 15.0f, 0.001f))
+    assert(Hvac.line(10.0f, 5.0f, 0.0f, -25.0f, 30.0f) == 0.0f)       // points in any order
+    assert(Hvac.line(null, 0.0f, 0.0f, 1.0f, 1.0f) == null)
+    assert(near(Hvac.depth(11.5f, 15.0f, 8.0f), 0.5f, 0.001f))
+    assert(Hvac.depth(20.0f, 15.0f, 8.0f) == 0.0f && Hvac.depth(5.0f, 15.0f, 8.0f) == 1.0f)
+  }
+
+  static void testSeason()
+  {
+    se.averaging := 0.0f
+    se.minDwell := 1.0f
+    se.outdoor := 20.0f
+    se.update(1.0f)
+    assert(se.summer && se.season == Hvac.summer)    // first decision at once
+    se.outdoor := 0.0f
+    se.update(60.0f)
+    assert(se.summer)                                // minimum time in a season
+    se.update(3600.0f)
+    assert(se.winter)
+    se.outdoor := 8.5f                               // inside the hysteresis
+    se.update(7200.0f)
+    assert(se.winter)
+    se.outdoor := 12.0f
+    se.update(7200.0f)
+    assert(se.transition)
+    se.mode := 3
+    se.update(1.0f)
+    assert(se.summer && se.status == Pro.hand)
+    se.mode := 0
+    se.outdoor := null
+    se.update(7200.0f)
+    assert(se.status == Pro.inputBad)
+    // averaging: one warm hour does not move a 24 h average far
+    se.averaging := 24.0f
+    se.outdoor := 0.0f
+    se.update(1.0f)
+    float a0 = se.average
+    se.outdoor := 20.0f
+    se.update(3600.0f)
+    assert(se.average - a0 < 1.0f)
+  }
+
+  static void testAhuSequence()
+  {
+    ahu.damperTime := 20.0f
+    ahu.supplyDelay := 5.0f
+    ahu.controlDelay := 10.0f
+    ahu.runOn := 10.0f
+    ahu.heaterReady := false
+    ahu.request := true
+    ahu.update(1.0f)
+    assert(ahu.state == AhuControl.stPreheat && ahu.heaterStart && !ahu.damper && !ahu.supplyFan)
+    ahu.update(100.0f)
+    assert(ahu.state == AhuControl.stPreheat)        // waits for the coil
+    ahu.heaterReady := true
+    ahu.update(1.0f)
+    assert(ahu.state == AhuControl.stOpening && ahu.damper && !ahu.exhaustFan)
+    ahu.damperOpen := false
+    ahu.update(30.0f)
+    assert(ahu.state == AhuControl.stOpening)        // end switch not made
+    ahu.damperOpen := true
+    ahu.update(1.0f)
+    assert(ahu.state == AhuControl.stStarting && ahu.exhaustFan && !ahu.supplyFan)
+    ahu.update(5.0f)
+    assert(ahu.supplyFan && ahu.airflow && !ahu.control)
+    ahu.update(10.0f)
+    assert(ahu.state == AhuControl.stRun && ahu.control && ahu.status == Pro.ok)
+    // stop with an electric heater purge
+    ahu.request := false
+    ahu.purge := true
+    ahu.update(1.0f)
+    assert(ahu.state == AhuControl.stStopping && !ahu.control && ahu.supplyFan)
+    ahu.update(60.0f)
+    assert(ahu.supplyFan)                            // purging
+    ahu.purge := false
+    ahu.update(10.0f)
+    assert(ahu.state == AhuControl.stOff && !ahu.supplyFan && !ahu.damper)
+    // fire: everything off at once, also in hand mode
+    ahu.mode := 1
+    ahu.update(1.0f)
+    ahu.fire := true
+    ahu.update(0.1f)
+    assert(ahu.state == AhuControl.stFire && !ahu.supplyFan && !ahu.exhaustFan && ahu.alarm)
+    ahu.fireMode := 1
+    ahu.update(0.1f)
+    assert(ahu.exhaustFan && !ahu.supplyFan && ahu.damper)
+    ahu.fire := false
+    ahu.fireMode := 0
+    ahu.update(1.0f)
+    assert(ahu.state == AhuControl.stOff)
+    // fault: latched
+    ahu.fault := true
+    ahu.update(1.0f)
+    ahu.fault := false
+    ahu.update(1.0f)
+    assert(ahu.state == AhuControl.stFault && ahu.status == Pro.locked)
+    ahu.reset()
+    ahu.update(1.0f)
+    ahu.update(1.0f)
+    assert(ahu.state == AhuControl.stOpening && ahu.status == Pro.hand)   // the coil is ready: straight on
+    ahu.mode := 2
+    ahu.update(1.0f)
+    assert(ahu.state == AhuControl.stStopping || ahu.state == AhuControl.stOff)
+    ahu.mode := 0
+  }
+
+  static void testFan()
+  {
+    fan.rampTime := 10.0f
+    fan.speed := 80.0f
+    fan.run := true
+    fan.update(5.0f)
+    assert(near(fan.out, 50.0f, 0.01f))              // ramp
+    fan.update(5.0f)
+    assert(fan.out == 80.0f)
+    fan.eco := true
+    fan.update(1.0f)
+    assert(near(fan.out, 70.0f, 0.01f))
+    fan.update(10.0f)
+    assert(fan.out == 50.0f)
+    fan.co2 := 1000.0f                               // half way: 50 -> 100
+    fan.update(10.0f)
+    assert(near(fan.out, 75.0f, 0.01f))
+    fan.limit := 30.0f                               // frost: down at once
+    fan.update(0.1f)
+    assert(fan.out == 30.0f && fan.status == Pro.limited)
+    fan.limit := 10.0f                               // below speedMin: the limit wins
+    fan.update(0.1f)
+    assert(fan.out == 10.0f)
+    fan.limit := 100.0f
+    fan.co2 := null
+    fan.eco := false
+    fan.update(10.0f)
+    float o = fan.out
+    fan.mode := 1
+    fan.pressure := 200.0f
+    fan.update(1.0f)
+    assert(near(fan.out, o, 0.5f))                   // bumpless into the pressure loop
+    for (int k = 0; k < 20; k++) fan.update(1.0f)
+    assert(fan.out > o + 4.0f)                       // below 250 Pa: speeds up
+    fan.run := false
+    fan.update(1.0f)
+    assert(fan.out == 0.0f && fan.status == Pro.standby)
+    fan.mode := 0
+  }
+
+  static void testRecuperator()
+  {
+    rec.run := true
+    rec.season := Hvac.winter
+    rec.demand := 80.0f
+    rec.exhaust := 6.0f
+    rec.update(1.0f)
+    assert(rec.out == 80.0f && !rec.icing)
+    rec.exhaust := -1.0f                             // icing: 2 K below iceTemp
+    for (int k = 0; k < 10; k++) rec.update(1.0f)
+    assert(rec.out < 80.0f && rec.icing && rec.status == Pro.limited)
+    rec.exhaust := 6.0f
+    for (int k = 0; k < 300; k++) rec.update(1.0f)
+    assert(rec.out == 80.0f && !rec.icing)
+    rec.iceSwitch := true
+    rec.update(1.0f)
+    rec.iceSwitch := false
+    rec.update(100.0f)
+    assert(rec.out == 0.0f && rec.defrost && rec.status == Pro.waiting)
+    rec.update(250.0f)
+    assert(!rec.defrost && rec.out == 80.0f)
+    // summer: cold recovery only while it is warmer outside than inside
+    rec.season := Hvac.summer
+    rec.outdoor := 30.0f
+    rec.extract := 24.0f
+    rec.cooling := 40.0f
+    rec.update(1.0f)
+    assert(rec.out == 100.0f)
+    rec.outdoor := 18.0f
+    rec.update(1.0f)
+    assert(rec.out == 0.0f)                          // free cooling
+    rec.minOut := 5.0f
+    rec.update(1.0f)
+    assert(rec.out == 5.0f)
+    rec.minOut := 0.0f
+    // efficiency
+    rec.outdoor := -10.0f
+    rec.extract := 22.0f
+    rec.supplyAfter := 14.0f
+    rec.update(1.0f)
+    assert(near(rec.efficiency, 75.0f, 0.01f))
+    rec.run := false
+    rec.update(1.0f)
+    assert(rec.out == 0.0f)
+  }
+
+  static void testElectricHeater()
+  {
+    eh.start()
+    eh.stages := 2
+    eh.stepDelay := 0.0f
+    eh.minOn := 0.0f
+    eh.minOff := 0.0f
+    eh.purgeTime := 60.0f
+    eh.demand := 100.0f
+    eh.airflow := false
+    eh.update(1.0f)
+    assert(!eh.s1 && eh.status == Pro.waiting)       // no air: no heat
+    eh.airflow := true
+    for (int k = 0; k < 3; k++) eh.update(1.0f)
+    assert(eh.s1 && eh.s2 && eh.purge)
+    eh.overheat := true
+    eh.update(0.1f)
+    assert(!eh.s1 && !eh.s2 && eh.alarm && eh.status == Pro.locked)
+    eh.overheat := false
+    eh.update(1.0f)
+    assert(!eh.s1 && eh.alarm)                       // latched
+    eh.reset()
+    for (int k = 0; k < 3; k++) eh.update(1.0f)
+    assert(eh.s1 && !eh.alarm)
+    eh.demand := 0.0f
+    for (int k = 0; k < 3; k++) eh.update(1.0f)
+    assert(!eh.s1 && eh.purge)
+    eh.update(60.0f)
+    assert(!eh.purge)
+    // two stages + an SSR: 75 % = one stage on, pwm at half
+    eh.pwmStage := true
+    eh.demand := 75.0f
+    for (int k = 0; k < 3; k++) eh.update(1.0f)
+    assert(eh.s1 && !eh.s2)
+    int on = 0
+    for (int k = 0; k < 100; k++) { eh.update(0.1f); if (eh.pwm) on++ }
+    assert(on >= 45 && on <= 55)
+  }
+
+  static void testSupplyTemp()
+  {
+    st.season := Hvac.winter
+    st.run := false
+    st.update(1.0f)
+    assert(st.heating == 0.0f && st.status == Pro.standby)
+    st.recShare := 40.0f
+    st.outputs(50.0f, 0.0f)
+    assert(st.recovery == 100.0f && near(st.heating, 16.67f, 0.05f) && st.cooling == 0.0f)
+    st.outputs(20.0f, 0.0f)
+    assert(st.recovery == 50.0f && st.heating == 0.0f)
+    st.run := true
+    st.heatKp := 10.0f
+    st.heatTi := 60.0f
+    st.supply := 15.0f                               // 5 K low
+    st.update(1.0f)
+    for (int k = 0; k < 30; k++) st.update(1.0f)
+    assert(st.heatDemand > 20.0f && st.mode == 1)
+    st.supply := 30.0f                               // too warm, but winter: no cooling
+    st.update(1.0f)
+    assert(st.cooling == 0.0f && st.heating == 0.0f && st.mode == 2)
+    st.season := Hvac.summer
+    st.update(1.0f)
+    assert(st.cooling > 0.0f && st.mode == 3)
+    st.supply := 21.0f                               // inside the neutral zone
+    st.coolTi := 0.0f
+    st.update(1.0f)
+    assert(st.cooling == 0.0f && st.heating == 0.0f)
+    // room cascade: a cold room raises the supply setpoint
+    st.season := Hvac.winter
+    st.control := 1
+    st.room := 19.0f
+    st.roomKp := 3.0f
+    st.roomTi := 0.0f
+    st.run := false
+    st.update(1.0f)
+    st.run := true
+    st.update(1.0f)
+    float sp1 = st.supplySp
+    st.room := 18.0f
+    st.update(1.0f)
+    assert(near(st.supplySp - sp1, 3.0f, 0.01f))
+    st.room := 10.0f
+    st.update(1.0f)
+    assert(st.supplySp == 35.0f)                     // supplyMax
+    st.room := null
+    st.update(1.0f)
+    assert(st.status == Pro.inputBad && st.supplySp == 35.0f)
+  }
+}

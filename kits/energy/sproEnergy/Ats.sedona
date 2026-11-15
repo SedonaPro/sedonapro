@@ -1,0 +1,306 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Automatic transfer switch (АВР): two mains inputs, an input and a
+** generator, or two inputs and a generator.  It commands the breakers
+** (closeN true = keep breaker N closed) and the generator start.
+**
+** ok1, ok2, okG come from voltage relays or a network analyser
+** (voltage, frequency, phase order in tolerance); fb1, fb2, fbG are the
+** breakers' closed contacts.
+**
+**  - Supply from the preferred input; the other input, then the
+**    generator, take over when it is bad for lossDelay.
+**  - Break before make: all breakers open, deadTime passes and (with
+**    useFeedback) every breaker reports open before another one closes.
+**    A breaker that does not close within fbTime is marked failed and
+**    the next source is tried; one that does not open blocks every
+**    further transfer (breakerFault) - two sources are never closed
+**    together by this logic.
+**  - Return to a better source once it was good for returnDelay
+**    (returnAuto false: only from the generator; back to the preferred
+**    input by hand or a mode change).
+**  - Generator: started when no input is good for genStartDelay, genLoaded
+**    after its voltage was good for genWarmup, runs on unloaded for
+**    genCooldown after the return; no voltage within genStartTimeout ->
+**    genFault.
+**  - block (a protection trip on the bus: a short circuit) freezes the
+**    switch: no transfer onto a fault.
+**  - mode hand closes handSource (if its voltage is good), off opens all.
+**  - reset clears breaker and generator faults.
+**
+** The software interlock does not replace the electrical and mechanical
+** interlock of the breakers, which an ATS panel must have.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Ats extends Component
+{
+  ** input 1 voltage good
+  @summary property bool ok1
+  ** input 2 voltage good
+  property bool ok2
+  ** generator voltage good
+  property bool okG
+  ** breaker 1 is closed
+  property bool fb1
+  ** breaker 2 is closed
+  property bool fb2
+  ** generator breaker is closed
+  property bool fbG
+  ** protection trip on the bus: no transfer
+  property bool block
+
+  define Str sourcesRange = "twoInputs, inputGen, twoInputsGen"
+  @config @range=sourcesRange property byte sources
+
+  define Str sourceRange = "none, input1, input2, generator"
+  ** auto, hand (handSource), off (all breakers open)
+  @config @range=Pro.modeRange property byte mode
+  @config @range=sourceRange property byte handSource = 1
+
+  define Str preferRange = "input1, input2"
+  ** the main input
+  @config @range=preferRange property byte prefer
+
+  ** a source must be bad this long before the transfer, and good this long before first use, s
+  @config @unit=Units.second @min=0 property float lossDelay = 3.0f
+  ** a better source must be good this long before the return, s
+  @config @unit=Units.second @min=0 property float returnDelay = 60.0f
+  ** return to the preferred input automatically
+  @config property bool returnAuto = true
+  ** all breakers open at least this long between two sources, s
+  @config @unit=Units.second @min=0 property float deadTime = 1.0f
+  ** check the breakers' contacts
+  @config property bool useFeedback = true
+  ** a breaker must report within this time, s
+  @config @unit=Units.second @min=0.1 property float fbTime = 3.0f
+  ** generator: start after no input was good this long, s
+  @config @unit=Units.second @min=0 property float genStartDelay = 5.0f
+  ** generator: voltage good this long before the load is put on, s
+  @config @unit=Units.second @min=0 property float genWarmup = 15.0f
+  ** generator: runs on unloaded after the return, s
+  @config @unit=Units.second @min=0 property float genCooldown = 180.0f
+  ** generator: no voltage this long after the start is a fault, s
+  @config @unit=Units.second @min=1 property float genStartTimeout = 30.0f
+
+  ** keep breaker 1 closed
+  @readonly @summary property bool close1
+  ** keep breaker 2 closed
+  @readonly property bool close2
+  ** keep the generator breaker closed
+  @readonly property bool closeG
+  ** run the generator
+  @readonly property bool genStart
+  ** source supplying the load now
+  @readonly @range=sourceRange property byte source
+  ** supplied, but not from the preferred input
+  @readonly property bool onReserve
+  ** no source is closed
+  @readonly property bool blackout
+  ** a breaker did not close or open as commanded
+  @readonly property bool breakerFault
+  ** the generator gave no voltage
+  @readonly property bool genFault
+  ** blackout, breakerFault or genFault
+  @readonly property bool alarm
+
+  define Str stateRange = "supplied, transfer, noSource, lockout, hand, off"
+  @readonly @range=stateRange property byte state
+  @readonly @range=Pro.statusRange property byte status
+
+  ** clear breaker and generator faults
+  action void reset()
+  {
+    for (int i = 0; i < 4; i++) failed[i] = false
+    breakerFault := false
+    genFault := false
+    stuck = false
+    genAsk = 0.0f
+  }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  ** one step of dt seconds
+  void update(float dt)
+  {
+    for (int s = 1; s <= 3; s++)
+    {
+      if (has(s) && okIn(s)) { good[s] = good[s] + dt; bad[s] = 0.0f }
+      else { bad[s] = bad[s] + dt; good[s] = 0.0f }
+    }
+
+    // the source wanted now
+    int want = 0
+    if (mode == Pro.modeOff) want = 0
+    else if (mode == Pro.modeHand)
+    {
+      int h = handSource
+      if (h >= 1 && h <= 3 && has(h) && !failed[h] && okIn(h)) want = h
+    }
+    else if (block == true) want = phase == 0 ? cur : 0
+    else want = choose()
+
+    // generator
+    bool mains = (has(1) && !failed[1] && ok1 == true) || (has(2) && !failed[2] && ok2 == true)
+    if (mains) mainsBad = 0.0f
+    else mainsBad += dt
+    bool need = false
+    if (has(3) && !failed[3])
+    {
+      if (mode == Pro.modeHand) need = handSource == 3
+      else if (mode == Pro.modeAuto) need = mainsBad >= genStartDelay || cur == 3 || want == 3
+    }
+    if (cur == 3) genLoaded = true
+    if (need) cool = 0.0f
+    else if (genLoaded)
+    {
+      cool += dt
+      if (cool >= genCooldown || mode == Pro.modeOff) genLoaded = false
+    }
+    bool run = need || genLoaded
+    genStart := run
+    if (run && okG != true) genAsk += dt
+    else genAsk = 0.0f
+    if (genAsk >= genStartTimeout && !failed[3])
+    {
+      failed[3] = true
+      genFault := true
+    }
+
+    switchTo(want, dt)
+
+    close1 := closed(1)
+    close2 := closed(2)
+    closeG := closed(3)
+    int src = phase == 0 ? cur : 0
+    source := src
+    int pref = prefer == 1 && has(2) ? 2 : 1
+    onReserve := src != 0 && src != pref
+    blackout := src == 0 && phase == 0 && mode != Pro.modeOff
+    alarm := blackout || breakerFault || genFault
+
+    int st = 0
+    int stat = Pro.ok
+    if (mode == Pro.modeOff) { st = 5; stat = Pro.off }
+    else if (mode == Pro.modeHand) { st = 4; stat = Pro.hand }
+    else if (block == true || stuck) { st = 3; stat = Pro.locked }
+    else if (phase != 0) { st = 1; stat = Pro.starting }
+    else if (src == 0) { st = 2; stat = Pro.alarm }
+    if (stat == Pro.ok && (breakerFault || genFault)) stat = Pro.fault
+    state := st
+    status := stat
+  }
+
+  ** the best source: the current one unless a better one has been good for long enough
+  private int choose()
+  {
+    bool curOk = cur != 0 && has(cur) && !failed[cur] && bad[cur] < lossDelay
+    int want = curOk ? cur : 0
+    int pref = prefer == 1 && has(2) ? 2 : 1
+    for (int k = 0; k < 3; k++)
+    {
+      int s = k == 0 ? pref : (k == 1 ? 3 - pref : 3)
+      if (s == cur && curOk) break
+      if (!has(s) || failed[s] || !okIn(s)) continue
+      if (curOk && !returnAuto && cur != 3) continue
+      float need = curOk ? returnDelay : (s == 3 ? genWarmup : lossDelay)
+      if (s == 3 && curOk) continue
+      if (good[s] >= need) { want = s; break }
+    }
+    return want
+  }
+
+  ** break before make towards 'want'
+  private void switchTo(int want, float dt)
+  {
+    phT += dt
+    if (phase == 0)
+    {
+      if (cur != 0 && useFeedback && !fbIn(cur))
+      {
+        // the breaker opened by itself
+        lostFb += dt
+        if (lostFb >= fbTime)
+        {
+          failed[cur] = true
+          breakerFault := true
+          begin(1)
+        }
+      }
+      else lostFb = 0.0f
+      if (phase == 0 && want != cur)
+      {
+        if (cur != 0) begin(1)
+        else if (want != 0 && phT >= deadTime) { target = want; begin(2) }
+      }
+    }
+    else if (phase == 1)
+    {
+      bool open = !useFeedback || (!fb1 && !fb2 && !fbG)
+      if (phT >= deadTime && open)
+      {
+        cur = 0
+        stuck = false
+        if (want != 0) { target = want; begin(2) }
+        else begin(0)
+      }
+      else if (!open && phT >= deadTime + fbTime)
+      {
+        stuck = true
+        breakerFault := true
+      }
+    }
+    else
+    {
+      if (want != target) { cur = target; begin(1) }
+      else if (!useFeedback || fbIn(target)) { cur = target; lostFb = 0.0f; begin(0) }
+      else if (phT >= fbTime)
+      {
+        failed[target] = true
+        breakerFault := true
+        cur = target
+        begin(1)
+      }
+    }
+  }
+
+  private void begin(int p)
+  {
+    phase = p
+    phT = 0.0f
+  }
+
+  private bool closed(int s)
+  {
+    return (phase == 0 && cur == s) || (phase == 2 && target == s)
+  }
+
+  ** is source s part of this switch?
+  bool has(int s)
+  {
+    if (s == 1) return true
+    if (s == 2) return sources != 1
+    return s == 3 && sources != 0
+  }
+
+  private bool okIn(int s) { return s == 1 ? ok1 == true : (s == 2 ? ok2 == true : okG == true) }
+  private bool fbIn(int s) { return s == 1 ? fb1 == true : (s == 2 ? fb2 == true : fbG == true) }
+
+  int cur
+  int phase
+  int target
+  float phT = 1000000.0f
+  float lostFb
+  float mainsBad
+  float cool
+  float genAsk
+  bool genLoaded
+  bool stuck
+  inline float[4] good
+  inline float[4] bad
+  inline bool[4] failed
+  inline Ticker ticker
+}

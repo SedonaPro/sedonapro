@@ -1,0 +1,2 @@
+summary = "Serial port list of a Linux controller, from the board file (serial = [...])"
+targets = ["linux"]

@@ -1,0 +1,346 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Air handling unit configurator.  Choose the parts of the unit in the
+** properties and run 'build': the component fills itself with the
+** sproHvac blocks, the I/O points of the board and the links between
+** them.  Channels are taken from the board in order (autoChannels);
+** ioList shows which channel does what.
+**
+** A rebuild after changing the options keeps every block whose type is
+** still right, with all its settings, adds what is new and removes what
+** is no longer needed.  Everything inside belongs to the configurator:
+** put your own logic next to it, not inside.
+**
+@niagaraIcon="module://icons/x16/folder.png"
+@widget="ahu"
+class Ahu extends Assembly
+{
+  ** run request (schedule, BMS); not used with startSwitch
+  @summary property bool request
+
+  define Str layoutRange = "supply, supplyExhaust"
+  @config @range=layoutRange property byte layout = 0
+
+  define Str heaterRange = "none, water, electric"
+  @config @range=heaterRange property byte heater = 1
+
+  define Str valveRange = "analog, threePoint"
+  ** water heater valve: 0-10 V or open/close relays
+  @config @range=valveRange property byte valve = 0
+
+  ** electric heater stages
+  @config @min=1 @max=4 property int elStages = 2
+
+  define Str recoveryRange = "none, plate, rotary, glycol"
+  ** heat recovery (supplyExhaust only)
+  @config @range=recoveryRange property byte recovery = 0
+
+  define Str coolerRange = "none, water, dx"
+  ** cooler: chilled water valve or DX in 2 stages
+  @config @range=coolerRange property byte cooler = 0
+
+  define Str fansRange = "onOff, vfd, vfdPressure"
+  @config @range=fansRange property byte fans = 1
+
+  define Str controlRange = "supply, room"
+  ** supply air control, or room (extract) cascade
+  @config @range=controlRange property byte control = 0
+
+  ** water network supply temperature sensor (compensation)
+  @config property bool waterSensor = false
+  ** frost thermostat on the water heater
+  @config property bool frostThermostat = true
+  ** fire alarm input
+  @config property bool fireInput = true
+  ** pressure switches of the filters
+  @config property bool filterSwitches = true
+  ** pressure switches proving the fans
+  @config property bool fanSwitches = true
+  ** start/stop switch on a DI instead of 'request'
+  @config property bool startSwitch = false
+
+  ** take free board channels for new points
+  @config property bool autoChannels = true
+  ** build at start when empty
+  @config property bool buildOnStart = true
+
+  ** components inside
+  @readonly property int parts
+  ** points without a channel (the board has too few)
+  @readonly property int missing
+  ** "AI1 tOut, AI2 tSup, DO1 doFanS ..."
+  @readonly @asStr property Buf(400) ioList = ""
+  ** ok, config (points without a channel or a part could not be added)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** build or rebuild the unit from the options
+  action void build()
+  {
+    beginBuild()
+    assemble()
+    parts := endBuild()
+    missing := assignChannels(autoChannels, ioList)
+    changed(Ahu.ioList)
+    status := missing > 0 || failed > 0 ? Pro.config : Pro.ok
+  }
+
+  override void start()
+  {
+    if (buildOnStart && children == nullId) startBuild = true
+  }
+
+  virtual override void execute()
+  {
+    if (startBuild) { startBuild = false; build() }
+  }
+
+////////////////////////////////////////////////////////////////
+// The unit
+////////////////////////////////////////////////////////////////
+
+  private void assemble()
+  {
+    bool se = layout == 1
+    bool water = heater == 1
+    bool elec = heater == 2
+    bool rec = se && recovery > 0
+    bool vfd = fans > 0
+
+    // blocks
+    Season season = (Season)need("season", Season.type)
+    AhuControl ctl = (AhuControl)need("ctl", AhuControl.type)
+    if (ctl != null) ctl.hasExhaust := se
+    SupplyTemp temp = (SupplyTemp)need("temp", SupplyTemp.type)
+    if (temp != null)
+    {
+      temp.control := control
+      if (!rec) temp.recShare := 0.0f
+      else if (temp.recShare == 0.0f) temp.recShare := 30.0f
+    }
+    FanSpeed fanS = null
+    FanSpeed fanE = null
+    if (vfd)
+    {
+      fanS = (FanSpeed)need("fanS", FanSpeed.type)
+      if (fanS != null) fanS.mode := fans == 2 ? 1 : 0
+      if (se) fanE = (FanSpeed)need("fanE", FanSpeed.type)
+    }
+    WaterHeater wh = null
+    ElectricHeater eh = null
+    ThreePoint tp = null
+    if (water)
+    {
+      wh = (WaterHeater)need("heater", WaterHeater.type)
+      if (wh != null) wh.compensate := waterSensor
+      if (valve == 1) tp = (ThreePoint)need("valve", ThreePoint.type)
+    }
+    if (elec)
+    {
+      eh = (ElectricHeater)need("heater", ElectricHeater.type)
+      if (eh != null) eh.stages := elStages
+    }
+    Recuperator rc = null
+    if (rec)
+    {
+      rc = (Recuperator)need("rec", Recuperator.type)
+      if (rc != null) rc.kind := recovery - 1
+    }
+    Stager dx = null
+    if (cooler == 2)
+    {
+      dx = (Stager)need("dx", Stager.type)
+      if (dx != null && fresh)
+      {
+        dx.stages := 2
+        dx.minOn := 180.0f
+        dx.minOff := 300.0f
+        dx.upDelay := 120.0f
+        dx.downDelay := 60.0f
+      }
+    }
+
+    // inputs
+    AnalogInput tOut = ai("tOut", true)
+    AnalogInput tSup = ai("tSup", true)
+    AnalogInput tRet = ai("tRet", water)
+    AnalogInput tWat = ai("tWat", water && waterSensor)
+    AnalogInput tRoom = ai("tRoom", !se && control == 1)
+    AnalogInput tExt = ai("tExt", se)
+    AnalogInput tExh = ai("tExh", rec)
+    AnalogInput pDuct = ai("pDuct", fans == 2)
+    DigitalInput diStart = di("diStart", startSwitch)
+    DigitalInput diFire = di("diFire", fireInput)
+    DigitalInput diFrost = di("diFrost", water && frostThermostat)
+    DigitalInput diOverH = di("diOverH", elec)
+    DigitalInput diFltS = di("diFltS", filterSwitches)
+    DigitalInput diFltE = di("diFltE", filterSwitches && se)
+    DigitalInput diFbS = di("diFbS", fanSwitches)
+    DigitalInput diFbE = di("diFbE", fanSwitches && se)
+
+    // outputs
+    DigitalOutput doDamp = dout("doDamp", true)
+    DigitalOutput doFanS = dout("doFanS", true)
+    DigitalOutput doFanE = dout("doFanE", se)
+    DigitalOutput doPump = dout("doPump", water)
+    DigitalOutput doOpen = dout("doOpen", tp != null)
+    DigitalOutput doClose = dout("doClose", tp != null)
+    DigitalOutput doH1 = dout("doH1", elec)
+    DigitalOutput doH2 = dout("doH2", elec && elStages >= 2)
+    DigitalOutput doH3 = dout("doH3", elec && elStages >= 3)
+    DigitalOutput doH4 = dout("doH4", elec && elStages >= 4)
+    DigitalOutput doDx1 = dout("doDx1", dx != null)
+    DigitalOutput doDx2 = dout("doDx2", dx != null)
+    AnalogOutput aoValve = aout("aoValve", water && valve == 0)
+    AnalogOutput aoFanS = aout("aoFanS", vfd)
+    AnalogOutput aoFanE = aout("aoFanE", vfd && se)
+    AnalogOutput aoRec = aout("aoRec", rec)
+    AnalogOutput aoCool = aout("aoCool", cooler == 1)
+
+    // alarms
+    MismatchAlarm alFbS = null
+    MismatchAlarm alFbE = null
+    AlarmSum faults = null
+    if (fanSwitches)
+    {
+      alFbS = (MismatchAlarm)need("alFbS", MismatchAlarm.type)
+      if (alFbS != null && fresh) alarmText(alFbS, "Supply fan not running", 0, 30.0f)
+      if (se)
+      {
+        alFbE = (MismatchAlarm)need("alFbE", MismatchAlarm.type)
+        if (alFbE != null && fresh) alarmText(alFbE, "Exhaust fan not running", 0, 30.0f)
+      }
+      faults = (AlarmSum)need("faults", AlarmSum.type)
+    }
+    BoolAlarm alFltS = null
+    BoolAlarm alFltE = null
+    if (filterSwitches)
+    {
+      alFltS = (BoolAlarm)need("alFltS", BoolAlarm.type)
+      if (alFltS != null && fresh) alarmText(alFltS, "Supply filter dirty", 2, 60.0f)
+      if (se)
+      {
+        alFltE = (BoolAlarm)need("alFltE", BoolAlarm.type)
+        if (alFltE != null && fresh) alarmText(alFltE, "Exhaust filter dirty", 2, 60.0f)
+      }
+    }
+
+    // links: start, season, sequence
+    if (diStart != null) link(diStart, DigitalInput.out, ctl, AhuControl.request)
+    else link(this, Ahu.request, ctl, AhuControl.request)
+    link(tOut, AnalogInput.out, season, Season.outdoor)
+    link(season, Season.season, temp, SupplyTemp.season)
+    link(ctl, AhuControl.control, temp, SupplyTemp.run)
+    link(tSup, AnalogInput.out, temp, SupplyTemp.supply)
+    if (tRoom != null) link(tRoom, AnalogInput.out, temp, SupplyTemp.room)
+    if (se && control == 1) link(tExt, AnalogInput.out, temp, SupplyTemp.room)
+    link(ctl, AhuControl.damper, doDamp, DigitalOutput.in)
+    link(ctl, AhuControl.supplyFan, doFanS, DigitalOutput.in)
+    if (doFanE != null) link(ctl, AhuControl.exhaustFan, doFanE, DigitalOutput.in)
+    if (diFire != null) link(diFire, DigitalInput.out, ctl, AhuControl.fire)
+
+    // fans
+    if (fanS != null)
+    {
+      link(ctl, AhuControl.supplyFan, fanS, FanSpeed.run)
+      link(fanS, FanSpeed.out, aoFanS, AnalogOutput.in)
+      if (pDuct != null) link(pDuct, AnalogInput.out, fanS, FanSpeed.pressure)
+    }
+    if (fanE != null)
+    {
+      link(ctl, AhuControl.exhaustFan, fanE, FanSpeed.run)
+      link(fanE, FanSpeed.out, aoFanE, AnalogOutput.in)
+    }
+
+    // water heater
+    if (wh != null)
+    {
+      link(temp, SupplyTemp.heating, wh, WaterHeater.demand)
+      link(ctl, AhuControl.heaterStart, wh, WaterHeater.startReq)
+      link(ctl, AhuControl.airflow, wh, WaterHeater.airflow)
+      link(tOut, AnalogInput.out, wh, WaterHeater.outdoor)
+      link(tRet, AnalogInput.out, wh, WaterHeater.returnWater)
+      link(tSup, AnalogInput.out, wh, WaterHeater.supplyAir)
+      link(season, Season.season, wh, WaterHeater.season)
+      if (tWat != null) link(tWat, AnalogInput.out, wh, WaterHeater.waterSupply)
+      if (diFrost != null) link(diFrost, DigitalInput.out, wh, WaterHeater.frostStat)
+      link(wh, WaterHeater.ready, ctl, AhuControl.heaterReady)
+      link(wh, WaterHeater.frost, ctl, AhuControl.frost)
+      link(wh, WaterHeater.pump, doPump, DigitalOutput.in)
+      if (fanS != null) link(wh, WaterHeater.fanLimit, fanS, FanSpeed.limit)
+      if (fanE != null) link(wh, WaterHeater.fanLimit, fanE, FanSpeed.limit)
+      if (tp != null)
+      {
+        link(wh, WaterHeater.valve, tp, ThreePoint.in)
+        link(tp, ThreePoint.open, doOpen, DigitalOutput.in)
+        link(tp, ThreePoint.close, doClose, DigitalOutput.in)
+      }
+      else link(wh, WaterHeater.valve, aoValve, AnalogOutput.in)
+    }
+
+    // electric heater
+    if (eh != null)
+    {
+      link(temp, SupplyTemp.heating, eh, ElectricHeater.demand)
+      link(ctl, AhuControl.airflow, eh, ElectricHeater.airflow)
+      link(diOverH, DigitalInput.out, eh, ElectricHeater.overheat)
+      link(eh, ElectricHeater.purge, ctl, AhuControl.purge)
+      link(eh, ElectricHeater.s1, doH1, DigitalOutput.in)
+      if (doH2 != null) link(eh, ElectricHeater.s2, doH2, DigitalOutput.in)
+      if (doH3 != null) link(eh, ElectricHeater.s3, doH3, DigitalOutput.in)
+      if (doH4 != null) link(eh, ElectricHeater.s4, doH4, DigitalOutput.in)
+    }
+
+    // heat recovery
+    if (rc != null)
+    {
+      link(temp, SupplyTemp.recovery, rc, Recuperator.demand)
+      link(temp, SupplyTemp.cooling, rc, Recuperator.cooling)
+      link(ctl, AhuControl.control, rc, Recuperator.run)
+      link(season, Season.season, rc, Recuperator.season)
+      link(tOut, AnalogInput.out, rc, Recuperator.outdoor)
+      link(tExt, AnalogInput.out, rc, Recuperator.extract)
+      link(tExh, AnalogInput.out, rc, Recuperator.exhaust)
+      link(rc, Recuperator.out, aoRec, AnalogOutput.in)
+    }
+
+    // cooler
+    if (aoCool != null) link(temp, SupplyTemp.cooling, aoCool, AnalogOutput.in)
+    if (dx != null)
+    {
+      link(temp, SupplyTemp.cooling, dx, Stager.in)
+      link(dx, Stager.s1, doDx1, DigitalOutput.in)
+      link(dx, Stager.s2, doDx2, DigitalOutput.in)
+    }
+
+    // alarms
+    if (alFbS != null)
+    {
+      link(ctl, AhuControl.supplyFan, alFbS, MismatchAlarm.cmd)
+      link(diFbS, DigitalInput.out, alFbS, MismatchAlarm.fb)
+      link(alFbS, AlarmPoint.alarm, faults, AlarmSum.in1)
+    }
+    if (alFbE != null)
+    {
+      link(ctl, AhuControl.exhaustFan, alFbE, MismatchAlarm.cmd)
+      link(diFbE, DigitalInput.out, alFbE, MismatchAlarm.fb)
+      link(alFbE, AlarmPoint.alarm, faults, AlarmSum.in2)
+    }
+    if (faults != null) link(faults, AlarmSum.any, ctl, AhuControl.fault)
+    if (alFltS != null) link(diFltS, DigitalInput.out, alFltS, BoolAlarm.in)
+    if (alFltE != null) link(diFltE, DigitalInput.out, alFltE, BoolAlarm.in)
+  }
+
+  private void alarmText(AlarmPoint a, Str text, int priority, float delay)
+  {
+    a.text.copyFromStr(text)
+    a.changed(AlarmPoint.text)
+    a.priority := priority
+    a.delay := delay
+  }
+
+  bool startBuild
+}

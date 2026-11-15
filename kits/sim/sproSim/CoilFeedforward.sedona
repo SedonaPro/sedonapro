@@ -1,0 +1,40 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Inverse steady-state WaterCoil model. Heating only; normalized valve request.
+class CoilFeedforward extends SimBlock
+{
+  property float target = 25.0f
+  property float waterIn = 60.0f
+  property float airIn = 15.0f
+  property float airScale = 1.0f
+  @config property float waterFlow = 0.2f
+  @config property float airFlow = 0.5f
+  @config property float cpWater = 4180.0f
+  @config property float cpAir = 1006.0f
+  @config property float ua = 1000.0f
+  @readonly property float out
+  @readonly property bool reachable = true
+  @readonly property bool good = true
+  virtual override bool acceptsInput(Slot s)
+  { return s == CoilFeedforward.target || s == CoilFeedforward.waterIn || s == CoilFeedforward.airIn || s == CoilFeedforward.airScale }
+  virtual override bool valid()
+  {
+    return super.valid() && finite(waterFlow) && waterFlow > 0.0f && waterFlow <= 1000.0f &&
+      finite(airFlow) && airFlow > 0.0f && airFlow <= 1000.0f && finite(cpWater) && cpWater > 0.0f && cpWater <= 100000.0f &&
+      finite(cpAir) && cpAir > 0.0f && cpAir <= 100000.0f && finite(ua) && ua > 0.0f && ua <= 1.0e9f
+  }
+  virtual override void resetState() { out := 0.0f; reachable := true; good := true }
+  override void tick(float dt, double time)
+  {
+    good := finite(target) && finite(waterIn) && finite(airIn) && finite(airScale) && airScale >= 0.0f && airScale <= 100.0f
+    if (!good) return
+    double q = (double)airFlow*(double)cpAir*(double)airScale*((double)target-(double)airIn)
+    if (q <= 0.0d) { out := 0.0f; reachable := target == airIn; return }
+    double requiredWater = (double)target+q/(double)ua
+    double head = (double)waterIn-requiredWater
+    if (head <= 0.0d) { out := 1.0f; reachable := false; return }
+    double valve = q/(head*(double)waterFlow*(double)cpWater)
+    out := clamp((float)valve,0.0f,1.0f)
+    reachable := valve <= 1.0d
+  }
+}

@@ -1,0 +1,354 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Room-like plant for the loop tests: first order, time constant
+** 120 s, gain 0.3 C per %, 10 s dead time, 10 C with the valve closed.
+**
+class Plant
+{
+  void init(float y0)
+  {
+    y = y0
+    for (int k = 0; k < 10; k++) buf[k] = 0.0f
+    pos = 0
+  }
+
+  ** one second with valve u %
+  float step(float u)
+  {
+    float ud = buf[pos]
+    buf[pos] = u
+    pos = (pos + 1) % 10
+    y += (amb + gain * ud - y) / 120.0f
+    return y
+  }
+
+  float y
+  float amb = 10.0f
+  float gain = 0.3f
+  inline float[10] buf
+  int pos
+}
+
+class PidTest extends Test
+{
+  static inline Pid pid
+  static inline Pid p2
+  static inline LoopSelect sel
+  static inline Plant plant
+
+  static bool near(float a, float b, float tol) { return a - b <= tol && b - a <= tol }
+
+  static void setup(Pid c)
+  {
+    c.mode := Pro.modeAuto
+    c.enable := true
+    c.track := false
+    c.direct := false
+    c.kp := 10.0f
+    c.ti := 100.0f
+    c.td := 0.0f
+    c.period := 0.0f
+    c.outMin := 0.0f
+    c.outMax := 100.0f
+    c.outRate := 0.0f
+    c.deadband := 0.0f
+    c.spWeight := 1.0f
+    c.useFeedback := false
+    c.startValue := 0.0f
+    c.reset()
+  }
+
+  static void run(int seconds)
+  {
+    for (int k = 0; k < seconds; k++)
+    {
+      pid.pv := plant.y
+      pid.update(1.0f)
+      plant.step(pid.out)
+    }
+  }
+
+  ** closed loop: reaches the setpoint, no overshoot, no windup at 100 %
+  static void testClosedLoop()
+  {
+    setup(pid)
+    plant.init(10.0f)
+    pid.sp := 21.0f
+    float peak = 0.0f
+    for (int k = 0; k < 1200; k++)
+    {
+      run(1)
+      if (plant.y > peak) peak = plant.y
+      if (k == 0) assert(pid.out < 15.0f)    // bumpless start from startValue 0
+    }
+    assert(near(plant.y, 21.0f, 0.02f))
+    assert(peak < 21.2f)
+    assert(pid.status == Pro.ok && !pid.limited)
+    // the valve settles near (21 - 10) / 0.3 = 36.7 %
+    assert(near(pid.out, 36.67f, 0.5f))
+
+    // a setpoint the plant cannot reach: out sits at 100 % without windup
+    pid.sp := 60.0f
+    run(3000)
+    assert(pid.out == 100.0f && near(pid.iPart + pid.pPart, 100.0f, 0.01f))
+    // back to 21: out leaves 100 % at once
+    pid.sp := 21.0f
+    run(1)
+    assert(pid.out < 100.0f)
+    run(1500)
+    assert(near(plant.y, 21.0f, 0.05f))
+  }
+
+  ** hand, off, disable and tracking: back to auto without a jump
+  static void testBumpless()
+  {
+    setup(pid)
+    plant.init(10.0f)
+    pid.sp := 21.0f
+    run(1500)
+    float before = pid.out
+
+    pid.mode := Pro.modeHand
+    pid.handValue := 70.0f
+    pid.update(1.0f)
+    assert(pid.out == 70.0f && pid.status == Pro.hand)
+    pid.mode := Pro.modeAuto
+    pid.update(1.0f)
+    assert(near(pid.out, 70.0f, 0.2f))     // continues from the hand value
+    pid.handValue := 0.0f
+
+    pid.mode := Pro.modeOff
+    pid.offValue := 0.0f
+    pid.update(1.0f)
+    assert(pid.out == 0.0f && pid.status == Pro.off)
+    pid.mode := Pro.modeAuto
+
+    pid.enable := false
+    pid.update(1.0f)
+    assert(pid.status == Pro.disabled && pid.out == 0.0f)
+    pid.enable := true
+
+    pid.track := true
+    pid.trackValue := 55.0f
+    pid.update(1.0f)
+    assert(pid.out == 55.0f)
+    pid.track := false
+    pid.update(1.0f)
+    assert(near(pid.out, 55.0f, 0.2f))
+
+    // gain change: no jump
+    run(1500)
+    float o = pid.out
+    pid.pv := 20.0f
+    pid.update(1.0f)
+    o = pid.out
+    pid.kp := 30.0f
+    pid.update(1.0f)
+    assert(near(pid.out, o, 0.5f))
+  }
+
+  ** bad pv: hold or safe value, then continue without a jump
+  static void testBadInput()
+  {
+    setup(pid)
+    plant.init(10.0f)
+    pid.sp := 21.0f
+    run(1500)
+    float o = pid.out
+    pid.pv := null
+    pid.update(1.0f)
+    assert(pid.status == Pro.inputBad && pid.out == o && pid.error == null)
+    pid.onBad := 1
+    pid.safeValue := 20.0f
+    pid.update(1.0f)
+    assert(pid.out == 20.0f)
+    pid.pv := 21.0f
+    pid.update(1.0f)
+    assert(near(pid.out, 20.0f, 0.1f) && pid.status == Pro.ok)
+    pid.onBad := 0
+
+    // invalid limits
+    pid.outMin := 100.0f
+    pid.outMax := 0.0f
+    pid.update(1.0f)
+    assert(pid.status == Pro.config)
+  }
+
+  ** direct acting, rate limit, sampling period, deadband
+  static void testOptions()
+  {
+    setup(pid)
+    pid.direct := true
+    pid.ti := 0.0f
+    pid.startValue := 50.0f
+    pid.reset()
+    pid.sp := 24.0f
+    pid.pv := 24.0f
+    pid.update(1.0f)
+    assert(pid.out == 50.0f)                // P only: bias = startValue
+    pid.pv := 25.0f
+    pid.update(1.0f)
+    assert(near(pid.out, 60.0f, 0.001f) && near(pid.error, 1.0f, 0.001f))
+
+    pid.outRate := 2.0f                     // 2 %/s
+    pid.pv := 30.0f
+    pid.update(1.0f)
+    assert(near(pid.out, 62.0f, 0.001f) && pid.limited)
+    pid.update(1.0f)
+    assert(near(pid.out, 64.0f, 0.001f))
+    pid.outRate := 0.0f
+
+    pid.period := 5.0f
+    pid.pv := 24.0f
+    pid.update(1.0f)
+    float o = pid.out
+    pid.update(1.0f)
+    pid.update(1.0f)
+    assert(pid.out == o)                    // waits for the period
+    pid.update(1.0f)
+    pid.update(1.0f)
+    pid.update(1.0f)
+    assert(pid.out != o)
+    pid.period := 0.0f
+
+    setup(pid)
+    pid.startValue := 50.0f
+    pid.reset()
+    pid.deadband := 0.5f
+    pid.sp := 21.0f
+    pid.pv := 21.0f
+    pid.update(1.0f)
+    pid.pv := 21.3f
+    float i0 = pid.iPart
+    for (int k = 0; k < 100; k++) pid.update(1.0f)
+    assert(pid.iPart == i0)                 // no integration inside the deadband
+    pid.pv := 22.0f
+    pid.update(1.0f)
+    assert(pid.iPart < i0)
+
+    // derivative on pv: a setpoint step gives no D kick
+    setup(pid)
+    pid.td := 10.0f
+    pid.sp := 21.0f
+    pid.pv := 21.0f
+    pid.update(1.0f)
+    pid.update(1.0f)
+    pid.sp := 25.0f
+    pid.update(1.0f)
+    assert(pid.dPart == 0.0f)
+    pid.pv := 22.0f
+    pid.update(1.0f)
+    assert(pid.dPart < 0.0f)
+  }
+
+  ** override control: a supply air low limit over a room loop
+  static void testOverride()
+  {
+    setup(pid)
+    setup(p2)
+    pid.useFeedback := true
+    p2.useFeedback := true
+    pid.direct := true           // room loop: cooling demand rises with room temperature
+    p2.direct := true            // low limit loop: less cooling as supply air nears 16
+    pid.sp := 22.0f
+    p2.sp := 16.0f
+    sel.low := true              // both ask for cooling; the lower output wins
+    pid.pv := 26.0f              // room is warm: wants much cooling
+    p2.pv := 20.0f               // supply air is fine: wants 100 %
+    for (int k = 0; k < 300; k++)
+    {
+      pid.update(1.0f)
+      p2.update(1.0f)
+      sel.in1 := pid.out
+      sel.in2 := p2.out
+      sel.execute()
+      pid.feedback := sel.out
+      p2.feedback := sel.out
+    }
+    assert(sel.selected == 1 || pid.out == p2.out)
+    // supply air cools down to 14: the limit loop takes over smoothly
+    float last = sel.out
+    for (int k = 0; k < 900; k++)
+    {
+      p2.pv := Pro.max(14.0f, 20.0f - 0.02f * (float)k)
+      pid.update(1.0f)
+      p2.update(1.0f)
+      sel.in1 := pid.out
+      sel.in2 := p2.out
+      sel.execute()
+      pid.feedback := sel.out
+      p2.feedback := sel.out
+      assert(Pro.abs(sel.out - last) < 1.0f)
+      last = sel.out
+    }
+    assert(sel.selected == 2)
+    assert(sel.out < 5.0f)
+    sel.in1 := null
+    sel.in2 := null
+    sel.execute()
+    assert(sel.status == Pro.inputBad && sel.selected == 0)
+  }
+
+  ** dynamic limits, asymmetric integral, gain scheduling
+  static void testLimitsAndAsymmetry()
+  {
+    setup(pid)
+    pid.ti := 0.0f
+    pid.startValue := 10.0f
+    pid.reset()
+    pid.sp := 20.0f
+    pid.pv := 20.0f
+    pid.update(1.0f)
+    assert(pid.out == 10.0f)
+    pid.lowLimit := 35.0f                   // winter minimum opening
+    pid.update(1.0f)
+    assert(pid.out == 35.0f && pid.limited)
+    pid.highLimit := 30.0f                  // the low limit wins
+    pid.update(1.0f)
+    assert(pid.out == 35.0f)
+    pid.lowLimit := null
+    pid.highLimit := 50.0f
+    pid.pv := 10.0f                         // wants 10 + 100
+    pid.update(1.0f)
+    assert(pid.out == 50.0f)
+    pid.highLimit := null
+    pid.update(1.0f)
+    assert(pid.out == 100.0f)
+
+    // integral up with ti 10 s, down with tiDown 100 s
+    setup(pid)
+    pid.ti := 10.0f
+    pid.tiDown := 100.0f
+    pid.startValue := 50.0f
+    pid.reset()
+    pid.sp := 20.0f
+    pid.pv := 20.0f
+    pid.update(1.0f)
+    pid.pv := 19.0f                         // error +1: up 1 %/s
+    pid.update(1.0f)
+    float i0 = pid.iPart
+    pid.update(1.0f)
+    assert(near(pid.iPart - i0, 1.0f, 0.001f))
+    pid.pv := 21.0f                         // error -1: down 0.1 %/s
+    pid.update(1.0f)
+    i0 = pid.iPart
+    pid.update(1.0f)
+    assert(near(pid.iPart - i0, -0.1f, 0.001f))
+
+    // gainScale doubles P without a jump at the change
+    float o = pid.out
+    pid.gainScale := 2.0f
+    pid.update(0.0f)
+    assert(near(pid.out, o, 0.2f))
+    pid.pv := 22.0f
+    float before = pid.pPart
+    pid.update(0.0f)
+    assert(near(pid.pPart - before, -20.0f, 0.01f))
+    pid.gainScale := 1.0f
+    pid.tiDown := 0.0f
+  }
+}

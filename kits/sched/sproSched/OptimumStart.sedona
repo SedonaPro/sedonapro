@@ -1,0 +1,143 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Optimum start: switches a unit on early enough that the room reaches
+** its setpoint when occupancy begins.  Link occupied, nextOccupied and
+** nextChange from a WeekSchedule, the room temperature, its comfort
+** setpoint and (optionally) the outdoor temperature; use run for the
+** unit's start request.
+**
+**   lead = minLead + perDegree * (sp - room) + perOutdoorDegree * (outdoorBase - outdoor)
+**
+** (negative terms count as zero), limited to minLead..maxLead minutes.
+** preStart turns on when the next occupancy is no further than lead and
+** stays on until occupancy begins.  With adapt on, perDegree learns:
+** +15 % when the room was still below sp - band at the start of
+** occupancy, -10 % when it reached it more than a quarter of the lead
+** early.  perDegree is a configuration property, so what it learned is
+** kept when the application is saved.
+**
+** Without a valid room temperature the full maxLead is used (status
+** inputBad): better too early than cold.
+**
+class OptimumStart extends Component
+{
+  ** use the early start
+  @config property bool enable = true
+
+  ** occupied now (WeekSchedule.occupied)
+  property bool occupied
+
+  ** occupied after the next change (WeekSchedule.nextOccupied)
+  property bool nextOccupied
+
+  ** minutes to the next change (WeekSchedule.nextChange)
+  @unit=Units.minute property int nextChange = -1
+
+  ** room (or return air) temperature
+  @unit=Units.celsius property float room = null
+
+  ** comfort setpoint to reach
+  @config @unit=Units.celsius property float sp = 21.0f
+
+  ** outdoor temperature, optional
+  @unit=Units.celsius property float outdoor = null
+
+  ** shortest lead, minutes
+  @config @unit=Units.minute @min=0 @max=1440 property float minLead = 0.0f
+
+  ** longest lead, minutes
+  @config @unit=Units.minute @min=0 @max=1440 property float maxLead = 240.0f
+
+  ** minutes of lead per degree the room is below sp (learned with adapt)
+  @config @min=0 @max=240 property float perDegree = 15.0f
+
+  ** outdoor temperature above which the outdoor term is zero
+  @config @unit=Units.celsius property float outdoorBase = 10.0f
+
+  ** minutes of lead per degree the outdoor air is below outdoorBase
+  @config @min=0 @max=60 property float perOutdoorDegree = 2.0f
+
+  ** learn perDegree from each start
+  @config property bool adapt = true
+
+  ** the room counts as warm within this many degrees below sp
+  @config @min=0 @max=5 property float band = 0.5f
+
+  ** starting early now
+  @readonly property bool preStart
+
+  ** occupied or preStart: the unit's start request
+  @readonly property bool run
+
+  ** current lead, minutes
+  @readonly @unit=Units.minute property float lead
+
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute()
+  {
+    update(ticker.next())
+  }
+
+  void update(float dt)
+  {
+    if (!enable)
+    {
+      preStart := false
+      run := occupied
+      latched = false
+      status := Pro.disabled
+      return
+    }
+    bool roomOk = Pro.valid(room) && Pro.valid(sp)
+    float l = maxLead
+    if (roomOk)
+    {
+      l = minLead + perDegree * Pro.max(0.0f, sp - room)
+      if (Pro.valid(outdoor)) l += perOutdoorDegree * Pro.max(0.0f, outdoorBase - outdoor)
+      l = Pro.clamp(l, minLead, maxLead)
+    }
+    lead := l
+
+    if (occupied)
+    {
+      if (latched && adapt && roomOk) learn()
+      latched = false
+    }
+    else if (!nextOccupied || nextChange < 0)
+      latched = false
+    else if (!latched && (float)nextChange <= l)
+    {
+      latched = true
+      elapsed = 0.0f
+      reachedAt = -1.0f
+      startLead = (float)nextChange
+    }
+    if (latched)
+    {
+      elapsed += dt / 60.0f
+      if (reachedAt < 0.0f && roomOk && room >= sp - band) reachedAt = elapsed
+    }
+    preStart := latched
+    run := occupied || latched
+    status := roomOk ? Pro.ok : Pro.inputBad
+  }
+
+  private void learn()
+  {
+    if (room < sp - band)
+      perDegree := Pro.min(240.0f, perDegree * 1.15f)
+    else if (reachedAt >= 0.0f && elapsed - reachedAt > 0.25f * startLead)
+      perDegree := Pro.max(1.0f, perDegree * 0.9f)
+  }
+
+  inline Ticker ticker
+  bool latched
+  float elapsed
+  float reachedAt
+  float startLead
+}

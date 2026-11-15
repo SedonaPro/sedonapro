@@ -1,0 +1,194 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Base of configurators (sproAhu::Ahu, sproPumpSt::PumpStation): a
+** component that fills itself with blocks, I/O points and links from its
+** options.  A build is
+**
+**   beginBuild()
+**   ... need() / point() / link() for everything the options ask for ...
+**   endBuild()                  removes the children not asked for
+**   assignChannels(auto, list)  board channels for new points, I/O list
+**
+** need() keeps a child whose type is still right with all its settings,
+** so a rebuild after changing an option does not lose the tuning.
+**
+@palette=false
+abstract class Assembly extends Component
+{
+  ** start a build
+  void beginBuild()
+  {
+    nKept = 0
+    nPoints = 0
+    failed = 0
+  }
+
+  ** remove the children not asked for since beginBuild; returns the children left
+  int endBuild()
+  {
+    bool again = true
+    while (again)
+    {
+      again = false
+      for (Component c = Sys.app.lookup(children); c != null; c = Sys.app.lookup(c.nextSibling))
+        if (!kept(c.id)) { Sys.app.remove(c); again = true; break }
+    }
+    int n = 0
+    for (Component c = Sys.app.lookup(children); c != null; c = Sys.app.lookup(c.nextSibling)) n++
+    fireTreeChanged()
+    return n
+  }
+
+  ** the child 'name' of type t: kept if it is there, created otherwise
+  ** (fresh tells which); null if the app is full
+  Component need(Str name, Type t)
+  {
+    fresh = false
+    Component c = child(name)
+    if (c != null && c.type != t)
+    {
+      Sys.app.remove(c)
+      c = null
+    }
+    if (c == null)
+    {
+      c = Sys.app.add(this, name, t)
+      if (c == null) { failed++; return null }
+      fresh = true
+    }
+    if (nKept < maxParts) kept_[nKept++] = c.id
+    return c
+  }
+
+  ** the child called name, null if none
+  Component child(Str name)
+  {
+    for (Component c = Sys.app.lookup(children); c != null; c = Sys.app.lookup(c.nextSibling))
+      if (c.name.equals(name)) return c
+    return null
+  }
+
+  AnalogInput ai(Str name, bool want) { return (AnalogInput)point(name, AnalogInput.type, want) }
+  DigitalInput di(Str name, bool want) { return (DigitalInput)point(name, DigitalInput.type, want) }
+  DigitalOutput dout(Str name, bool want) { return (DigitalOutput)point(name, DigitalOutput.type, want) }
+  AnalogOutput aout(Str name, bool want) { return (AnalogOutput)point(name, AnalogOutput.type, want) }
+
+  ** an I/O point, or null when the build does not want it
+  Component point(Str name, Type t, bool want)
+  {
+    if (!want) return null
+    Component c = need(name, t)
+    if (c != null && nPoints < maxParts) points[nPoints++] = c.id
+    return c
+  }
+
+  private bool kept(int id)
+  {
+    for (int i = 0; i < nKept; i++) if (kept_[i] == id) return true
+    return false
+  }
+
+  ** link a.sa -> b.sb, replacing another link into b.sb
+  void link(Component a, Slot sa, Component b, Slot sb)
+  {
+    if (a == null || b == null) return
+    for (Link x = b.linksTo; x != null; x = x.nextTo)
+    {
+      if (x.toSlot != sb.id) continue
+      if (x.fromComp == a.id && x.fromSlot == sa.id) return
+      Sys.app.removeLink(x)
+      break
+    }
+    Sys.app.addLink(a, sa, b, sb)
+  }
+
+  ** remove the link into b.sb (an option no longer wants it)
+  void unlink(Component b, Slot sb)
+  {
+    if (b == null) return
+    for (Link x = b.linksTo; x != null; x = x.nextTo)
+      if (x.toSlot == sb.id) { Sys.app.removeLink(x); return }
+  }
+
+  ** prefix + digit k (+ a letter, 0 = none) as a child name: "m1", "p2a";
+  ** the Str lives until the next call
+  Str nameOf(Str prefix, int k, int letter)
+  {
+    int i = 0
+    for (; prefix.get(i) != 0 && i < 5; i++) nameBuf[i] = prefix.get(i)
+    nameBuf[i++] = '0' + k
+    if (letter != 0) nameBuf[i++] = letter
+    nameBuf[i] = 0
+    return Str.fromBytes(nameBuf, 0)
+  }
+
+  ** Board channels for points without one (auto), and "AI1 name, DO1
+  ** name ..." into list.  Returns the points left without a channel.
+  int assignChannels(bool auto, Buf list)
+  {
+    int miss = 0
+    for (int i = 0; i < nPoints; i++)
+    {
+      HalPoint p = (HalPoint)Sys.app.lookup(points[i])
+      if (p == null || p.channel.size > 1) continue
+      if (!auto) { miss++; continue }
+      int ch = freeChannel(p.needKind())
+      if (ch < 0) { miss++; continue }
+      p.channel.copyFromStr(Hal.name(ch))
+      p.changed(HalPoint.channel)
+    }
+    list.size = 0
+    for (int i = 0; i < nPoints; i++)
+    {
+      HalPoint p = (HalPoint)Sys.app.lookup(points[i])
+      if (p == null) continue
+      if (list.size > 0) add(list, ", ")
+      add(list, p.channel.size > 1 ? p.channel.toStr() : "-")
+      add(list, " ")
+      add(list, p.name)
+    }
+    if (list.size < list.bytesLen) list.bytes[list.size] = 0
+    list.size++
+    return miss
+  }
+
+  ** a board channel of this kind no point of the app uses, -1 if none
+  static int freeChannel(int kind)
+  {
+    int n = Hal.count()
+    for (int ch = 0; ch < n; ch++)
+    {
+      if (Hal.kind(ch) != kind) continue
+      Str name = Hal.name(ch)
+      bool used = false
+      for (int i = 0; i <= Sys.app.maxId() && !used; i++)
+      {
+        Component c = Sys.app.lookup(i)
+        if (c != null && c.type.is(HalPoint.type) && ((HalPoint)c).channel.toStr().equals(name)) used = true
+      }
+      if (!used) return ch
+    }
+    return -1
+  }
+
+  private static void add(Buf list, Str s)
+  {
+    for (int i = 0; s.get(i) != 0 && list.size < list.bytesLen - 2; i++)
+      list.bytes[list.size++] = s.get(i)
+  }
+
+  define int maxParts = 80
+  inline byte[8] nameBuf
+  inline int[maxParts] kept_
+  inline int[maxParts] points
+  int nKept
+  int nPoints
+  ** parts that could not be added since beginBuild
+  int failed
+  ** the last need() created its part (set its defaults)
+  bool fresh
+}

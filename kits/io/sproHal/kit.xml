@@ -1,0 +1,28 @@
+<!--
+  -  sproHal: board-independent inputs and outputs.
+  -  Licensed under the Apache License, Version 2.0
+  -->
+<sedonaKit
+ name = "sproHal"
+ vendor = "SPro"
+ description = "Digital/analog inputs and outputs by channel name (DI1, DO1, AI1, AO1); pins come from boards/*.toml"
+ includeSource = "false"
+ doc = "true"
+>
+  <depend on="sys 1.2+" />
+
+  <source dir="." />
+  <source dir="test" testonly="true" />
+
+  <native qname="sproHal::Hal.count"   id="122::0" />
+  <native qname="sproHal::Hal.find"    id="122::1" />
+  <native qname="sproHal::Hal.kind"    id="122::2" />
+  <native qname="sproHal::Hal.name"    id="122::3" />
+  <native qname="sproHal::Hal.open"    id="122::4" />
+  <native qname="sproHal::Hal.read"    id="122::5" />
+  <native qname="sproHal::Hal.write"   id="122::6" />
+  <native qname="sproHal::Hal.board"   id="122::7" />
+  <native qname="sproHal::Hal.backend" id="122::8" />
+  <native qname="sproHal::Hal.serialCount" id="122::9" />
+  <native qname="sproHal::Hal.serialName"  id="122::10" />
+</sedonaKit>

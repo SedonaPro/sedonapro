@@ -1,0 +1,3 @@
+summary = "Foundation of the pro kits: status, auto/hand/off, run hours, retained values"
+# unit tests are plain Sedona: they also run in the ESP32 simulator and QEMU
+portable_tests = true

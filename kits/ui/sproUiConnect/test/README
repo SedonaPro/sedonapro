@@ -1,0 +1,12 @@
+1) read all ui variables
+cat req | nc -w 5 127.0.0.1 8088 > out.dat
+
+
+2) cat write_req | nc -w 5 127.0.0.1 8088
+set int variable (id = 0) to 7
+
+3) cat write_req_bool | nc -w 5 127.0.0.1 8088
+set bool variable (id = 5) to true
+
+4) cat write_req_float | nc -w 5 127.0.0.1 8088
+set float variable (id = 1) to 23.00

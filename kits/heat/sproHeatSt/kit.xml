@@ -1,0 +1,25 @@
+<!--
+  -  sproHeatSt: heating substation (ИТП) configurator.
+  -  Licensed under the Apache License, Version 2.0
+  -->
+<sedonaKit
+ name = "sproHeatSt"
+ vendor = "SPro"
+ description = "Heating substation configurator: pick the circuits, pumps, hot water and make-up, it builds the blocks, I/O points and links"
+ includeSource = "false"
+ doc = "true"
+>
+  <depend on="sys 1.2+" />
+  <depend on="sproBase 1.2+" />
+  <depend on="sproMath 1.2+" />
+  <depend on="datetime 1.2+" />
+  <depend on="sproSignal 1.2+" />
+  <depend on="sproControl 1.2+" />
+  <depend on="sproEquip 1.2+" />
+  <depend on="sproAlarm 1.2+" />
+  <depend on="sproHal 1.2+" />
+  <depend on="sproHeat 1.2+" />
+
+  <source dir="." />
+  <source dir="test" testonly="true" />
+</sedonaKit>

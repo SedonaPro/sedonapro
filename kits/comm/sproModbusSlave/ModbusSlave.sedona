@@ -1,0 +1,721 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+@palette=false
+class ModbusSlavePoint extends DebugComponent
+{
+	define int modbusCoil = 0;
+	define int modbusInptBit = 1;
+	define int modbusHoldingReg = 2;
+	define int modbusInptReg = 3;
+
+	@readonly
+	property bool fault;
+
+	@summary=false
+	@config
+	@defaultOnClone
+	property int address = 0;
+
+
+
+	int  data;
+	int  dataLen = 1;
+
+
+
+	ModbusSlaveService serv = null;
+	bool started = false;
+
+	action void printInternalState()
+	{
+		printMessage(""); Sys.out.print("data            0x").print(Sys.hexStr(data)).nl();
+		printMessage(""); Sys.out.print("dataLen         ${dataLen}").nl();
+		printMessage(""); Sys.out.print("started         ${started}").nl();
+	}
+
+
+	bool swapBytesFlag()
+	{
+		Component comp = Sys.app.lookup(parent);
+		Slot slot = comp?.type?.findSlot("swapBytes");
+		return slot != null ? comp?.getBool(slot) : false;
+	}
+
+	bool swapWordsFlag()
+	{
+		Component comp = Sys.app.lookup(parent);
+		Slot slot = comp?.type?.findSlot("swapWords");
+		return slot != null ? comp?.getBool(slot) : false;
+	}
+
+	virtual int getType()
+	{
+		return 0;
+	}
+
+	bool checkAddress()
+	{
+		int maxAddress = 0;
+		Component comp = Sys.app.lookup(parent);
+		Slot slot;
+		switch(getType()) {
+			case modbusCoil:
+				slot = comp?.type?.findSlot("coilsNum");
+				break;
+			case modbusInptBit:
+				slot = comp?.type?.findSlot("inptBitsNum");
+				break;
+			case modbusHoldingReg:
+				slot = comp?.type?.findSlot("holdRegsNum");
+				break;
+			case modbusInptReg:
+				slot = comp?.type?.findSlot("inptRegsNum");
+				break;
+			default:
+				return false;
+		}
+		maxAddress = slot != null ? comp?.getInt(slot) : 0;
+
+		return (address < maxAddress);
+	}
+
+	void startBackend()
+	{
+		started = true;
+	}
+
+	bool checkModbusHandle()
+	{
+		return (serv != null) && (serv.modbusHandle != null);
+	}
+
+	virtual override void remove()
+	{
+		serv = null;
+	}
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		Component comp = Sys.app.lookup(parent);
+		if (comp?.type?.is(ModbusSlaveService.type) == true) {
+			serv = (ModbusSlaveService)comp;
+			if (serv.started)
+				startBackend();
+		}
+	}
+
+
+	virtual void readData()
+	{
+	}
+
+
+	virtual override void execute()
+	{
+		super.execute();
+
+		fault := (serv == null) || (!checkAddress());
+
+		if (!started)
+			return;
+
+		if (checkModbusHandle())
+			readData();
+	}
+}
+
+
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class ModbusSlavePointBoolean extends ModbusSlavePoint
+{
+	define Str boolTypeVals = "Coil, InputBit";
+
+	@summary
+	@falseText="Off"
+	@trueText="On"
+	@readonly
+	@allowNull=false
+	property bool out;
+
+	@summary
+	@falseText="Off"
+	@trueText="On"
+	property bool in;
+
+	@summary=false
+	@config
+	@min = 0
+	@max = 1
+	@range = boolTypeVals
+	property int modbusType = modbusCoil;
+
+	native void setData(Obj modbusHandle,
+			    int type,
+			    int address,
+			    bool value);
+
+	native bool getData(Obj modbusHandle,
+			    int type,
+			    int address);
+
+	virtual override int getType()
+	{
+		return modbusType;
+	}
+
+
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		dataLen = 1;
+	}
+
+	virtual override void readData()
+	{
+		out := getData(serv.modbusHandle, modbusType, address);
+	}
+
+	virtual override void changed(Slot slot)
+	{
+		super.changed(slot);
+		if ((slot == ModbusSlavePointBoolean.in) && checkModbusHandle())
+			setData(serv.modbusHandle, modbusType, address, in);
+
+	}
+}
+
+
+@palette=false
+class ModbusSlavePointNumeric extends ModbusSlavePoint
+{
+	define Str numTypeVals = "HoldingReg, InputReg";
+
+	@summary=false
+	@config
+	@min = 2
+	@max = 3
+	@range = numTypeVals
+	property int modbusType = modbusHoldingReg;
+
+	native void setData(Obj modbusHandle,
+			    int type,
+			    int address,
+			    int data,
+			    int dataLen);
+
+	native int getData(Obj modbusHandle,
+			    int type,
+			    int address,
+			    int dataLen);
+
+
+	virtual override int getType()
+	{
+		return modbusType;
+	}
+
+
+	virtual void processDataAfterRead()
+	{
+	}
+
+	virtual void prepareDataBeforeWrite()
+	{
+	}
+
+
+	void writeData()
+	{
+		if (!checkAddress())
+			return;
+
+		prepareDataBeforeWrite();
+		data = Exchange.swapBytesWords(data,
+					       dataLen,
+					       swapBytesFlag(),
+						swapWordsFlag());
+		setData(serv.modbusHandle, modbusType, address, data, dataLen);
+	}
+
+	virtual override void readData()
+	{
+		data = getData(serv.modbusHandle, modbusType, address, dataLen);
+		data = Exchange.swapBytesWords(data,
+					       dataLen,
+					       swapBytesFlag(),
+					       swapWordsFlag());
+		processDataAfterRead();
+	}
+
+}
+
+
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class ModbusSlavePointDWord extends ModbusSlavePointNumeric
+{
+	@summary
+	@readonly
+	property int out;
+
+	@summary
+	property int in;
+
+
+	virtual override void loaded() {
+		super.loaded();
+		dataLen = 2;
+	}
+
+	virtual override void prepareDataBeforeWrite()
+	{
+		data = in;
+	}
+
+	virtual override void processDataAfterRead()
+	{
+		out := data;
+	}
+
+	virtual override void changed(Slot slot)
+	{
+		super.changed(slot);
+		if ((slot == ModbusSlavePointDWord.in) && checkModbusHandle())
+			writeData();
+
+	}
+}
+
+
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class ModbusSlavePointWord extends ModbusSlavePointDWord
+{
+	virtual override void loaded() {
+		super.loaded();
+		dataLen = 1;
+	}
+
+	virtual override void processDataAfterRead()
+	{
+		out := data & (0xFFFF);
+	}
+
+	virtual override void prepareDataBeforeWrite()
+	{
+		data = in & 0xFFFF;
+	}
+
+
+}
+
+
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class ModbusSlavePointFloat extends ModbusSlavePointNumeric
+{
+	@summary
+	@readonly
+	property float out;
+
+	@summary
+	property float in;
+
+	virtual override void loaded() {
+		super.loaded();
+		dataLen = 2;
+
+	}
+
+	virtual override void prepareDataBeforeWrite()
+	{
+		data = Sys.floatToBits(in);
+	}
+
+	virtual override void processDataAfterRead()
+	{
+		out := Sys.bitsToFloat(data);
+	}
+
+	virtual override void changed(Slot slot)
+	{
+		super.changed(slot);
+		if ((slot == ModbusSlavePointFloat.in) && checkModbusHandle())
+			writeData();
+	}
+}
+
+
+
+@palette=false
+@niagaraIcon="module://icons/x16/deviceNetwork.png"
+class ModbusSlaveService extends DebugComponent
+{
+	define Str statusVals="Down, Failed, Ok";
+
+	define int statusDown = 0;
+	define int statusFailed = 1;
+	define int statusOk = 2;
+
+	@readonly
+	@min = 0
+	@max = 2
+	@range = statusVals
+        property int status = 0;
+
+	@summary=false
+	@config
+	@allowNull=false
+	property bool swapWords = true;
+
+	@summary=false
+	@config
+	@allowNull=false
+	property bool swapBytes = false;
+
+	@summary=false
+	@readonly
+	property int totalRequests;
+
+	@config
+	@allowNull=false
+	@defaultOnClone
+        property bool enable = false;
+
+	@config
+	@min = 0
+	@max = 255
+	property int slaveAddr = 0;
+
+
+
+	@summary=false
+	@config
+	@min = 0
+	property int coilsNum = 10;
+
+	@summary=false
+	@config
+	@min = 0
+	property int inptBitsNum = 0;
+
+	@summary=false
+	@config
+	@min = 0
+	property int holdRegsNum = 10;
+
+	@summary=false
+	@config
+	@min = 0
+	property int inptRegsNum = 0;
+
+	Obj  modbusHandle = null;
+	bool started = false;
+
+	native void printInternalStateNative(Obj modbusHandle);
+	native void printInternalStateNativeAll();
+	native void setSlaveAddr(Obj modbusHandle, int addr);
+	native void setQuit(Obj modbusHandle);
+	native int  getStatus(Obj modbusHandle);
+	native int  getRequests(Obj modbusHandle);
+	native void updateRegNumber(Obj modbusHandle,
+				    int coils,
+				    int inptBits,
+				    int holdReg,
+				    int inptReg);
+	native void setEnable(Obj modbusHandle, bool en);
+
+
+	action void printInternalStateBackendAll()
+	{
+		printInternalStateNativeAll();
+	}
+
+	action void printInternalStateBackend()
+	{
+		if (modbusHandle != null)
+			printInternalStateNative(modbusHandle);
+	}
+
+
+	action void printInternalState()
+	{
+		printMessage(""); Sys.out.print("modbusHandle    0x").print((modbusHandle != null ? "allocated" : "null")).nl();
+		printMessage(""); Sys.out.print("started         ${started}").nl();
+	}
+
+	virtual void startBackend()
+	{
+		Component c = Sys.app.lookup(children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			if (c.type.is(ModbusSlavePoint.type)) {
+				ModbusSlavePoint pnt = (ModbusSlavePoint)c;
+				pnt.startBackend();
+			}
+		}
+
+		if (modbusHandle != null)
+			setEnable(modbusHandle, enable)
+
+		started = true;
+	}
+
+	virtual override void execute()
+	{
+		super.execute();
+
+		if (!started)
+			startBackend();
+
+
+		if (modbusHandle != null) {
+			totalRequests := getRequests(modbusHandle);
+			status := getStatus(modbusHandle);
+		} else
+			status := statusFailed;
+
+		if (!enable)
+			status := statusDown;
+
+	}
+
+	virtual override void remove()
+	{
+		super.remove();
+		if (modbusHandle != null) {
+			setQuit(modbusHandle);
+			modbusHandle = null;
+		}
+	}
+
+	virtual override void changed(Slot slot) {
+                super.changed(slot);
+
+		if ((slot == ModbusSlaveService.enable) && (modbusHandle != null))
+			setEnable(modbusHandle, enable);
+
+		if ((slot == ModbusSlaveService.slaveAddr) && (modbusHandle != null))
+			setSlaveAddr(modbusHandle, slaveAddr);
+
+		if ((slot == ModbusSlaveService.coilsNum) ||
+		    (slot == ModbusSlaveService.inptBitsNum) ||
+		    (slot == ModbusSlaveService.holdRegsNum) ||
+		    (slot == ModbusSlaveService.inptRegsNum)) {
+			if (modbusHandle != null)
+				updateRegNumber(modbusHandle,
+						coilsNum,
+						inptBitsNum,
+						holdRegsNum,
+						inptRegsNum);
+		}
+	}
+}
+
+
+@niagaraIcon="module://icons/x16/deviceNetwork.png"
+class ModbusSlaveTcpService extends ModbusSlaveService
+{
+	@config
+	@asStr
+	@max = 46
+	property Buf(46) ipAddress = "0.0.0.0";
+
+	@summary=false
+	@config
+	@min = 1
+	property int port = 502;
+
+
+	native Obj addSlaveService(
+		Slot ip,
+		int port,
+
+		int slaveAddr,
+		int coilsNum,
+		int inptNum,
+		int holdRegNum,
+		int inptRegNum
+		);
+
+	native int updateTcpSettings(
+		Obj modbusHandle,
+		Slot ip,
+		int port);
+
+
+	virtual override void startBackend()
+	{
+		modbusHandle = addSlaveService(
+			ModbusSlaveTcpService.ipAddress,
+			port,
+
+			slaveAddr,
+			coilsNum,
+			inptBitsNum,
+			holdRegsNum,
+			inptRegsNum);
+
+		super.startBackend();
+	}
+
+
+
+	virtual override void changed(Slot slot) {
+                super.changed(slot);
+
+		if ((slot == ModbusSlaveTcpService.port) ||
+		    (slot == ModbusSlaveTcpService.ipAddress)) {
+			if (modbusHandle != null) {
+				updateTcpSettings(modbusHandle,
+						  ModbusSlaveTcpService.ipAddress,
+						  port);
+			}
+		}
+	}
+}
+
+
+
+
+
+@niagaraIcon="module://icons/x16/deviceNetwork.png"
+class ModbusSlaveSerialService extends ModbusSlaveService
+{
+	@config
+	@min = 0
+	property int port = 0;
+
+	@summary=false
+	@readonly
+	property int maxPort;
+
+	@summary=false
+	@config
+	@range=SerialInfo.baudrateVals	
+        @min=0
+        @max=2
+        property int baudrate = 3;
+
+	@summary=false
+	@config
+        @min=7
+        @max=8
+        property int databits = 8;
+
+	@summary=false
+	@config
+        @min=1
+        @max=2
+        property int stopbits = 1;
+
+	@summary=false
+	@config
+        @min=0
+        @max=2
+        @range=SerialInfo.parityVals
+        property int parity = 2;
+
+	@summary=false
+	@config
+	@range=SerialInfo.rtsModeVals
+	@min=0
+	@max=2
+        property int rtsMode = SerialInfo.rtsModeNone;
+	
+	int lastPort;
+
+	native Obj addSlaveService(
+		int port,
+		int baudrate,
+		int databits,
+		int parity,
+		int stopbits,
+
+		int slaveAddr,
+		int coilsNum,
+		int inptNum,
+		int holdRegNum,
+		int inptRegNum,
+
+		int rtsMode
+		);
+
+	native void updateSerialSettings(
+		Obj  modbusHandle,
+		int  port,
+		int  baudrate,
+		int  databits,
+		int  parity,
+		int  stopbits,
+		int  rtsMode);
+
+	virtual override void loaded()
+	{
+		super.loaded();
+
+		maxPort := SerialInfo.getMaxPortNum();
+		if (port > maxPort)
+			port := 0;
+
+		lastPort = port;
+	}
+
+	virtual override void startBackend()
+	{
+		// printMessage("startBackendSerial\n");
+		modbusHandle = addSlaveService(
+			port,
+			baudrate,
+			databits,
+			parity,
+			stopbits,
+			slaveAddr,
+			coilsNum,
+			inptBitsNum,
+			holdRegsNum,
+			inptRegsNum,
+			rtsMode);
+
+		super.startBackend();
+	}
+
+
+	virtual override void changed(Slot slot) {
+                super.changed(slot);
+
+		if (port > maxPort)
+			port := lastPort;
+
+		if ((slot == ModbusSlaveSerialService.port)     ||
+		    (slot == ModbusSlaveSerialService.baudrate) ||
+		    (slot == ModbusSlaveSerialService.databits) ||
+		    (slot == ModbusSlaveSerialService.parity)   ||
+		    (slot == ModbusSlaveSerialService.stopbits) ||
+		    (slot == ModbusSlaveSerialService.rtsMode)
+			) {
+			if (modbusHandle != null)
+				updateSerialSettings(modbusHandle,
+						     port,
+						     baudrate,
+						     databits,
+						     parity,
+						     stopbits,
+						     rtsMode
+					);
+		}
+	}
+}

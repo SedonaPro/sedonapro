@@ -1,0 +1,92 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2018 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+class ExpressionFloat extends ExpressionBase
+{
+	@readonly
+	@summary=true
+	property float out;
+
+	@summary=true
+	property float in1;
+
+	@summary=true
+	property float in2;
+
+	@summary=true
+	property float in3;
+
+	@summary=true
+	property float in4;
+
+	property float in5;
+
+	property float in6;
+
+	property float in7;
+
+	property float in8;
+
+	static private native Obj    doParse(Str expression);
+	static private native Obj    doFree(Obj handle);
+	static private native float  doCalc(Obj handle, float[] p, int paramsLen);
+
+
+	virtual override bool parseExpression()
+	{
+		AST = doParse(expr.toStr());
+		out := 0.0;
+		return AST != null;
+	}
+
+	virtual override void calcExpression()
+	{
+		params[0] = in1;
+		params[1] = in2;
+		params[2] = in3;
+		params[3] = in4;
+		params[4] = in5;
+		params[5] = in6;
+		params[6] = in7;
+		params[7] = in8;
+		out := doCalc(AST, params, maxParams);
+	}
+
+	virtual override void changed(Slot slot)
+	{
+		super.changed(slot);
+		if ((slot == ExpressionFloat.in1) ||
+		    (slot == ExpressionFloat.in2) ||
+		    (slot == ExpressionFloat.in3) ||
+		    (slot == ExpressionFloat.in4) ||
+		    (slot == ExpressionFloat.in5) ||
+		    (slot == ExpressionFloat.in6) ||
+		    (slot == ExpressionFloat.in7) ||
+		    (slot == ExpressionFloat.in8)) {
+			needUpdate = true;
+		}
+	}
+
+	virtual override void freeExpression()
+	{
+		if (AST != null)
+			doFree(AST);
+		super.freeExpression();
+	}
+
+	inline float[ExpressionBase.maxParams] params;
+}

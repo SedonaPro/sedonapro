@@ -1,0 +1,20 @@
+# Espressif ESP32-S3-DevKitC-1 (N8R8).  Free of USB (19, 20), flash/PSRAM (26-37)
+# and strapping pins except GPIO0 (BOOT button, active low).
+name    = "esp32-s3-devkitc"
+title   = "Espressif ESP32-S3-DevKitC-1"
+hal     = "esp32"
+targets = ["esp32"]
+
+[channels]
+DI1  = { kind = "di", pin = 4, pull = "up", invert = true }   # contact to GND
+DI2  = { kind = "di", pin = 5, pull = "up", invert = true }
+DI3  = { kind = "di", pin = 6, pull = "up", invert = true }
+BOOT = { kind = "di", pin = 0, pull = "up", invert = true }   # on-board button
+DO1  = { kind = "do", pin = 10 }
+DO2  = { kind = "do", pin = 11 }
+DO3  = { kind = "do", pin = 12 }
+DO4  = { kind = "do", pin = 13 }
+AI1  = { kind = "ai", pin = 1, raw_max = 4095, range = [0.0, 3.1], unit = "V" }   # ADC1_CH0
+AI2  = { kind = "ai", pin = 7, raw_max = 4095, range = [0.0, 3.1], unit = "V" }   # ADC1_CH6
+AO1  = { kind = "ao", pin = 14, pwm_hz = 1000 }
+AO2  = { kind = "ao", pin = 21, pwm_hz = 1000 }

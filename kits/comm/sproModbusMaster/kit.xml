@@ -1,0 +1,35 @@
+<sedonaKit
+    name="sproModbusMaster"
+    vendor="SPro"
+    description="SedonaPro Modbus Master for RS485/232 and TCP/IP.
+  Component is used to get data from different Modbus slave devices">
+  <depend on="sys 1.2+" />
+  <depend on="inet 1.2+" />
+  <depend on="sproLib 1.2+" />
+  <depend on="sproUtil 1.2+" />
+  <depend on="sproMath 1.2+" />
+
+
+  <native qname="sproModbusMaster::ModbusPoint.removeRegister"  				id="112::0" />
+  <native qname="sproModbusMaster::ModbusPoint.addRegister"  				id="112::1" />
+  <native qname="sproModbusMaster::ModbusPoint.updateRegisterInfo"  			id="112::2" />
+  <native qname="sproModbusMaster::ModbusPoint.requestInProgress"  				id="112::3" />
+  <native qname="sproModbusMaster::ModbusPoint.getDone"                                     id="112::4" />
+  <native qname="sproModbusMaster::ModbusPoint.setRequest"  				id="112::5" />
+  <native qname="sproModbusMaster::ModbusPoint.printInternalStateNative"			id="112::6" />
+
+  <native qname="sproModbusMaster::ModbusSlaveNetwork.setQuit"  				id="112::10" />
+  <native qname="sproModbusMaster::ModbusSlaveNetwork.getStatus" 				id="112::11" />
+  <native qname="sproModbusMaster::ModbusSlaveNetwork.setEnable" 				id="112::12" />
+  <native qname="sproModbusMaster::ModbusSlaveNetwork.printInternalStateNative"		id="112::13" />
+  <native qname="sproModbusMaster::ModbusSlaveNetwork.printInternalStateNativeAll"		id="112::14" />
+
+
+  <native qname="sproModbusMaster::ModbusSlaveTcpAsyncNetwork.addNetwork" 			id="112::20" />
+  <native qname="sproModbusMaster::ModbusSlaveTcpAsyncNetwork.updateTcpSettings" 		id="112::21" />
+
+  <native qname="sproModbusMaster::ModbusSlaveSerialAsyncNetwork.addNetwork"		id="112::30" />
+  <native qname="sproModbusMaster::ModbusSlaveSerialAsyncNetwork.updateSerialSettings" 	id="112::31" />
+
+  <source dir="." />
+</sedonaKit>

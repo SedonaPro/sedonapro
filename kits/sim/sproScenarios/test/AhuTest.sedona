@@ -1,0 +1,189 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Supply air handling unit with a water heating coil on the WaterCoil
+** model of sproSim: about 1 kg/s of air (3000 m3/h), coil UA 1500 W/K,
+** 0.5 kg/s of water at a fully open valve, water network 80 C at -25 C.
+** With the dampers closed a little air still leaks through the coil.
+**
+class AhuTest extends Test
+{
+  static inline Season season
+  static inline AhuControl ahu
+  static inline SupplyTemp temp
+  static inline WaterHeater heater
+  static inline FanSpeed fan
+  static inline WaterCoil coil
+
+  static float outdoor
+  static float network
+  static double time
+
+  static bool near(float a, float b, float tol) { return a - b <= tol && b - a <= tol }
+
+  static void setup(float out, float water)
+  {
+    outdoor = out
+    network = water
+    time = 0.0d
+    coil.waterFlow := 0.5f
+    coil.airFlow := 1.0f
+    coil.ua := 1500.0f
+    coil.waterCapacity := 40000.0f
+    coil.airCapacity := 20000.0f
+    coil.initialWater := 40.0f
+    coil.initialAir := 20.0f
+    coil.resetState()
+    season.averaging := 0.0f
+    season.mode := 0
+    season.decide()
+    heater.compensate := false
+    heater.reset()
+    ahu.mode := 0
+    ahu.request := false
+    ahu.damperTime := 30.0f
+    ahu.hasExhaust := false
+    fan.speed := 100.0f
+    fan.rampTime := 30.0f
+    temp.spSupply := 20.0f
+    temp.heatKp := 4.0f
+    temp.heatTi := 60.0f
+  }
+
+  ** one second of the controllers and the plant
+  static void step()
+  {
+    float dt = 1.0f
+    season.outdoor := outdoor
+    season.update(dt)
+    ahu.frost := heater.frost
+    ahu.heaterReady := heater.ready
+    ahu.update(dt)
+    temp.run := ahu.control
+    temp.season := season.season
+    temp.supply := coil.airOut
+    temp.update(dt)
+    heater.demand := temp.heating
+    heater.startReq := ahu.heaterStart
+    heater.airflow := ahu.airflow
+    heater.outdoor := outdoor
+    heater.returnWater := coil.waterOut
+    heater.supplyAir := coil.airOut
+    heater.waterSupply := network
+    heater.season := season.season
+    heater.update(dt)
+    fan.run := ahu.supplyFan
+    fan.limit := heater.fanLimit
+    fan.update(dt)
+
+    coil.waterIn := network
+    coil.airIn := outdoor
+    coil.opening := heater.valve / 100.0f
+    coil.airScale := ahu.supplyFan ? Pro.max(fan.out / 100.0f, 0.02f) : 0.02f
+    coil.tick(dt, time)
+    time = time + 1.0d
+  }
+
+  static void run(int seconds) { for (int k = 0; k < seconds; k++) step() }
+
+
+  ** winter: standby, start, steady supply, a colder network, a network failure
+  static void testWinter()
+  {
+    setup(-25.0f, 80.0f)
+    run(1200)
+    assert(season.winter && heater.state == WaterHeater.stStandby && heater.pump)
+    assert(near(coil.waterOut, 45.0f, 2.0f))         // standby setpoint at -25
+
+    ahu.request := true
+    run(90)
+    assert(ahu.state >= AhuControl.stOpening)
+    run(1200)
+    assert(ahu.state == AhuControl.stRun && fan.out == 100.0f)
+    assert(near(coil.airOut, 20.0f, 0.3f))
+    assert(heater.valve >= 25.0f && !heater.frost)
+
+    // the network delivers 50 C instead of 80
+    network = 50.0f
+    float low = 100.0f
+    for (int k = 0; k < 1800; k++) { step(); if (coil.airOut < low) low = coil.airOut }
+    assert(!heater.frost && ahu.state == AhuControl.stRun)
+    assert(coil.waterOut > heater.returnSp - 1.0f)   // return water held up
+    assert(low > 8.0f)                               // not enough heat: fans held down, no trip
+
+    // the network fails (15 C): frost trip, fans off, valve open
+    network = 15.0f
+    run(900)
+    assert(heater.frost && heater.trips == 1 && heater.valve == 100.0f)
+    assert(ahu.state == AhuControl.stFrost && !ahu.supplyFan && fan.out == 0.0f)
+    // the network comes back: warms up, restarts by itself
+    network = 80.0f
+    run(1800)
+    assert(!heater.frost && ahu.state == AhuControl.stRun)
+    assert(near(coil.airOut, 20.0f, 0.5f))
+  }
+
+  ** near frost the fans slow down and the valve opens harder
+  static void testFrostProtection()
+  {
+    setup(-25.0f, 80.0f)
+    ahu.request := true
+    run(1800)
+    assert(ahu.state == AhuControl.stRun)
+    network = 32.0f                                  // a weak network: the return water falls
+    bool limited = false
+    float lowRet = 100.0f
+    for (int k = 0; k < 1800; k++)
+    {
+      step()
+      if (fan.out < 99.0f) limited = true
+      if (coil.waterOut < lowRet) lowRet = coil.waterOut
+    }
+    assert(limited && heater.warning)               // fans held down
+    assert(heater.valve == 100.0f)
+    assert(!heater.frost && lowRet > heater.tripReturn)
+  }
+
+  ** compensation of the network temperature keeps the supply air steadier
+  static float dip(bool comp)
+  {
+    setup(-15.0f, 80.0f)
+    heater.compensate := comp
+    heater.waterNominal := 80.0f
+    ahu.request := true
+    run(1800)
+    float worst = 0.0f
+    for (int k = 0; k < 900; k++)
+    {
+      network = Pro.max(60.0f, 80.0f - (float)k * 20.0f / 300.0f)   // 80 -> 60 C in 5 min
+      step()
+      float e = Pro.abs(coil.airOut - 20.0f)
+      if (e > worst) worst = e
+    }
+    return worst
+  }
+
+  static void testCompensation()
+  {
+    float without = dip(false)
+    float with = dip(true)
+    assert(with < without * 0.7f)
+  }
+
+  ** transition: no minimum, the valve maximum follows the outdoor temperature
+  static void testTransition()
+  {
+    setup(12.0f, 50.0f)
+    ahu.request := true
+    temp.spSupply := 30.0f                           // asks for a lot of heat
+    run(1800)
+    assert(season.transition)
+    assert(near(heater.valve, 65.0f, 0.5f))          // max at +12: 100 -> 50 over 5..15
+    temp.spSupply := 10.0f                           // outdoor air is warm enough
+    run(900)
+    assert(heater.valve < 1.0f)
+  }
+}

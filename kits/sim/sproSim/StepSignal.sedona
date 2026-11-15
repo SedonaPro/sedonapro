@@ -1,0 +1,22 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Deterministic disturbance. Phase 0 is recommended.
+class StepSignal extends SimBlock
+{
+  @config property float before
+  @config property float after = 1.0f
+  @config property float at = 10.0f
+  @readonly property float out
+  virtual override bool valid()
+  {
+    return super.valid() && finite(before) && finite(after) && finite(at) && at >= 0.0f
+  }
+  virtual override void resetState() { out := before }
+  override void tick(float dt, double time)
+  {
+    if (time >= (double)at) out := after
+    else out := before
+  }
+}
+
+

@@ -1,0 +1,16 @@
+<sedonaKit
+    name="sproSqlite"
+    vendor="SPro"
+    description="components to save history logs and alarms in sqlite database">
+  <depend on="sys 1.2+" />
+  <depend on="sproMath 1.2+" />
+  <depend on="sproLib 1.2+" />
+
+  <native qname="sproSqlite::SqliteDb.doOpen"                       id="115::0" />
+  <native qname="sproSqlite::SqliteDb.doExecSql"                    id="115::1" />
+  <native qname="sproSqlite::SqliteDb.doExecInsertSql"              id="115::2" />
+  <native qname="sproSqlite::SqliteDb.doExecSelectSql"              id="115::3" />
+  <native qname="sproSqlite::SqliteDb.doClose"                      id="115::4" />
+
+  <source dir="." />
+</sedonaKit>

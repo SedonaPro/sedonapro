@@ -1,0 +1,228 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Base of all alarms: the condition must last 'delay' to raise the
+** alarm and be gone for 'clearDelay' to clear it.  With 'latch' the
+** alarm stays until it is acknowledged (the ack action, a rising edge
+** on ackIn, or AlarmService.ackAll) after the condition has gone.
+** 'inhibit' suppresses it (during start-up, in summer, under service).
+** Every raise, clear and acknowledge goes to the AlarmService journal.
+**
+@palette=false
+abstract class AlarmPoint extends Component
+{
+  @config property bool enable = true
+  ** no alarm while true
+  property bool inhibit = false
+  ** rising edge acknowledges
+  property bool ackIn = false
+
+  define Str priorityRange = "critical, high, medium, low"
+  @config @range=priorityRange property byte priority = 1
+
+  ** text for the journal and the panel
+  @config @asStr property Buf(40) text = ""
+
+  ** the condition must last this long, s
+  @config @unit=Units.second @min=0 property float delay = 5.0f
+  ** the condition must be gone this long, s
+  @config @unit=Units.second @min=0 property float clearDelay = 0.0f
+  ** stays until acknowledged
+  @config property bool latch = false
+
+  ** the condition is present (after delay)
+  @readonly property bool active
+  ** the alarm is on: active, or latched and not acknowledged
+  @readonly @summary property bool alarm
+  ** raised and not acknowledged yet
+  @readonly property bool unacked
+  ** times raised
+  @readonly property int count
+  ** ok, alarm, disabled (enable false or inhibit)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** acknowledge
+  action void ack()
+  {
+    acked()
+    if (!unacked) return
+    unacked := false
+    AlarmLog.record(this, AlarmLog.acked)
+  }
+
+  ** the alarm condition now
+  abstract bool condition(float dt)
+
+  ** called on every acknowledge
+  virtual void acked() {}
+
+  ** true keeps the alarm on (a locked trip)
+  virtual bool holding() { return false }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    bool a = ackIn == true
+    if (a && !lastAck) ack()
+    lastAck = a
+
+    bool c = condition(dt)
+    if (enable != true || inhibit == true)
+    {
+      if (active) { active := false; AlarmLog.record(this, AlarmLog.cleared) }
+      onFor = 0.0f
+      offFor = 0.0f
+      alarm := false
+      unacked := false
+      status := Pro.disabled
+      return
+    }
+    if (c) { onFor += dt; offFor = 0.0f }
+    else { offFor += dt; onFor = 0.0f }
+    if (!active && c && onFor >= delay)
+    {
+      active := true
+      unacked := true
+      count := count + 1
+      AlarmLog.record(this, AlarmLog.raised)
+    }
+    else if (active && !c && offFor >= clearDelay)
+    {
+      active := false
+      AlarmLog.record(this, AlarmLog.cleared)
+    }
+    alarm := active || (latch && unacked) || holding()
+    status := alarm ? Pro.alarm : Pro.ok
+  }
+
+  bool lastAck
+  float onFor
+  float offFor
+  inline Ticker ticker
+}
+
+**
+** Limit alarm of a measurement: above hi or below lo (null = no
+** limit), with a hysteresis for clearing.  An invalid value is an
+** alarm too unless badIsAlarm is false.
+**
+@niagaraIcon="module://icons/x16/alarm.png"
+class LimitAlarm extends AlarmPoint
+{
+  @summary property float in
+  ** high limit (null = none)
+  @config property float hi = null
+  ** low limit (null = none)
+  @config property float lo = null
+  ** clears this much inside the limit
+  @config @min=0 property float hyst = 0.5f
+  ** an invalid (null) value raises the alarm
+  @config property bool badIsAlarm = true
+
+  ** the value is above hi
+  @readonly property bool high
+  ** the value is below lo
+  @readonly property bool low
+
+  override bool condition(float dt)
+  {
+    if (!Pro.valid(in)) return badIsAlarm
+    bool h = Pro.valid(hi) && (high ? in > hi - hyst : in > hi)
+    bool l = Pro.valid(lo) && (low ? in < lo + hyst : in < lo)
+    high := h
+    low := l
+    return h || l
+  }
+}
+
+**
+** Alarm of a digital signal: a fault contact, a filter switch, a
+** float switch.
+**
+@niagaraIcon="module://icons/x16/alarm.png"
+class BoolAlarm extends AlarmPoint
+{
+  @summary property bool in
+  ** the value of in that means alarm
+  @config property bool alarmValue = true
+
+  override bool condition(float dt) { return (in == true) == alarmValue }
+}
+
+**
+** Alarm when two signals disagree: a command and its feedback, a
+** valve command and its end switch.
+**
+@niagaraIcon="module://icons/x16/alarm.png"
+class MismatchAlarm extends AlarmPoint
+{
+  ** command
+  @summary property bool cmd
+  ** feedback
+  property bool fb
+
+  override bool condition(float dt) { return (cmd == true) != (fb == true) }
+}
+
+**
+** Protective trip with automatic retries: while 'in' (a dry run, a
+** high pressure, a frost) lasts 'delay' it trips - ok goes false for
+** retryDelay, then the plant may try again; after 'retries' trips
+** within retryWindow it locks until acknowledged.  Link ok to the
+** Motor's permit.
+**
+@niagaraIcon="module://icons/x16/alarm.png"
+class Trip extends AlarmPoint
+{
+  ** the dangerous condition
+  @summary property bool in
+
+  ** automatic restarts before it locks
+  @config @min=0 @max=10 property int retries = 3
+  ** pause before a restart, s
+  @config @unit=Units.second @min=0 property float retryDelay = 300.0f
+  ** trips are counted over this window, s
+  @config @unit=Units.second @min=1 property float retryWindow = 3600.0f
+
+  ** the plant may run
+  @readonly @summary property bool ok = true
+  ** locked: waits for acknowledge
+  @readonly property bool locked
+
+  override void acked()
+  {
+    if (locked && in != true)
+    {
+      locked := false
+      trips = 0
+      ok := true
+      wait = 0.0f
+    }
+  }
+
+  override bool condition(float dt)
+  {
+    windowAge += dt
+    if (windowAge >= retryWindow) { windowAge = 0.0f; trips = 0 }
+    bool c = in == true
+    if (c && !active && onFor + dt >= delay && enable == true && inhibit != true)
+    {
+      trips++
+      if (trips > retries) locked := true
+      wait = retryDelay
+    }
+    if (wait > 0.0f) wait -= dt
+    ok := !locked && wait <= 0.0f && !(c && onFor + dt >= delay)
+    return c
+  }
+
+  override bool holding() { return locked }
+
+  int trips
+  float wait
+  float windowAge
+}

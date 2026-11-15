@@ -1,0 +1,120 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2018 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+@palette=false
+class SqliteHistoryPoint extends SqliteHistoryDatabase
+{
+	@config
+	@asStr
+	@summary=true
+	property Buf(64) varname = "var_x1";
+
+	@config
+	@allowNull=false
+	@defaultOnClone
+	property bool enable = false;
+
+	@config
+	@min = 1
+	property int minimalKeptEntries = 100;
+
+	@config
+	@min = 50
+	property int cleanAfterNewEntries = 50;
+
+	// 0: publish when changed; 1: publish per 1 sec; 2: per 2 secs; 3: ...
+	@unit=Units.second
+	@config property float publishInterval = 5.0
+
+
+	void deleteOldEntries(SqliteDb db)
+	{
+		if (newEntries > cleanAfterNewEntries) {
+			doLimitRecords(db, varname.toStr(), minimalKeptEntries);
+			newEntries = 0;
+		}
+	}
+
+	virtual override bool createTable(SqliteDb db)
+	{
+		if (!enable)
+			return false;
+		strBuf.copyFromStr("CREATE TABLE IF NOT EXISTS ", strLen);
+		StrUtils.appendStr(strBuf, varname.toStr(), strLen);
+		StrUtils.appendStr(strBuf, " ( ID INTEGER PRIMARY KEY, value STUFF, Timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP )", strLen);
+		int ret = db.execSql(strBuf);
+		if (ret != SqliteDb.SQLITE_BUSY)
+			pnt_ok = ret == 0;
+		return pnt_ok;
+	}
+
+	virtual override Type getPointType()
+	{
+		return SqliteHistoryPoint.type;
+	}
+
+	virtual Str getStrValue()
+	{
+		return "";
+	}
+
+	virtual void doPublish(SqliteDb db)
+	{
+		strBuf.copyFromStr("INSERT INTO ", strLen);
+		StrUtils.appendStr(strBuf, varname.toStr(), strLen);
+		StrUtils.appendStr(strBuf, " (value) values('", strLen);
+		StrUtils.appendStr(strBuf, getStrValue(), strLen);
+		StrUtils.appendStr(strBuf, "')", strLen);
+
+		// Sys.out.print("sql: ${strBuf}\n");
+		int res = doExecSql(db, strBuf)
+		if (res == SqliteDb.SQLITE_OK) {
+			deleteOldEntries(db);
+			newEntries = newEntries + 1;
+		}
+		if (res != SqliteDb.SQLITE_BUSY)
+			lastPublishTime = Sys.ticks()
+	}
+
+	virtual bool needUpdate()
+	{
+		bool readyToPublish = false;
+		if (publishInterval > 0.0)
+			readyToPublish = (Sys.ticks()-lastPublishTime) >= (long)publishInterval*1sec;
+		return readyToPublish;
+	}
+
+	virtual override void doWork(SqliteDb db)
+	{
+		super.doWork(db);
+		if (pnt_ok && needUpdate())
+			doPublish(db);
+	}
+
+
+	virtual override void changed(Slot slot)
+	{
+                super.changed(slot);
+		if (slot == SqliteHistoryPoint.varname) {
+			started = false;
+			pnt_ok = false;
+		}
+	}
+
+	private int newEntries = Sys.maxInt;
+	private long lastPublishTime = 0L;
+}

@@ -1,0 +1,279 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Journal of alarm events: a ring of the last 32 raises, clears and
+** acknowledges in memory, kept by AlarmService.
+**
+class AlarmLog
+{
+  define int raised = 1
+  define int cleared = 2
+  define int acked = 3
+
+  ** called by AlarmPoint on every event
+  static void record(AlarmPoint a, int kind)
+  {
+    int i = head
+    ids[i] = a.id
+    kinds[i] = kind
+    prios[i] = a.priority
+    secs[i] = Sys.ticks() / 1sec
+    head = (head + 1) % size
+    if (count < size) count++
+    total++
+  }
+
+  define int size = 32
+  static inline int[size] ids
+  static inline byte[size] kinds
+  static inline byte[size] prios
+  static inline long[size] secs
+  static int head
+  static int count
+  ** events since start
+  static int total
+}
+
+**
+** Alarm overview of the whole app: counts of active and unacknowledged
+** alarms, a common alarm output (for a relay or a lamp), the last event
+** as text, acknowledge-all, and the journal file (CSV, kept between
+** restarts, the oldest half dropped when it grows past maxSize).
+**
+@niagaraIcon="module://icons/x16/alarm.png"
+class AlarmService extends Service
+{
+  ** journal file; empty = no file
+  @defaultOnClone @asStr @config property Buf(32) filename = "alarms.csv"
+  ** largest journal, bytes
+  @config @min=1024 property int maxSize = 65536
+
+  ** alarms on now
+  @readonly @summary property int active
+  ** alarms not acknowledged
+  @readonly property int unacked
+  ** highest priority on now (0 critical .. 3 low, -1 none)
+  @readonly property int topPriority = -1
+  ** any alarm on (for a common alarm relay)
+  @readonly @summary property bool anyAlarm
+  ** a critical or high alarm on
+  @readonly property bool urgent
+  ** the last event: "raise high pumps/dryRun Dry run"
+  @readonly @asStr property Buf(80) last = ""
+  ** events since start
+  @readonly property int events
+
+  ** acknowledge every alarm
+  action void ackAll()
+  {
+    for (int i = 0; i <= Sys.app.maxId(); i++)
+    {
+      Component c = Sys.app.lookup(i)
+      if (c != null && c.type.is(AlarmPoint.type)) ((AlarmPoint)c).ack()
+    }
+  }
+
+  virtual override void execute()
+  {
+    // new journal entries
+    while (seen != AlarmLog.total)
+    {
+      int back = AlarmLog.total - seen
+      if (back > AlarmLog.size) { seen = AlarmLog.total - AlarmLog.size; continue }
+      int i = (AlarmLog.head - back + AlarmLog.size) % AlarmLog.size
+      describe(i)
+      write()
+      seen++
+    }
+    events := AlarmLog.total
+
+    long now = Sys.ticks()
+    if (now - lastScan < 1sec && lastScan != 0L) return
+    lastScan = now
+    int a = 0
+    int u = 0
+    int top = -1
+    for (int i = 0; i <= Sys.app.maxId(); i++)
+    {
+      Component c = Sys.app.lookup(i)
+      if (c == null || !c.type.is(AlarmPoint.type)) continue
+      AlarmPoint p = (AlarmPoint)c
+      if (p.alarm)
+      {
+        a++
+        if (top < 0 || p.priority < top) top = p.priority
+      }
+      if (p.unacked) u++
+    }
+    active := a
+    unacked := u
+    topPriority := top
+    anyAlarm := a > 0
+    urgent := top >= 0 && top <= 1
+  }
+
+  ** the text of journal entry i into 'line'
+  private void describe(int i)
+  {
+    line.size = 0
+    DateTimeService dt = (DateTimeService)Sys.app.lookupService(DateTimeService.type)
+    if (dt != null && dt.year >= 2020)
+    {
+      num(dt.year, 4); add("-"); num(dt.month, 2); add("-"); num(dt.day, 2); add(" ")
+      num(dt.hour, 2); add(":"); num(dt.minute, 2); add(":"); num(dt.second, 2)
+    }
+    else
+    {
+      add("+"); add(Sys.longStr(AlarmLog.secs[i])); add("s")
+    }
+    add(";")
+    int k = AlarmLog.kinds[i]
+    add(k == AlarmLog.raised ? "raise" : (k == AlarmLog.cleared ? "clear" : "ack"))
+    add(";")
+    int p = AlarmLog.prios[i]
+    add(p == 0 ? "critical" : (p == 1 ? "high" : (p == 2 ? "medium" : "low")))
+    add(";")
+    Component c = Sys.app.lookup(AlarmLog.ids[i])
+    if (c != null)
+    {
+      Component parent = Sys.app.lookup(c.parent)
+      if (parent != null && parent.id != 0) { add(parent.name); add("/") }
+      add(c.name)
+      add(";")
+      if (c.type.is(AlarmPoint.type)) add(((AlarmPoint)c).text.toStr())
+    }
+    // the panel text: without the date, ';' as spaces
+    int from = 0
+    for (int j = 0; j < line.size; j++) if (line.bytes[j] == ';') { from = j + 1; break }
+    int n = 0
+    for (int j = from; j < line.size && n < last.bytesLen - 1; j++)
+    {
+      int ch = line.bytes[j]
+      last.bytes[n++] = ch == ';' ? ' ' : ch
+    }
+    last.bytes[n] = 0
+    last.size = n + 1
+    changed(AlarmService.last)
+  }
+
+  ** append 'line' to the journal file
+  private void write()
+  {
+    Str name = filename.toStr()
+    if (name.length() == 0) return
+    file.name = name
+    int size = file.size()
+    if (size > maxSize) shrink(size)
+    if (!file.open("m")) return
+    file.seek(file.size())
+    file.out.writeBytes(line.bytes, 0, line.size)
+    file.out.write('\n')
+    file.out.flush()
+    file.close()
+  }
+
+  ** drop the older half of the journal
+  private void shrink(int size)
+  {
+    if (!file.open("r")) return
+    // copy the newer half to <name>.old, then back
+    oldName.copyFromStr(filename.toStr())
+    int n = oldName.size - 1
+    if (n < 0 || n + 4 >= oldName.bytesLen) { file.close(); FileStore.remove(filename.toStr()); return }
+    oldName.bytes[n] = '.'; oldName.bytes[n+1] = 'o'; oldName.bytes[n+2] = 'l'; oldName.bytes[n+3] = 'd'
+    oldName.bytes[n+4] = 0
+    oldName.size = n + 5
+    other.name = oldName.toStr()
+    if (!other.open("w")) { file.close(); return }
+    file.seek(size / 2)
+    int ch = file.in.read()
+    while (ch >= 0 && ch != '\n') ch = file.in.read()
+    ch = file.in.read()
+    while (ch >= 0) { other.out.write(ch); ch = file.in.read() }
+    other.out.flush()
+    other.close()
+    file.close()
+    FileStore.rename(oldName.toStr(), filename.toStr())
+  }
+
+  private void add(Str s)
+  {
+    for (int i = 0; s.get(i) != 0 && line.size < line.bytesLen - 1; i++)
+      line.bytes[line.size++] = s.get(i)
+  }
+
+  private void num(int v, int width)
+  {
+    Str s = Sys.intStr(v)
+    for (int i = s.length(); i < width; i++) add("0")
+    add(s)
+  }
+
+  int seen
+  long lastScan
+  inline Buf(160) line
+  inline Buf(40) oldName
+  inline File file
+  inline File other
+}
+
+**
+** Common alarm of a group: on when any of in1..in8 is on; 'first' is
+** the input that came first since the group was quiet (first-out, for
+** finding the cause of a trip).
+**
+@niagaraIcon="module://icons/x16/alarm.png"
+class AlarmSum extends Component
+{
+  property bool in1
+  property bool in2
+  property bool in3
+  property bool in4
+  property bool in5
+  property bool in6
+  property bool in7
+  property bool in8
+
+  @readonly @summary property bool any
+  ** inputs on
+  @readonly property int count
+  ** first input on since all were off (0 = none)
+  @readonly property int first
+
+  virtual override void execute()
+  {
+    int n = 0
+    int f = 0
+    for (int i = 1; i <= 8; i++)
+    {
+      if (!input(i)) continue
+      n++
+      if (f == 0 && !was[i - 1]) f = i
+    }
+    for (int i = 1; i <= 8; i++) was[i - 1] = input(i)
+    if (n == 0) first := 0
+    else if (first == 0) first := f
+    count := n
+    any := n > 0
+  }
+
+  bool input(int i)
+  {
+    switch (i)
+    {
+      case 1: return in1 == true
+      case 2: return in2 == true
+      case 3: return in3 == true
+      case 4: return in4 == true
+      case 5: return in5 == true
+      case 6: return in6 == true
+      case 7: return in7 == true
+    }
+    return in8 == true
+  }
+
+  inline bool[8] was
+}

@@ -1,0 +1,57 @@
+<!--
+  -  Sedona Platform Manifest
+  -  Licensed under the Academic Free License version 3.0
+  -->
+
+<!-- DON'T FORGET TO REPLACE VENDOR to SPRO -->
+<sedonaPlatform vendor="easyio" id="easyio-fg-${sedona.env.version}">
+
+  <compile endian="little" blockSize="4" refSize="4" debug="true" test="true">
+
+    <!-- Native Kits -->
+    <nativeKit depend="sys 1.2+"    />
+    <nativeKit depend="inet 1.2+"   />
+    <nativeKit depend="datetimeStd 1.2+" />
+    <nativeKit depend="sproPlatformLinux 1.2+" />
+    <nativeKit depend="sproMath 1.2+" />
+    <nativeKit depend="sproModbusMaster 1.2+" />
+    <nativeKit depend="sproModbusSlave 1.2+" />
+    <nativeKit depend="sproUtil 1.2+" />
+    <nativeKit depend="sproSpi 1.2+" />
+    <nativeKit depend="sproSqlite 1.2+" />
+    <nativeKit depend="sproExpr 1.2+" />
+    <nativeKit depend="serial 1.2+" />
+    <nativeKit depend="sproMqtt 1.2+" />
+
+    <!-- Sources -->
+    <nativeSource path="/src/vm" />
+    <nativeSource path="/src/sys/native" />
+    <nativeSource path="/src/sys/native/std" />
+    <nativeSource path="/src/sys/native/unix" />
+    <nativeSource path="/src/inet/native" />
+    <nativeSource path="/src/inet/native/std" />
+    <nativeSource path="/src/inet/native/sha1" />
+    <nativeSource path="/src/datetimeStd/native/std" />
+    <nativeSource path="/src/sproModbusMaster/native" />
+    <nativeSource path="/src/sproModbusSlave/native" />
+    <nativeSource path="/src/sproUtil/native" />
+    <nativeSource path="/src/sproMath/native" />
+    <nativeSource path="/src/sproSpi/native" />
+    <nativeSource path="/src/sproSqlite/native" />
+    <nativeSource path="/src/sproExpr/native" />
+    <nativeSource path="/src/serial/native/linux" />
+    <nativeSource path="/src/serial/native" />
+    <nativeSource path="/src/tutorial/native" />
+    <nativeSource path="/platforms/src/bclimate/unix/native" />
+    <nativeSource path="/src/sproMqtt/native" />
+  </compile>
+
+  <manifestInclude>
+    <schemes>
+      <!-- unix supports manifest, platform and kits transfer -->
+      <scheme id="m" transfer="single"/>
+      <scheme id="k" transfer="single"/>
+      <scheme id="p" transfer="single"/>
+    </schemes>
+  </manifestInclude>
+</sedonaPlatform>

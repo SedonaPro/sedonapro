@@ -1,0 +1,209 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Holidays and other special days.  dates lists them, separated by
+** commas, semicolons or spaces:
+**
+**   01-01            every year on 1 January
+**   01-01..01-08     every year, a range (12-30..01-02 crosses the new year)
+**   2026-05-11       one date
+**   2026-12-28..2027-01-03   a range of dates
+**
+** today, tomorrow and yesterday say whether those days are in the list;
+** link them to WeekSchedule.holiday, holidayTomorrow, holidayYesterday.
+** The date comes from the app's datetime::DateTimeService.  A wrong entry
+** sets status = config and badEntry to its number; the others still count.
+**
+class Calendar extends Component
+{
+  ** special days (see the class description)
+  @config @asStr property Buf(240) dates = ""
+
+  ** today is a special day
+  @readonly property bool today
+
+  ** tomorrow is a special day (for the schedule's look-ahead)
+  @readonly property bool tomorrow
+
+  ** yesterday was a special day (for periods over midnight)
+  @readonly property bool yesterday
+
+  ** entries understood
+  @readonly property int entries
+
+  ** number of the first wrong entry (1 = first), 0 when all are right
+  @readonly property int badEntry
+
+  ** ok, inputBad (no clock), config (a wrong entry)
+  @readonly @range=Pro.statusRange property byte status
+
+  define int maxEntries = 32
+
+  virtual override void start()
+  {
+    parse()
+    clock = (DateTimeService)Sys.app.lookupService(DateTimeService.type)
+  }
+
+  virtual override void changed(Slot slot)
+  {
+    super.changed(slot)
+    if (slot == Calendar.dates) parse()
+  }
+
+  virtual override void execute()
+  {
+    if (clock == null || clock.year < 1971)
+    {
+      status := Pro.inputBad
+      return
+    }
+    int d = SchedTime.dayNumber(clock.year, clock.month, clock.day)
+    if (d != shownDay || dirty) evaluate(d)
+  }
+
+  ** Sets today, tomorrow and yesterday for day number d.
+  void evaluate(int d)
+  {
+    shownDay = d
+    dirty = false
+    today := match(d)
+    tomorrow := match(d + 1)
+    yesterday := match(d - 1)
+    status := badEntry != 0 ? Pro.config : Pro.ok
+  }
+
+  ** Is the date one of the special days?
+  bool isHoliday(int y, int m, int d)
+  {
+    return match(SchedTime.dayNumber(y, m, d))
+  }
+
+  ** Is day number n one of the special days?
+  bool match(int n)
+  {
+    int md = SchedTime.date(n) % 10000
+    for (int i = 0; i < count; i++)
+    {
+      if (annual[i])
+      {
+        if (from[i] <= to[i])
+        {
+          if (md >= from[i] && md <= to[i]) return true
+        }
+        else if (md >= from[i] || md <= to[i]) return true
+      }
+      else if (n >= from[i] && n <= to[i]) return true
+    }
+    return false
+  }
+
+  ** Reads dates into the entry tables.
+  void parse()
+  {
+    count = 0
+    int bad = 0
+    int number = 0
+    pos = 0
+    while (true)
+    {
+      skipSeparators()
+      if (SchedTime.at(dates, pos) == 0) break
+      number++
+      int start = pos
+      if (!entry() || !separatorNext())
+      {
+        if (bad == 0) bad = number
+        // skip the rest of this entry
+        pos = start
+        while (SchedTime.at(dates, pos) != 0 && !separator(SchedTime.at(dates, pos))) pos++
+      }
+    }
+    entries := count
+    badEntry := bad
+    dirty = true
+  }
+
+  private bool entry()
+  {
+    int a = when()
+    if (a < 0) return false
+    bool annualA = annualLast
+    int b = a
+    if (SchedTime.at(dates, pos) == '.' && SchedTime.at(dates, pos + 1) == '.')
+    {
+      pos += 2
+      b = when()
+      if (b < 0 || annualLast != annualA) return false
+      if (!annualA && b < a) return false
+    }
+    if (count >= maxEntries) return false
+    annual[count] = annualA
+    from[count] = a
+    to[count] = b
+    count++
+    return true
+  }
+
+  ** [yyyy-]mm-dd at pos: mmdd for an annual date, else a day number;
+  ** -1 when it is not a date.
+  private int when()
+  {
+    int first = number()
+    if (first < 0 || SchedTime.at(dates, pos) != '-') return -1
+    pos++
+    int second = number()
+    if (second < 0) return -1
+    if (SchedTime.at(dates, pos) == '-' && SchedTime.digit(SchedTime.at(dates, pos + 1)))
+    {
+      pos++
+      int third = number()
+      if (first < 1970 || first > 2199 || second < 1 || second > 12) return -1
+      if (third < 1 || third > SchedTime.monthDays(first, second)) return -1
+      annualLast = false
+      return SchedTime.dayNumber(first, second, third)
+    }
+    if (first < 1 || first > 12 || second < 1 || second > SchedTime.monthDays(2000, first)) return -1
+    annualLast = true
+    return first * 100 + second
+  }
+
+  private int number()
+  {
+    int v = 0
+    int n = 0
+    while (SchedTime.digit(SchedTime.at(dates, pos)) && n < 5)
+    {
+      v = v * 10 + SchedTime.at(dates, pos) - '0'
+      pos++
+      n++
+    }
+    return n == 0 ? -1 : v
+  }
+
+  private static bool separator(int c) { return c == ',' || c == ';' || c == ' ' || c == '\n' || c == '\t' }
+
+  private bool separatorNext()
+  {
+    int c = SchedTime.at(dates, pos)
+    return c == 0 || separator(c)
+  }
+
+  private void skipSeparators()
+  {
+    while (separator(SchedTime.at(dates, pos))) pos++
+  }
+
+  DateTimeService clock
+  int shownDay = -1
+  bool dirty = true
+  int count
+  int pos
+  bool annualLast
+  inline bool[maxEntries] annual
+  inline int[maxEntries] from
+  inline int[maxEntries] to
+}

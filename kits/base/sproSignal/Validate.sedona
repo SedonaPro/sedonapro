@@ -1,0 +1,113 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Plausibility check of a measurement: range, rate of change and a
+** stuck (frozen) value.  A fault must last badDelay before out switches
+** to the substitute, and the value must be good for goodDelay before
+** it is trusted again, so one glitch does not stop a plant.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Validate extends Component
+{
+  @summary property float in
+
+  ** lowest plausible value
+  @config property float lo = -50.0f
+  ** highest plausible value
+  @config property float hi = 150.0f
+  ** largest plausible change per second (0 = no check)
+  @config @min=0 property float maxRate = 0.0f
+  ** the value is stuck if it moves less than stuckBand for stuckTime (0 = no check)
+  @config @unit=Units.second @min=0 property float stuckTime = 0.0f
+  @config @min=0 property float stuckBand = 0.01f
+
+  ** a fault must last this long before out is substituted, s
+  @config @unit=Units.second @min=0 property float badDelay = 2.0f
+  ** good again for this long before out follows in, s
+  @config @unit=Units.second @min=0 property float goodDelay = 5.0f
+
+  ** out while bad: hold, fallback or null
+  @config @range=Pro.onBadRange property byte onBad = 0
+  @config property float fallback = 0.0f
+
+  @readonly @summary property float out
+
+  ** the value is treated as bad (after badDelay)
+  @readonly property bool bad
+
+  define Str reasonRange = "none, null, low, high, rate, stuck"
+  ** the check that failed last (stays until the value is good again)
+  @readonly @range=reasonRange property byte reason
+
+  ** ok or inputBad
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    int r = check(dt)
+    if (r != 0)
+    {
+      reason := r
+      badFor += dt
+      goodFor = 0.0f
+    }
+    else
+    {
+      goodFor += dt
+      badFor = 0.0f
+    }
+    if (!bad && r != 0 && badFor >= badDelay) bad := true
+    if (bad && r == 0 && goodFor >= goodDelay) bad := false
+    if (!bad && r == 0) reason := 0
+
+    if (!bad)
+    {
+      status := Pro.ok
+      // a short glitch: keep the last good value
+      if (r == 0) out := in
+      else if (!Pro.valid(out)) out := fallback
+      return
+    }
+    status := Pro.inputBad
+    if (onBad == Pro.badFallback) out := fallback
+    else if (onBad == Pro.badNull) out := null
+    else if (!Pro.valid(out)) out := fallback
+  }
+
+  private int check(float dt)
+  {
+    float v = in
+    if (!Pro.valid(v)) return 1
+    int r = 0
+    if (v < lo) r = 2
+    else if (v > hi) r = 3
+    if (maxRate > 0.0f && Pro.valid(last) && dt > 0.0f && Pro.abs(v - last) > maxRate * dt) r = 4
+    last = v
+    if (stuckTime > 0.0f)
+    {
+      if (!Pro.valid(anchor) || Pro.abs(v - anchor) > stuckBand)
+      {
+        anchor = v
+        still = 0.0f
+      }
+      else
+      {
+        still += dt
+        if (still >= stuckTime && r == 0) r = 5
+      }
+    }
+    return r
+  }
+
+  float last = null
+  float anchor = null
+  float still
+  float badFor
+  float goodFor
+  inline Ticker ticker
+}

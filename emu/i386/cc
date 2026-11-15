@@ -1,0 +1,4 @@
+#!/bin/sh
+# gcc of the 32-bit container: ./spro build linux --arch i386 --cc emu/i386/cc
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+exec docker run --rm -v "$ROOT:$ROOT" -w "$PWD" -u "$(id -u):$(id -g)" sedonapro/i386-dev gcc "$@"

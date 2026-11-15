@@ -1,0 +1,130 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Cascade of pumps on a common speed: a pressure Pid gives the speed
+** demand 'in'; when it stays above upAt another pump is added, below
+** downAt one is taken off.  count goes to LeadLag.demand, speed to the
+** VFDs (Motor.speedIn).
+**
+** Sleep: with one pump at low speed (no draw-off) and the pressure at
+** the setpoint for sleepDelay, the pumps stop; they wake when the
+** pressure falls wakeDiff below the setpoint.  Link 'sleeping' to the
+** Pid's track and set its trackValue to minSpeed, so it starts from
+** there after waking.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class PumpCascade extends Component
+{
+  ** speed demand, % (Pid out)
+  @summary property float in
+  @config property bool enable = true
+  ** pumps that can run (LeadLag.availableCount)
+  property int available = 6
+  ** pressure (for sleep)
+  property float pv = null
+  ** pressure setpoint (for sleep)
+  @config property float sp = null
+
+  ** most pumps in the cascade
+  @config @min=1 @max=6 property int maxPumps = 3
+  ** add a pump when the speed is above this, %
+  @config property float upAt = 95.0f
+  @config @unit=Units.second @min=0 property float upDelay = 10.0f
+  ** take a pump off when the speed is below this, %.  Set it below the
+  ** speed the pumps run at when one pump fewer could still hold the
+  ** pressure, but above their speed at zero flow - found at commissioning
+  ** (the pump curve and the setpoint decide it).
+  @config property float downAt = 40.0f
+  @config @unit=Units.second @min=0 property float downDelay = 30.0f
+  ** lowest speed of a running pump, %
+  @config property float minSpeed = 30.0f
+
+  ** stop all pumps when nothing is drawn off
+  @config property bool sleep = false
+  ** one pump below this speed counts as no draw-off, %
+  @config property float sleepSpeed = 40.0f
+  @config @unit=Units.second @min=0 property float sleepDelay = 60.0f
+  ** wake when pv falls this much below sp
+  @config @min=0 property float wakeDiff = 0.3f
+
+  ** pumps to run
+  @readonly @summary property int count
+  ** common speed, %
+  @readonly @summary property float speed
+  @readonly property bool sleeping
+  ** ok, standby (sleeping), disabled, inputBad (in is null: holds), limited (all pumps on)
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    int maxN = maxPumps
+    if (available < maxN) maxN = available
+    if (maxN < 0) maxN = 0
+    if (enable != true)
+    {
+      count := 0
+      speed := 0.0f
+      sleeping := false
+      upFor = 0.0f
+      downFor = 0.0f
+      status := Pro.disabled
+      return
+    }
+    if (!Pro.valid(in))
+    {
+      status := Pro.inputBad
+      return
+    }
+
+    if (sleeping)
+    {
+      if (!Pro.valid(pv) || !Pro.valid(sp) || pv < sp - wakeDiff)
+      {
+        sleeping := false
+        sleepFor = 0.0f
+      }
+      else
+      {
+        count := 0
+        speed := 0.0f
+        status := Pro.standby
+        return
+      }
+    }
+
+    int c = count
+    if (c < 1) c = 1
+    if (in >= upAt) { upFor += dt; downFor = 0.0f }
+    else if (in <= downAt) { downFor += dt; upFor = 0.0f }
+    else { upFor = 0.0f; downFor = 0.0f }
+    if (upFor >= upDelay && c < maxN) { c++; upFor = 0.0f }
+    if (downFor >= downDelay && c > 1) { c--; downFor = 0.0f }
+    if (c > maxN) c = maxN
+
+    // sleep
+    bool calm = sleep && c == 1 && in <= sleepSpeed && Pro.valid(pv) && Pro.valid(sp) && pv >= sp - wakeDiff / 3.0f
+    sleepFor = calm ? sleepFor + dt : 0.0f
+    if (calm && sleepFor >= sleepDelay)
+    {
+      sleeping := true
+      count := 0
+      speed := 0.0f
+      status := Pro.standby
+      return
+    }
+
+    count := c
+    speed := c > 0 ? Pro.clamp(in, minSpeed, 100.0f) : 0.0f
+    status := c >= maxN && in >= upAt ? Pro.limited : Pro.ok
+  }
+
+  float upFor
+  float downFor
+  float sleepFor
+  inline Ticker ticker
+}

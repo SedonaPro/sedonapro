@@ -1,0 +1,10 @@
+<sedonaKit name="tutorial" vendor="Tridium" description="test component">
+  <depend on="sys 1.2+" />
+  <depend on="sproLib 1.2+" />
+
+  <native qname="tutorial::Add.rememberAddress" id="101::0" />
+  <native qname="tutorial::Add.checkAddress"    id="101::1" />
+  <native qname="tutorial::Add.forgetAddress"   id="101::2" />
+
+  <source dir="." />
+</sedonaKit>

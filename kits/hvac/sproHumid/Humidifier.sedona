@@ -1,0 +1,182 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Humidifier control (steam or adiabatic) with a supply high limit.
+**
+**  - a PI loop holds the room or extract humidity pv at sp (relative %
+**    or absolute g/kg: sp in the same unit as pv);
+**  - high limit: a second loop keeps the supply humidity after the
+**    humidifier (supplyRh) below highSp; the lower of the two wins, the
+**    other follows without windup - no wet ducts;
+**  - only with air flowing: out stays 0 until airflow has been true for
+**    startDelay, and goes to 0 at once without it;
+**  - the high-limit hygrostat (true = tripped) stops it at once (alarm);
+**  - run is the on/off command with hysteresis (onAt / offAt of out) for
+**    a humidifier that needs one besides the modulating signal.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Humidifier extends Component
+{
+  ** room or extract humidity
+  @summary property float pv
+  ** supply humidity after the humidifier, % (null: no high limit loop)
+  @unit=Units.percent_relative_humidity property float supplyRh = null
+  ** air flows (fans proven)
+  property bool airflow
+  ** high-limit hygrostat tripped
+  property bool hygrostat
+
+  @config property bool enable = true
+  @config @range=Pro.modeRange property byte mode
+  @config @min=0 @max=100 property float handValue = 0.0f
+  ** humidity setpoint (the unit of pv)
+  @config property float sp = 40.0f
+  @config @min=0 property float kp = 5.0f
+  @config @unit=Units.second @min=0 property float ti = 300.0f
+  ** supply high limit, %
+  @config @unit=Units.percent_relative_humidity property float highSp = 85.0f
+  @config @min=0 property float highKp = 2.0f
+  @config @unit=Units.second @min=0 property float highTi = 60.0f
+  ** air must flow this long before humidifying, s
+  @config @unit=Units.second @min=0 property float startDelay = 60.0f
+  ** run turns on above onAt and off below offAt, %
+  @config @min=0 @max=100 property float onAt = 10.0f
+  @config @min=0 @max=100 property float offAt = 2.0f
+
+  ** humidifier output, %
+  @readonly @summary @precision=1 property float out
+  ** humidifier on
+  @readonly property bool run
+  ** the supply high limit holds the output
+  @readonly property bool highLimited
+  ** hygrostat tripped
+  @readonly property bool alarm
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  ** one step of dt seconds
+  void update(float dt)
+  {
+    if (airflow == true) flowFor += dt
+    else flowFor = 0.0f
+    float v = 0.0f
+    bool lim = false
+    int st = Pro.ok
+    alarm := hygrostat == true
+    if (hygrostat == true) st = Pro.alarm
+    else if (mode == Pro.modeOff) st = Pro.off
+    else if (mode == Pro.modeHand)
+    {
+      v = airflow == true ? handValue : 0.0f
+      st = Pro.hand
+    }
+    else if (enable != true) st = Pro.disabled
+    else if (flowFor < startDelay) st = Pro.waiting
+    else if (!Pro.valid(pv) || !Pro.valid(sp)) st = Pro.inputBad
+    else
+    {
+      main.kp = kp
+      main.ti = ti
+      main.direct = false
+      v = main.run(dt, pv, sp, 0.0f, 0.0f, 100.0f, out)
+      if (Pro.valid(supplyRh))
+      {
+        high.kp = highKp
+        high.ti = highTi
+        high.direct = false
+        float h = high.run(dt, supplyRh, highSp, 0.0f, 0.0f, 100.0f, out)
+        if (h < v - 0.05f) { v = h; lim = true }
+      }
+      else high.hold(out)
+      st = lim ? Pro.limited : Pro.ok
+      out := v
+    }
+    if (st != Pro.ok && st != Pro.limited)
+    {
+      out := Pro.clamp(v, 0.0f, 100.0f)
+      main.hold(out)
+      high.hold(out)
+    }
+    highLimited := lim
+    if (out >= onAt) run := true
+    else if (out <= offAt) run := false
+    status := st
+  }
+
+  float flowFor
+  inline PidAlgo main
+  inline PidAlgo high
+  inline Ticker ticker
+}
+
+**
+** Dehumidification by the cooling coil: a PI loop on the room or
+** extract humidity gives a cooling demand above sp.  Take the larger of
+** 'out' and the temperature cooling demand for the coil (LoopSelect with
+** low = false) and use 'reheat' to let the supply control heat after the
+** coil.  Works while 'permit' (a season, the cooler available) and
+** airflow are true.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Dehumidifier extends Component
+{
+  ** room or extract humidity
+  @summary property float pv
+  ** air flows (fans proven)
+  property bool airflow
+  ** dehumidifying allowed (season, cooler ready)
+  property bool permit = true
+
+  @config property bool enable = true
+  ** humidity above which to dehumidify (the unit of pv)
+  @config property float sp = 60.0f
+  @config @min=0 property float kp = 5.0f
+  @config @unit=Units.second @min=0 property float ti = 600.0f
+  ** highest cooling demand for dehumidifying, %
+  @config @min=0 @max=100 property float maxOut = 100.0f
+  ** reheat is needed while out is above this, %
+  @config @min=0 @max=100 property float reheatAt = 5.0f
+
+  ** cooling demand for dehumidifying, %
+  @readonly @summary @precision=1 property float out
+  ** heat after the coil (the supply would be too cold)
+  @readonly property bool reheat
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  ** one step of dt seconds
+  void update(float dt)
+  {
+    if (enable != true || permit != true || airflow != true)
+    {
+      out := 0.0f
+      algo.hold(0.0f)
+      reheat := false
+      status := enable != true ? Pro.disabled : Pro.standby
+      return
+    }
+    if (!Pro.valid(pv) || !Pro.valid(sp))
+    {
+      out := 0.0f
+      algo.hold(0.0f)
+      reheat := false
+      status := Pro.inputBad
+      return
+    }
+    algo.kp = kp
+    algo.ti = ti
+    algo.direct = true
+    out := algo.run(dt, pv, sp, 0.0f, 0.0f, Pro.clamp(maxOut, 0.0f, 100.0f), null)
+    if (out > reheatAt) reheat := true
+    else if (out <= 0.5f) reheat := false
+    status := algo.limited && out > 0.0f ? Pro.limited : Pro.ok
+  }
+
+  inline PidAlgo algo
+  inline Ticker ticker
+}

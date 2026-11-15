@@ -1,0 +1,8 @@
+# lite: for microcontrollers (ESP32-S3, ~300 KB heap, refSize 4).
+summary = "Small controllers: logic, HVAC, schedules, SOX, web"
+kits = [
+  "sys", "sox", "inet", "web", "pstore", "logManager",
+  "datetime", "datetimeStd", "basicSchedule",
+  "func", "hvac", "logic", "math", "timing", "types", "pricomp",
+  "sproLib", "sproMath", "sproUtil", "sproHal", "sproIo", "sproExpr", "sproUiConnect", "sproMqtt",
+]

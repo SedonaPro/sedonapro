@@ -1,0 +1,244 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Pump station configurator: a pressure booster or a circulation set of
+** 1-4 pumps holding a pressure (or a differential pressure from one
+** transmitter).  Choose the pumps, the drives and the protections and
+** run 'build': the component fills itself with the sproEquip and
+** sproAlarm blocks, the I/O points of the board and the links.
+**
+**   press -> pid -> casc (cascade, sleep) -> lead (duty/standby,
+**   rotation) -> m1..m4 (Motor: delays, faults, run hours) -> do1..do4
+**
+** Drives: onOff (pumps switched on and off, the PID output stages them),
+** commonVfd (one VFD speed for all, AO 'vfd'), vfdEach (an AO per pump).
+** Dry running: a pressure switch or a suction pressure sensor trips all
+** pumps (Trip 'dry', automatic retries).  The setpoint is pid.sp.
+**
+** A rebuild after changing the options keeps every block whose type is
+** still right, with its settings.  Everything inside belongs to the
+** configurator: put your own logic next to it, not inside.
+**
+@niagaraIcon="module://icons/x16/folder.png"
+@widget="pumps"
+class PumpStation extends Assembly
+{
+  ** run request (a schedule, a BMS); not used with startSwitch
+  @summary property bool request = true
+
+  ** pumps, 1..4
+  @config @min=1 @max=4 property int pumps = 2
+
+  define Str driveRange = "onOff, commonVfd, vfdEach"
+  @config @range=driveRange property byte drive = 1
+
+  define Str dryRunRange = "none, switch, sensor"
+  ** dry running protection: a pressure switch (true = no water) or a suction pressure sensor
+  @config @range=dryRunRange property byte dryRun = 1
+
+  ** a fault input per pump (thermal relay, VFD fault)
+  @config property bool faultInputs = true
+  ** a running contact per pump (checked by Motor)
+  @config property bool feedback = false
+  ** high and low pressure alarms
+  @config property bool pressureAlarms = true
+  ** stop the pumps without draw-off (PumpCascade sleep)
+  @config property bool sleepMode = false
+  ** start/stop switch on a DI instead of 'request'
+  @config property bool startSwitch = false
+
+  ** take free board channels for new points
+  @config property bool autoChannels = true
+  ** build at start when empty
+  @config property bool buildOnStart = true
+
+  ** components inside
+  @readonly property int parts
+  ** points without a channel (the board has too few)
+  @readonly property int missing
+  ** "AI1 press, DO1 do1 ..."
+  @readonly @asStr property Buf(300) ioList = ""
+  ** ok, config (points without a channel or a part could not be added)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** build or rebuild the station from the options
+  action void build()
+  {
+    beginBuild()
+    assemble()
+    parts := endBuild()
+    missing := assignChannels(autoChannels, ioList)
+    changed(PumpStation.ioList)
+    status := missing > 0 || failed > 0 ? Pro.config : Pro.ok
+  }
+
+  override void start()
+  {
+    if (buildOnStart && children == nullId) startBuild = true
+  }
+
+  virtual override void execute()
+  {
+    if (startBuild) { startBuild = false; build() }
+  }
+
+  private void assemble()
+  {
+    int n = pumps < 1 ? 1 : (pumps > 4 ? 4 : pumps)
+
+    // control
+    AnalogInput press = ai("press", true)
+    Pid pid = (Pid)need("pid", Pid.type)
+    if (pid != null && fresh)
+    {
+      pid.sp := 4.0f
+      pid.kp := 15.0f
+      pid.ti := 10.0f
+      pid.startValue := 50.0f
+      pid.trackValue := 30.0f
+    }
+    PumpCascade casc = (PumpCascade)need("casc", PumpCascade.type)
+    if (casc != null)
+    {
+      casc.maxPumps := n
+      casc.sleep := sleepMode
+      if (fresh) { casc.upDelay := 10.0f; casc.downDelay := 15.0f }
+    }
+    LeadLag lead = (LeadLag)need("lead", LeadLag.type)
+    if (lead != null)
+    {
+      lead.units := n
+      if (fresh) lead.overlap := 3.0f
+    }
+    DigitalInput diStart = di("diStart", startSwitch)
+
+    // protections
+    Trip dry = null
+    DigitalInput dryIn = di("dryIn", dryRun == 1)
+    AnalogInput pIn = ai("pIn", dryRun == 2)
+    Threshold dryLvl = null
+    if (dryRun == 2)
+    {
+      dryLvl = (Threshold)need("dryLvl", Threshold.type)
+      if (dryLvl != null && fresh)
+      {
+        // low suction pressure, bar: on falling below 0.3, off above 0.5
+        dryLvl.on := 0.3f
+        dryLvl.off := 0.5f
+        dryLvl.onBad := 2
+      }
+    }
+    if (dryRun != 0)
+    {
+      dry = (Trip)need("dry", Trip.type)
+      if (dry != null && fresh)
+      {
+        dry.text.copyFromStr("Dry running")
+        dry.changed(AlarmPoint.text)
+        dry.priority := 0
+        dry.delay := 3.0f
+        dry.retryDelay := 30.0f
+      }
+    }
+    LimitAlarm alP = null
+    if (pressureAlarms)
+    {
+      alP = (LimitAlarm)need("alPress", LimitAlarm.type)
+      if (alP != null && fresh)
+      {
+        alP.text.copyFromStr("Outlet pressure")
+        alP.changed(AlarmPoint.text)
+        alP.hi := 8.0f
+        alP.lo := 1.0f
+        alP.delay := 30.0f
+      }
+    }
+
+    // the speed
+    AnalogOutput vfd = aout("vfd", drive == 1)
+
+    // links: control
+    link(press, AnalogInput.out, pid, Pid.pv)
+    link(press, AnalogInput.out, casc, PumpCascade.pv)
+    link(pid, Pid.sp, casc, PumpCascade.sp)
+    link(pid, Pid.out, casc, PumpCascade.in)
+    link(casc, PumpCascade.sleeping, pid, Pid.track)
+    link(casc, PumpCascade.count, lead, LeadLag.demand)
+    link(lead, LeadLag.availableCount, casc, PumpCascade.available)
+    if (diStart != null)
+    {
+      link(diStart, DigitalInput.out, casc, PumpCascade.enable)
+      link(diStart, DigitalInput.out, pid, Pid.enable)
+    }
+    else
+    {
+      link(this, PumpStation.request, casc, PumpCascade.enable)
+      link(this, PumpStation.request, pid, Pid.enable)
+    }
+    if (vfd != null) link(casc, PumpCascade.speed, vfd, AnalogOutput.in)
+    if (dryIn != null) link(dryIn, DigitalInput.out, dry, Trip.in)
+    if (dryLvl != null)
+    {
+      link(pIn, AnalogInput.out, dryLvl, Threshold.in)
+      link(dryLvl, Threshold.out, dry, Trip.in)
+    }
+    if (alP != null) link(press, AnalogInput.out, alP, LimitAlarm.in)
+
+    // pumps
+    for (int k = 1; k <= 4; k++) pump(k, k <= n, casc, lead, dry)
+  }
+
+  ** pump k: motor, its points and links
+  private void pump(int k, bool want, PumpCascade casc, LeadLag lead, Trip dry)
+  {
+    Motor m = null
+    if (want)
+    {
+      m = (Motor)need(nameOf("m", k, 0), Motor.type)
+      if (m != null)
+      {
+        m.checkFeedback := feedback
+        if (fresh)
+        {
+          m.startDelay := 2.0f
+          m.minRun := 10.0f
+          m.minStop := 10.0f
+        }
+      }
+    }
+    DigitalOutput dOut = dout(nameOf("do", k, 0), want)
+    DigitalInput flt = di(nameOf("flt", k, 0), want && faultInputs)
+    DigitalInput fbk = di(nameOf("fb", k, 0), want && feedback)
+    AnalogOutput ao = aout(nameOf("ao", k, 0), want && drive == 2)
+    if (m == null) return
+    link(lead, reqSlot(k), m, Motor.request)
+    link(m, Motor.available, lead, availSlot(k))
+    link(casc, PumpCascade.speed, m, Motor.speedIn)
+    link(m, Motor.cmd, dOut, DigitalOutput.in)
+    if (dry != null) link(dry, Trip.ok, m, Motor.permit)
+    if (flt != null) link(flt, DigitalInput.out, m, Motor.fault)
+    if (fbk != null) link(fbk, DigitalInput.out, m, Motor.fb)
+    if (ao != null) link(m, Motor.speed, ao, AnalogOutput.in)
+  }
+
+  private static Slot reqSlot(int k)
+  {
+    if (k == 1) return LeadLag.req1
+    if (k == 2) return LeadLag.req2
+    if (k == 3) return LeadLag.req3
+    return LeadLag.req4
+  }
+
+  private static Slot availSlot(int k)
+  {
+    if (k == 1) return LeadLag.avail1
+    if (k == 2) return LeadLag.avail2
+    if (k == 3) return LeadLag.avail3
+    return LeadLag.avail4
+  }
+
+  bool startBuild
+}

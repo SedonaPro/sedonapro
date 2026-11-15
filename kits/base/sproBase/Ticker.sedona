@@ -1,0 +1,40 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Time step of a component: seconds since the previous call.  Pro
+** components keep one inline and call update(ticker.next()) from
+** execute(), so they work the same at any scan period and tests can
+** call update(dt) with a chosen step.
+**
+class Ticker
+{
+  ** Seconds since the previous call: 0 on the first call and after
+  ** reset(), at most maxStep (a VM paused in a debugger must not
+  ** throw a controller's integral or a timer by minutes).
+  float next()
+  {
+    long now = Sys.ticks()
+    if (!started)
+    {
+      started = true
+      last = now
+      return 0.0f
+    }
+    long d = now - last
+    last = now
+    if (d <= 0L) return 0.0f
+    float dt = (float)d / 1000000000.0f
+    return dt > maxStep ? maxStep : dt
+  }
+
+  ** next call returns 0
+  void reset() { started = false }
+
+  ** longest step returned, seconds
+  float maxStep = 10.0f
+  long last
+  bool started
+}

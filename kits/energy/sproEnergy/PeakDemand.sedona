@@ -1,0 +1,182 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Demand: the average power over a block of 'interval' minutes, the
+** way a utility bills the peak (blocks start on the clock: :00 and :30
+** for 30 minutes), and load shedding against a limit.
+**
+** 'predicted' is where the block will end at the current power.  While
+** it is above shedAt % of 'limit' one more load is shed (shed1 first,
+** then shed2 ...) every stepDelay seconds; below restoreAt % they come
+** back in reverse order, each after at least minOff seconds off.  shedN
+** = true means "switch this load off": the least important load goes
+** on shed1.  limit 0 or loads 0 only measures.
+**
+** maxDemand is the highest block of the month, kept over a restart with
+** a RetainService.  Without a clock the blocks run from the start of the
+** controller and status = inputBad.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class PeakDemand extends Retained
+{
+  ** power, kW
+  @summary @unit=Units.kilowatt property float power
+
+  ** block length, minutes (15, 30, 60)
+  @config @unit=Units.minute @min=1 @max=60 property int interval = 30
+  ** demand limit, kW (0: measure only)
+  @config @unit=Units.kilowatt @min=0 property float limit = 0.0f
+  ** loads that may be shed, 0..4
+  @config @min=0 @max=4 property int loads = 0
+  ** shed while the prediction is above this % of the limit
+  @config @min=50 @max=150 property float shedAt = 95.0f
+  ** restore while the prediction is below this % of the limit
+  @config @min=0 @max=150 property float restoreAt = 85.0f
+  ** time between two shed or restore steps, s
+  @config @unit=Units.second @min=0 property float stepDelay = 60.0f
+  ** a shed load stays off at least this long, s
+  @config @unit=Units.second @min=0 property float minOff = 300.0f
+
+  ** average power of this block so far, kW
+  @readonly @summary @unit=Units.kilowatt @precision=1 property float demand
+  ** demand at the end of this block at the current power, kW
+  @readonly @unit=Units.kilowatt @precision=1 property float predicted
+  ** demand of the last full block, kW
+  @readonly @unit=Units.kilowatt @precision=1 property float lastDemand
+  ** highest block demand this month, kW
+  @readonly @unit=Units.kilowatt @precision=1 property float maxDemand
+  ** switch load 1..4 off
+  @readonly property bool shed1
+  @readonly property bool shed2
+  @readonly property bool shed3
+  @readonly property bool shed4
+  ** loads shed now
+  @readonly property int shedCount
+  ** ok, limited (loads shed), inputBad (power or clock missing)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** forget the month's maximum
+  @confirmRequired
+  action void resetMax()
+  {
+    maxDemand := 0.0f
+    Retained.retainChanged()
+  }
+
+  virtual override void start()
+  {
+    clock = (DateTimeService)Sys.app.lookupService(DateTimeService.type)
+  }
+
+  virtual override void execute()
+  {
+    float dt = ticker.next()
+    if (clock == null || clock.year < 1971) { updateAt(dt, -1, 0); return }
+    int d = SchedTime.dayNumber(clock.year, clock.month, clock.day)
+    updateAt(dt, d, (clock.hour * 60 + clock.minute) * 60 + clock.second)
+  }
+
+  ** one step of dt seconds on day number dayNo (-1: no clock) at second of the day
+  void updateAt(float dt, int dayNo, int second)
+  {
+    int len = interval * 60
+    if (len < 60) len = 60
+    bool ok = Pro.valid(power)
+    float p = ok ? Pro.max(power, 0.0f) : 0.0f
+    float elapsed = 0.0f
+    if (dayNo >= 0)
+    {
+      int key = dayNo * (86400 / len + 1) + second / len
+      if (key != block)
+      {
+        if (block != -1) close()
+        block = key
+        energy = 0.0D
+      }
+      elapsed = (float)(second % len)
+      int ymd = SchedTime.date(dayNo)
+      int mon = (ymd / 10000) * 12 + (ymd / 100) % 100
+      if (month < 0) month = mon
+      else if (mon != month)
+      {
+        month = mon
+        maxDemand := 0.0f
+      }
+    }
+    else
+    {
+      runT += dt
+      if (runT >= (float)len)
+      {
+        close()
+        runT -= (float)len
+        energy = 0.0D
+      }
+      elapsed = runT
+    }
+    if (dt > 0.0f) energy += (double)(p * dt / 3600.0f)
+    float hours = (float)len / 3600.0f
+    float e = (float)energy
+    demand := e / hours
+    predicted := (e + p * ((float)len - elapsed) / 3600.0f) / hours
+
+    // shedding
+    int n = loads
+    if (!(limit > 0.0f) || n <= 0) n = 0
+    stepFor += dt
+    for (int i = 0; i < 4; i++) offFor[i] = offFor[i] + dt
+    int c = shedCount
+    if (c > n) c = n
+    if (n > 0 && ok)
+    {
+      if (predicted > limit * shedAt / 100.0f)
+      {
+        if (c < n && stepFor >= stepDelay) { offFor[c] = 0.0f; c++; stepFor = 0.0f }
+      }
+      else if (predicted < limit * restoreAt / 100.0f)
+      {
+        if (c > 0 && stepFor >= stepDelay && offFor[c - 1] >= minOff) { c--; stepFor = 0.0f }
+      }
+    }
+    shedCount := c
+    shed1 := c >= 1
+    shed2 := c >= 2
+    shed3 := c >= 3
+    shed4 := c >= 4
+    if (!ok || dayNo < 0) status := Pro.inputBad
+    else status := c > 0 ? Pro.limited : Pro.ok
+  }
+
+  ** a block is over
+  private void close()
+  {
+    float d = (float)energy / ((float)(interval * 60) / 3600.0f)
+    lastDemand := d
+    if (d > maxDemand)
+    {
+      maxDemand := d
+      Retained.retainChanged()
+    }
+  }
+
+  override int retainSize() { return 8 }
+  override void saveRetain(OutStream out) { out.writeF4(maxDemand); out.writeI4(month) }
+  override void loadRetain(InStream in)
+  {
+    float m = in.readF4()
+    maxDemand := Pro.valid(m) ? m : 0.0f
+    month = in.readS4()
+  }
+
+  double energy
+  int block = -1
+  int month = -1
+  float runT
+  float stepFor = 1000000.0f
+  inline float[4] offFor
+  DateTimeService clock
+  inline Ticker ticker
+}

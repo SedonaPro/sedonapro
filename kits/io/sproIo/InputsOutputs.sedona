@@ -1,0 +1,278 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+abstract internal class SysfsInOutCommon extends DebugComponent
+{
+	@readonly
+	property bool fault;
+
+	@config
+	@defaultOnClone
+	property int num = 0;
+
+	Str prefixName;
+	Str varName;
+	Str suffixName;
+
+	define int strSize = 60
+	inline Buf(strSize) fileName;
+	inline File sysfs;
+
+	abstract bool checkNum(int n);
+	abstract Str getVariableName(int n);
+
+
+	bool getSysfsFile()
+	{
+		bool fileNameValid = false;
+		varName = getVariableName(num);
+		int strLen;
+
+		/* + 1 is for terminating null byte */
+		strLen = prefixName.length() + varName.length() + suffixName.length() + 1;
+
+		if (strLen <= strSize) {
+			fileName.clear();
+			BufUtils.appendStr(fileName, prefixName, false);
+			BufUtils.appendStr(fileName, varName,	 false);
+			BufUtils.appendStr(fileName, suffixName, true);
+			fileNameValid = true;
+			// printMessage(""); Sys.out.print(fileName.toStr()).nl();
+		}
+		return fileNameValid;
+	}
+
+
+	void writeSysfsFile(Str s)
+	{
+		bool success = false;
+		if ((s != null) && checkNum(num)) {
+			if (getSysfsFile()) {
+				bool err = false;
+
+				sysfs.name = fileName.toStr();
+				if (!sysfs.open("w"))
+					err = true;
+				if (err || !sysfs.out.writeStr(s))
+					err = true;
+				if (err || !sysfs.close())
+					err = true;
+				success = !err;
+			}
+		}
+		fault := !success;
+	}
+
+
+	void cleanReadStr(Str s)
+	{
+		for(int i =0; i < s.length(); i++) {
+			int ch = s.get(i);
+			if (ch == 10) {// 0x0A
+				s.set(i, 0);
+				break;
+			}
+		}
+	}
+
+	bool readSysfsFile(Str s, int sSize)
+	{
+		bool success = false;
+		if ((s != null) && checkNum(num)) {
+			if (getSysfsFile()) {
+				bool err = false;
+
+				sysfs.name = fileName.toStr();
+				if (!sysfs.open("r"))
+					err = true;
+				if (!err) {
+					sysfs.in.readStr(s, sSize);
+					cleanReadStr(s);
+				}
+
+				if (err || !sysfs.close())
+					err = true;
+
+				success = !err;
+			}
+		}
+		fault := !success;
+		return success;
+	}
+
+
+}
+
+abstract class DigitalInOutCommon extends SysfsInOutCommon
+{
+	define int varNameStrSize = 10;
+	inline Str(varNameStrSize) str;
+
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		prefixName = "/sys/class/gpio/gpio";
+		suffixName = "/value";
+	}
+}
+
+
+@palette=false
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+abstract class DigitalInputGeneric extends DigitalInOutCommon
+{
+	@falseText="Off"
+	@trueText="On"
+	@allowNull=false
+	@readonly
+	property bool in;
+
+	define int readStrSize = 10;
+	inline Str(readStrSize) readStr;
+
+
+	virtual override void execute()
+	{
+		super.execute();
+		if (readSysfsFile(readStr, readStrSize)) {
+			int res = readStr.parseInt();
+			if (res != -1) {
+				in := res != 0;
+			} else
+				fault := true;
+		}
+		if (fault)
+			in := false;
+	}
+}
+
+@palette=false
+@niagaraIcon="module://icons/x16/control/booleanPointWr.png"
+abstract class DigitalOutputGeneric extends DigitalInOutCommon
+{
+	@falseText="Off"
+	@trueText="On"
+	@allowNull=false
+	property bool out;
+
+	virtual override void execute()
+	{
+		super.execute();
+		writeSysfsFile(out ? "1" : "0");
+	}
+}
+
+
+@palette=false
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+abstract class AnalogInputGeneric extends SysfsInOutCommon
+{
+	@readonly
+	property float in = 0.0;
+
+	define int varNameStrSize = 10;
+	inline Str(varNameStrSize) str;
+
+	define int readStrSize = 10;
+	inline Str(readStrSize) readStr;
+
+
+	virtual override void execute()
+	{
+		super.execute();
+		if (readSysfsFile(readStr, readStrSize)) {
+			int res = readStr.parseInt();
+			if (res != -1) {
+				fault := false;
+				in := (float)res;
+			}
+			else
+				fault := true;
+		}
+
+		if (fault) {
+			in := 0.0;
+		}
+	}
+}
+
+@palette=false
+@niagaraIcon="module://icons/x16/control/numericPointWr.png"
+abstract class AnalogOutputGeneric extends SysfsInOutCommon
+{
+	@min=0
+	@max=100
+	@unit=Units.percent
+	property float out = 0.0;
+
+	@config
+	@min=0
+	@unit=Units.nanosecond
+	property int periodNs = 500000;
+
+
+	define int varNameStrSize = 10;
+	inline Str(varNameStrSize) str;
+
+	define int dataStrSize = 30;
+	inline Str(dataStrSize)	 dataStr;
+
+
+	Str suffixNamePeriod;
+	Str suffixNameDuty;
+	bool started = false;
+
+
+	void writePeriodNs()
+	{
+		started = true;
+		suffixName = suffixNamePeriod;
+		dataStr.copyFromStr(Sys.intStr(periodNs), dataStrSize);
+		writeSysfsFile(dataStr);
+	}
+
+	void writeDuty()
+	{
+		suffixName = suffixNameDuty;
+		int duty_ns;
+		duty_ns = (int)(((double)out*(double)periodNs)/(double)100);
+		dataStr.copyFromStr(Sys.intStr(duty_ns), dataStrSize);
+		writeSysfsFile(dataStr);
+	}
+
+	virtual override void changed(Slot slot)
+	{
+		super.changed(slot);
+
+		if ((slot == AnalogOutputGeneric.periodNs) ||
+		     (slot == AnalogOutputGeneric.num))
+			writePeriodNs();
+	}
+
+	virtual override void execute()
+	{
+		super.execute();
+
+		if (!started)
+			writePeriodNs();
+
+		writeDuty();
+
+	}
+
+}

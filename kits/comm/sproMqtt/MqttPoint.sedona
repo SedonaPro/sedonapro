@@ -1,0 +1,52 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Base of publish and subscribe points: a child of MqttClient with a topic.
+**
+@palette=false
+abstract class MqttPoint extends Component
+{
+  define Str statusRange = "noClient, offline, ok, busy, waiting, stale, badValue, tooBig, badTopic"
+  define int noClient = 0
+  define int offline  = 1
+  define int ok       = 2
+  define int busy     = 3
+  define int waiting  = 4
+  define int stale    = 5
+  define int badValue = 6
+  define int tooBig   = 7
+  define int badTopic = 8
+
+  ** topic; "~/x" is relative to the client's baseTopic
+  @config @asStr property Buf(96) topic = ""
+
+  ** 0: at most once, 1: at least once
+  @config @min=0 @max=1 property byte qos = 0
+
+  @readonly @range=statusRange property byte status = noClient
+
+  ** messages sent or received
+  @readonly property int count = 0
+
+  ** parent client, null if the point is not under an MqttClient
+  MqttClient client()
+  {
+    Component p = Sys.app.lookup(parent)
+    if (p != null && p.type.is(MqttClient.type))
+      return (MqttClient)p
+    return null
+  }
+
+  ** topic with "~" expanded into fullTopic; false if empty or too long
+  bool expand(MqttClient c)
+  {
+    if (topic.toStr().length() == 0)
+      return false
+    return Mqtt.expandTopic(fullTopic.bytes, fullTopic.bytesLen, topic.toStr(), c.baseTopic.toStr()) > 0
+  }
+
+  inline Buf(128) fullTopic
+}

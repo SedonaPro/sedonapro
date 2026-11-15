@@ -1,0 +1,122 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Shared constants and helpers of sproHvac.
+**
+class Hvac
+{
+  ** season codes (Season.season, the 'season' input of the blocks)
+  define Str seasonRange = "winter, transition, summer"
+  define int winter = 0
+  define int transition = 1
+  define int summer = 2
+
+  ** y on the line through (x1, y1) and (x2, y2), held at the end values
+  ** outside x1..x2; null if x is null
+  static float line(float x, float x1, float y1, float x2, float y2)
+  {
+    if (!Pro.valid(x)) return null
+    if (x1 == x2) return x < x1 ? y1 : y2
+    if (x1 > x2)
+    {
+      float t = x1; x1 = x2; x2 = t
+      t = y1; y1 = y2; y2 = t
+    }
+    if (x <= x1) return y1
+    if (x >= x2) return y2
+    return y1 + (x - x1) * (y2 - y1) / (x2 - x1)
+  }
+
+  ** 0 at x >= from, 1 at x <= to, linear between (how deep x is in a danger zone)
+  static float depth(float x, float from, float to)
+  {
+    if (!Pro.valid(x) || from <= to) return 0.0f
+    return Pro.clamp((from - x) / (from - to), 0.0f, 1.0f)
+  }
+}
+
+**
+** Season for the whole plant: winter, transition (between seasons) or
+** summer.  In auto it follows the outdoor temperature averaged over
+** 'averaging' hours, with a hysteresis and a minimum time in a season,
+** so a warm afternoon in March does not switch the plant to summer.
+** Without a valid outdoor temperature it stays where it is (winter
+** after a start: frost protection on is the safe side).
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Season extends Component
+{
+  ** outdoor temperature, C
+  @summary property float outdoor
+
+  define Str modeRange = "auto, winter, transition, summer"
+  @config @range=modeRange property byte mode = 0
+
+  ** auto: winter below this averaged outdoor temperature, C
+  @config @unit=Units.celsius property float winterBelow = 8.0f
+  ** auto: summer above this, C
+  @config @unit=Units.celsius property float summerAbove = 16.0f
+  ** auto: hysteresis around both thresholds, K
+  @config @min=0 property float hyst = 1.0f
+  ** auto: time constant of the outdoor average, h (0 = no averaging)
+  @config @unit=Units.hour @min=0 property float averaging = 24.0f
+  ** auto: shortest time in a season before the next change, h
+  @config @unit=Units.hour @min=0 property float minDwell = 12.0f
+
+  @readonly @summary @range=Hvac.seasonRange property byte season = 0
+  @readonly property bool winter = true
+  @readonly property bool transition
+  @readonly property bool summer
+  ** the averaged outdoor temperature, C
+  @readonly @precision=1 property float average = null
+  ** ok, inputBad (no valid outdoor temperature), hand (mode is not auto)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** decide the season now from the average, without waiting for minDwell
+  action void decide() { decided = false }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    dwell += dt
+    bool ok = Pro.valid(outdoor)
+    if (ok)
+    {
+      if (!Pro.valid(average) || averaging <= 0.0f) average := outdoor
+      else average := average + (outdoor - average) * dt / (averaging * 3600.0f + dt)
+    }
+    int s = season
+    if (mode == 1) s = Hvac.winter
+    else if (mode == 2) s = Hvac.transition
+    else if (mode == 3) s = Hvac.summer
+    else if (Pro.valid(average))
+    {
+      int want = s
+      float a = average
+      if (s == Hvac.winter && a > winterBelow + hyst) want = a > summerAbove + hyst ? Hvac.summer : Hvac.transition
+      else if (s == Hvac.summer && a < summerAbove - hyst) want = a < winterBelow - hyst ? Hvac.winter : Hvac.transition
+      else if (s == Hvac.transition)
+      {
+        if (a < winterBelow - hyst) want = Hvac.winter
+        else if (a > summerAbove + hyst) want = Hvac.summer
+      }
+      if (!decided) { decided = true; s = want; dwell = 0.0f }
+      else if (want != s && dwell >= minDwell * 3600.0f) { s = want; dwell = 0.0f }
+    }
+    if (s != season) dwell = 0.0f
+    season := s
+    winter := s == Hvac.winter
+    transition := s == Hvac.transition
+    summer := s == Hvac.summer
+    if (mode != 0) status := Pro.hand
+    else status := ok ? Pro.ok : Pro.inputBad
+  }
+
+  float dwell
+  bool decided
+  inline Ticker ticker
+}

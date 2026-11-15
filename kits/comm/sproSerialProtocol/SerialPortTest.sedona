@@ -1,0 +1,69 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+@palette=false
+public class SerialPortDebug extends DebugComponent
+{
+	property bool update;
+
+	int isOpen;	
+	
+	inline SerialPort port;
+	inline SerialInStream in;
+	inline SerialOutStream out;
+
+	virtual override void loaded()
+	{
+		port.setParams(4, 115200, 8, 1, SerialPort.PARITY_NONE, SerialPort.RTS_LOW, SerialPort.RS232);
+		isOpen = port.open();
+		if (isOpen==0) {
+			in.port = port;
+			out.port = port;
+		}
+		
+	}
+
+	virtual override void execute()
+	{
+		int b;
+		super.execute();
+
+		if (isOpen!=0)
+			return;
+		
+		b = in.read();
+		if (b>=0) {
+		   printMessage("");
+		   Sys.out.print("${b}").nl();
+		}
+	}
+
+
+	virtual override void changed(Slot slot)
+	{
+		super.changed(slot);
+
+		if (isOpen==0)
+			out.write(33);
+	}
+
+	virtual override void stop() 
+	{
+		super.stop();
+		port.close();
+	}
+}		

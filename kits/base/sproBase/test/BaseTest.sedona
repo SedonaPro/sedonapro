@@ -1,0 +1,150 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+class BaseTest extends Test
+{
+  static inline Hoa hoa
+  static inline HoaBool hb
+  static inline RunCounter rc
+  static inline File f
+  static inline Ticker tk
+
+  static bool near(float a, float b) { return a - b < 0.001f && a - b > -0.001f }
+
+  static void testPro()
+  {
+    assert(Pro.valid(1.5f))
+    assert(!Pro.valid(null))
+    assert(!Pro.valid(1.0f / 0.0f))
+    assert(Pro.clamp(5.0f, 0.0f, 3.0f) == 3.0f)
+    assert(Pro.clamp(-5.0f, 0.0f, 3.0f) == 0.0f)
+    assert(Pro.clamp(2.0f, 0.0f, 3.0f) == 2.0f)
+    assert(Pro.abs(-2.0f) == 2.0f)
+    assert(Pro.max(1.0f, 2.0f) == 2.0f && Pro.min(1.0f, 2.0f) == 1.0f)
+  }
+
+  static void testTicker()
+  {
+    Ticker t = tk
+    assert(t.next() == 0.0f)
+    Sys.sleep(20ms)
+    float dt = t.next()
+    assert(dt > 0.01f && dt < 1.0f)
+    t.reset()
+    assert(t.next() == 0.0f)
+  }
+
+  static void testHoa()
+  {
+    hoa.in := 42.0f
+    hoa.handValue := 30.0f
+    hoa.offValue := 5.0f
+    hoa.execute()
+    assert(hoa.out == 42.0f && hoa.status == Pro.ok && !hoa.overridden)
+    hoa.mode := Pro.modeHand
+    hoa.execute()
+    assert(hoa.out == 30.0f && hoa.status == Pro.hand && hoa.overridden)
+    hoa.mode := Pro.modeOff
+    hoa.execute()
+    assert(hoa.out == 5.0f && hoa.status == Pro.off)
+    hoa.mode := Pro.modeAuto
+    hoa.in := null
+    hoa.execute()
+    assert(hoa.out == 5.0f && hoa.status == Pro.inputBad)
+
+    hb.in := true
+    hb.execute()
+    assert(hb.out && hb.status == Pro.ok)
+    hb.mode := Pro.modeOff
+    hb.execute()
+    assert(!hb.out && hb.status == Pro.off && hb.overridden)
+    hb.mode := Pro.modeHand
+    hb.in := false
+    hb.execute()
+    assert(hb.out && hb.status == Pro.hand)
+  }
+
+  static void testRunCounter()
+  {
+    rc.resetAll()
+    rc.serviceInterval := 2.0f
+    rc.run := true
+    for (int i = 0; i < 3600; i++) rc.update(1.0f)
+    assert(near(rc.hours, 1.0f) && rc.starts == 1 && !rc.serviceDue)
+    rc.run := false
+    rc.update(1000.0f)
+    assert(near(rc.hours, 1.0f))
+    rc.run := true
+    rc.update(3600.0f)
+    assert(near(rc.hours, 2.0f) && rc.starts == 2 && rc.serviceDue)
+    rc.serviceDone()
+    assert(rc.sinceService == 0.0f && !rc.serviceDue && near(rc.hours, 2.0f))
+    rc.setHours(1000.0f)
+    assert(near(rc.hours, 1000.0f))
+    // small steps must not be lost at large totals
+    rc.setHours(50000.0f)
+    for (int i = 0; i < 36000; i++) rc.update(0.1f)
+    assert(near(rc.hours, 50001.0f))
+  }
+
+  static RetainService setup()
+  {
+    Sys.app.cleanupApp()
+    Sys.app.initApp(64)
+    RetainService s = (RetainService)Sys.app.add(Sys.app, "retain", RetainService.type)
+    s.filename.copyFromStr("spro-retain-test.dat")
+    s.changed(RetainService.filename)
+    return s
+  }
+
+  static void testRetain()
+  {
+    RetainService s = setup()
+    FileStore.remove("spro-retain-test.dat")
+    assert(!s.load() && s.status == RetainService.noFile)
+
+    RunCounter a = (RunCounter)Sys.app.add(Sys.app, "a", RunCounter.type)
+    RunCounter b = (RunCounter)Sys.app.add(Sys.app, "b", RunCounter.type)
+    a.run := true
+    a.update(7200.0f)
+    b.run := true
+    b.update(1800.0f)
+    b.run := false
+    b.update(1.0f)
+    b.run := true
+    b.update(1.0f)
+    assert(s.save() && s.status == RetainService.ok && s.records == 2)
+
+    a.resetAll()
+    b.resetAll()
+    assert(a.hours == 0.0f && b.starts == 0)
+    assert(s.load() && s.records == 2)
+    assert(near(a.hours, 2.0f) && a.starts == 1)
+    assert(near(b.hours, 0.5f + 1.0f / 3600.0f) && b.starts == 2)
+
+    // a damaged file is rejected and nothing is changed
+    a.resetAll()
+    f.name = "spro-retain-test.dat"
+    assert(f.open("m"))
+    f.seek(8)
+    f.out.write(0x55)
+    f.out.flush()
+    f.close()
+    assert(!s.load() && s.status == RetainService.badFile)
+    assert(a.hours == 0.0f)
+
+    // a deleted component's record is dropped, a new one starts at 0
+    assert(s.save())
+    assert(s.signature() == s.savedSignature)
+    Sys.app.remove(b)
+    assert(s.signature() != s.savedSignature)   // execute() saves soon
+    assert(s.save())
+    RunCounter c = (RunCounter)Sys.app.add(Sys.app, "c", RunCounter.type)
+    assert(s.load() && s.records == 1 && c.hours == 0.0f && c.starts == 0)
+
+    FileStore.remove("spro-retain-test.dat")
+    Sys.app.cleanupApp()
+  }
+}

@@ -1,0 +1,21 @@
+<module>
+  <!-- I/O by channel name: button DI1 drives lamp DO1, rampA dims AO1.
+       On the sim board: watch and click at http://127.0.0.1:8090 -->
+  <kit name="sproHal"/>
+  <into path="">
+    <comp name="io" type="sys::Folder">
+      <comp name="board" type="sproHal::HalBoard"/>
+      <comp name="button" type="sproHal::DigitalInput">
+        <prop name="channel" val="DI1"/>
+      </comp>
+      <comp name="lamp" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO1"/>
+      </comp>
+      <comp name="dimmer" type="sproHal::AnalogOutput">
+        <prop name="channel" val="AO1"/>
+      </comp>
+    </comp>
+  </into>
+  <link from="/io/button.out" to="/io/lamp.in"/>
+  <link from="/play/rampA.out" to="/io/dimmer.in"/>
+</module>

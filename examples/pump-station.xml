@@ -1,0 +1,25 @@
+<module replaces="hal">
+  <!-- Level 2: the booster set of example booster, made by the configurator
+       sproPumpSt::PumpStation instead of by hand: 3 pumps on a common VFD,
+       dry running switch, a fault input per pump.  At the first start the
+       station builds itself and takes the board channels in order (see
+       pumps.ioList): AI1 pressure, DI1 dry running, AO1 VFD, DO1..DO3 pumps,
+       DI2..DI4 pump faults.  Change the options (pumps, drive, dryRun ...)
+       and invoke build, or open the widget "Pump station" in an editor.
+       Build: spro build sim, options pack=pumps example=pump-station
+       (see README.md) -->
+  <kit name="sproPumpSt"/>
+  <kit name="sproHal"/>
+  <kit name="sproBase"/>
+  <kit name="sproAlarm"/>
+  <into path="">
+    <comp name="pumps" type="sproPumpSt::PumpStation">
+      <prop name="pumps" val="3"/>
+      <prop name="drive" val="1"/>
+      <prop name="dryRun" val="1"/>
+      <prop name="pressureAlarms" val="false"/>
+    </comp>
+    <comp name="retain" type="sproBase::RetainService"/>
+    <comp name="alarms" type="sproAlarm::AlarmService"/>
+  </into>
+</module>

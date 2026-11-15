@@ -1,0 +1,2 @@
+[native]
+all = ["native", "native/std", "native/sha1"]

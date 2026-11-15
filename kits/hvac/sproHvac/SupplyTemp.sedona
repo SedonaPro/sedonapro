@@ -1,0 +1,163 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Temperature control of an air handling unit.
+**
+**  - supply air control, or a room (extract air) cascade: a slow room
+**    loop sets the supply setpoint within supplyMin..supplyMax;
+**  - separate heating and cooling loops with their own tuning and a
+**    neutral zone between them (no heating against cooling);
+**  - heating demand goes first to the heat recovery (recShare of it)
+**    and then to the heater;
+**  - the season decides what may work: heating in winter and
+**    transition, cooling in summer and transition;
+**  - every loop continues without a jump after a stop, a season change
+**    or a lost sensor.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class SupplyTemp extends Component
+{
+  ** supply air temperature, C
+  @summary property float supply
+  ** room or extract air temperature, C (control = room)
+  property float room = null
+  ** the plant runs (AhuControl.control)
+  property bool run
+  ** season (Season.season)
+  property byte season
+
+  define Str controlRange = "supply, room"
+  @config @range=controlRange property byte control = 0
+  ** supply setpoint (control = supply), C
+  @config @unit=Units.celsius property float spSupply = 20.0f
+  ** room setpoint (control = room), C
+  @config @unit=Units.celsius property float spRoom = 21.0f
+  ** supply setpoint range of the room cascade, C
+  @config @unit=Units.celsius property float supplyMin = 16.0f
+  @config @unit=Units.celsius property float supplyMax = 35.0f
+  ** cooling starts this much above the heating setpoint, K
+  @config @min=0 property float neutralZone = 2.0f
+  ** share of the heating demand served by the heat recovery first, % (0 = none)
+  @config @min=0 @max=100 property float recShare = 0.0f
+
+  ** heating loop: % per K, integral times up/down, derivative time, s
+  @config @min=0 property float heatKp = 5.0f
+  @config @unit=Units.second @min=0 property float heatTi = 120.0f
+  @config @unit=Units.second @min=0 property float heatTiDown = 0.0f
+  @config @unit=Units.second @min=0 property float heatTd = 0.0f
+  ** cooling loop
+  @config @min=0 property float coolKp = 5.0f
+  @config @unit=Units.second @min=0 property float coolTi = 180.0f
+  ** room loop: K of supply setpoint per K of room error, integral time, s
+  @config @min=0 property float roomKp = 3.0f
+  @config @unit=Units.second @min=0 property float roomTi = 900.0f
+
+  ** supply setpoint now, C
+  @readonly @precision=1 property float supplySp
+  ** heating demand before the split, %
+  @readonly @precision=1 property float heatDemand
+  ** to the heat recovery, %
+  @readonly @summary @precision=1 property float recovery
+  ** to the heater, %
+  @readonly @summary @precision=1 property float heating
+  ** to the cooler, %
+  @readonly @summary @precision=1 property float cooling
+
+  define Str modeRange = "off, heating, neutral, cooling"
+  @readonly @range=modeRange property byte mode
+  ** ok, standby (not running), inputBad (supply or room sensor)
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    if (run != true)
+    {
+      roomLoop.hold(spSupply)
+      heatLoop.hold(0.0f)
+      coolLoop.hold(0.0f)
+      supplySp := control == 1 ? Pro.clamp(spSupply, supplyMin, supplyMax) : spSupply
+      outputs(0.0f, 0.0f)
+      mode := 0
+      status := Pro.standby
+      return
+    }
+
+    // supply setpoint
+    float sp = spSupply
+    bool bad = false
+    if (control == 1)
+    {
+      if (Pro.valid(room) && supplyMin < supplyMax)
+      {
+        roomLoop.kp = roomKp
+        roomLoop.ti = roomTi
+        roomLoop.direct = false
+        sp = roomLoop.run(dt, room, spRoom, 0.0f, supplyMin, supplyMax, null)
+      }
+      else
+      {
+        sp = Pro.valid(roomLoop.out) ? roomLoop.out : spSupply
+        roomLoop.hold(sp)
+        bad = true
+      }
+    }
+    supplySp := sp
+
+    if (!Pro.valid(supply))
+    {
+      heatLoop.bumpless = true
+      coolLoop.bumpless = true
+      status := Pro.inputBad
+      return
+    }
+
+    float h = 0.0f
+    if (season != Hvac.summer)
+    {
+      heatLoop.kp = heatKp
+      heatLoop.ti = heatTi
+      heatLoop.tiDown = heatTiDown
+      heatLoop.td = heatTd
+      heatLoop.direct = false
+      h = heatLoop.run(dt, supply, sp, 0.0f, 0.0f, 100.0f, null)
+    }
+    else heatLoop.hold(0.0f)
+
+    float c = 0.0f
+    if (season != Hvac.winter)
+    {
+      coolLoop.kp = coolKp
+      coolLoop.ti = coolTi
+      coolLoop.direct = true
+      c = coolLoop.run(dt, supply, sp + neutralZone, 0.0f, 0.0f, 100.0f, null)
+    }
+    else coolLoop.hold(0.0f)
+
+    outputs(h, c)
+    if (h > 0.0f) mode := 1
+    else if (c > 0.0f) mode := 3
+    else mode := 2
+    status := bad ? Pro.inputBad : Pro.ok
+  }
+
+  ** split the heating demand h between recovery and heater
+  void outputs(float h, float c)
+  {
+    heatDemand := h
+    if (recShare > 0.0f) recovery := Pro.clamp(h * 100.0f / recShare, 0.0f, 100.0f)
+    else recovery := 0.0f
+    if (recShare < 100.0f) heating := Pro.clamp((h - recShare) * 100.0f / (100.0f - recShare), 0.0f, 100.0f)
+    else heating := 0.0f
+    cooling := c
+  }
+
+  inline PidAlgo roomLoop
+  inline PidAlgo heatLoop
+  inline PidAlgo coolLoop
+  inline Ticker ticker
+}

@@ -1,0 +1,401 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Weekly schedule.  Each day of the week has a day program, and special
+** days (holiday = true, from a Calendar) use the holiday program hol.
+** A day program lists periods separated by commas or spaces:
+**
+**   07:00-12:00, 13:00-18:00     two periods
+**   06:30-08:00=21.5             a period with its own value of out
+**   22:00-06:00                  over midnight: to 06:00 of the next day
+**   00:00-24:00                  the whole day; an empty program is off
+**
+** occupied is true inside a period; out is the period's value, or
+** onValue when it has none, and offValue outside.  nextChange counts the
+** minutes to the next change of occupied up to the end of tomorrow (-1
+** when none; the day after tomorrow counts as an ordinary day) and
+** nextOccupied is the state after it - for OptimumStart and for showing.
+**
+** extend() or a rising edge of request keeps occupied for extendMinutes
+** (an occupancy button).  mode hand forces occupied = handValue, off
+** forces it false.  A wrong period sets status = config and badProgram
+** (1 = mon ... 7 = sun, 8 = hol); the other periods still work.  Without
+** a clock (no datetime::DateTimeService) status = inputBad and the
+** outputs hold.
+**
+class WeekSchedule extends Component
+{
+  ** auto (by the schedule), hand (handValue), off
+  @config @range=Pro.modeRange property byte mode
+
+  ** occupied in hand mode
+  @config property bool handValue = true
+
+  ** Monday program
+  @config @asStr property Buf(64) mon = "07:00-19:00"
+  ** Tuesday program
+  @config @asStr property Buf(64) tue = "07:00-19:00"
+  ** Wednesday program
+  @config @asStr property Buf(64) wed = "07:00-19:00"
+  ** Thursday program
+  @config @asStr property Buf(64) thu = "07:00-19:00"
+  ** Friday program
+  @config @asStr property Buf(64) fri = "07:00-19:00"
+  ** Saturday program
+  @config @asStr property Buf(64) sat = ""
+  ** Sunday program
+  @config @asStr property Buf(64) sun = ""
+  ** program of special days (holiday = true)
+  @config @asStr property Buf(64) hol = ""
+
+  ** out inside a period without its own value
+  @config property float onValue = 1.0f
+
+  ** out outside the periods
+  @config property float offValue = 0.0f
+
+  ** how long extend() or request keeps occupied, minutes
+  @config @unit=Units.minute @min=0 @max=1440 property float extendMinutes = 60.0f
+
+  ** today is a special day (Calendar.today)
+  property bool holiday
+
+  ** tomorrow is a special day (Calendar.tomorrow)
+  property bool holidayTomorrow
+
+  ** yesterday was a special day (Calendar.yesterday)
+  property bool holidayYesterday
+
+  ** a rising edge extends occupancy (button)
+  property bool request
+
+  ** occupied now
+  @readonly property bool occupied
+
+  ** the period's value, onValue or offValue
+  @readonly property float out
+
+  ** minutes to the next change of occupied, -1 when none until the end of tomorrow
+  @readonly @unit=Units.minute property int nextChange = -1
+
+  ** occupied after the next change
+  @readonly property bool nextOccupied
+
+  ** minutes of extension left
+  @readonly @unit=Units.minute property float remaining
+
+  ** first program with a wrong period: 1 = mon ... 7 = sun, 8 = hol
+  @readonly property int badProgram
+
+  @readonly @range=Pro.statusRange property byte status
+
+  ** keep occupied for extendMinutes from now
+  action void extend()
+  {
+    left = extendMinutes * 60.0f
+    remaining := extendMinutes
+  }
+
+  ** end an extension now
+  action void cancelExtension()
+  {
+    left = 0.0f
+    remaining := 0.0f
+  }
+
+  define int periods = 6
+  define int programs = 8
+
+  virtual override void start()
+  {
+    parseAll()
+    clock = (DateTimeService)Sys.app.lookupService(DateTimeService.type)
+  }
+
+  virtual override void changed(Slot slot)
+  {
+    super.changed(slot)
+    if (slot == WeekSchedule.mon || slot == WeekSchedule.tue || slot == WeekSchedule.wed ||
+        slot == WeekSchedule.thu || slot == WeekSchedule.fri || slot == WeekSchedule.sat ||
+        slot == WeekSchedule.sun || slot == WeekSchedule.hol) parseAll()
+  }
+
+  virtual override void execute()
+  {
+    float dt = ticker.next()
+    if (clock == null || clock.year < 1971)
+    {
+      status := Pro.inputBad
+      return
+    }
+    evaluateAt(clock.dayOfWeek, clock.hour * 60 + clock.minute, dt)
+  }
+
+  ** The whole step at a given time: dow 0 = Sunday ... 6 = Saturday
+  ** (datetime::DayOfWeek), minute of the day, seconds since the last step.
+  void evaluateAt(int dow, int minute, float dt)
+  {
+    if (request && !lastRequest) extend()
+    lastRequest = request
+    if (left > 0.0f)
+    {
+      left -= dt
+      if (left < 0.0f) left = 0.0f
+      remaining := left / 60.0f
+    }
+    int pt = program(dow, holiday)
+    int py = program((dow + 6) % 7, holidayYesterday)
+    int pn = program((dow + 1) % 7, holidayTomorrow)
+    pa = program((dow + 2) % 7, false)
+    int now = activeAt(pt, py, minute)
+    if (minute != lastMinute || dirty || pt != lastPt)
+    {
+      lastMinute = minute
+      lastPt = pt
+      dirty = false
+      lookAhead(pt, py, pn, minute, now >= 0)
+    }
+    if (mode == Pro.modeHand)
+    {
+      occupied := handValue
+      out := handValue ? onValue : offValue
+      status := Pro.hand
+      return
+    }
+    if (mode == Pro.modeOff)
+    {
+      occupied := false
+      out := offValue
+      status := Pro.off
+      return
+    }
+    if (now >= 0)
+    {
+      float v = values[now]
+      out := Pro.valid(v) ? v : onValue
+      occupied := true
+    }
+    else if (left > 0.0f)
+    {
+      out := onValue
+      occupied := true
+    }
+    else
+    {
+      out := offValue
+      occupied := false
+    }
+    status := badProgram != 0 ? Pro.config : Pro.ok
+  }
+
+  ** Program index of a day: 0 = mon ... 6 = sun, 7 = hol.
+  static int program(int dow, bool special)
+  {
+    if (special) return 7
+    return dow == 0 ? 6 : dow - 1
+  }
+
+  ** The period active at a minute of today (program pt, yesterday py):
+  ** its table index, -1 when none.
+  int activeAt(int pt, int py, int minute)
+  {
+    for (int i = 0; i < used[pt]; i++)
+    {
+      int k = pt * periods + i
+      int s = begins[k]
+      int e = ends[k]
+      if (e > s)
+      {
+        if (minute >= s && minute < e) return k
+      }
+      else if (minute >= s) return k
+    }
+    for (int i = 0; i < used[py]; i++)
+    {
+      int k = py * periods + i
+      if (ends[k] < begins[k] && minute < ends[k]) return k
+    }
+    return -1
+  }
+
+  ** nextChange and nextOccupied: the earliest period boundary up to the
+  ** end of tomorrow where occupied differs from now.
+  private void lookAhead(int pt, int py, int pn, int minute, bool active)
+  {
+    best = 9999
+    bestState = false
+    for (int i = 0; i < used[pt]; i++)
+    {
+      int k = pt * periods + i
+      candidate(pt, py, pn, minute, active, begins[k])
+      candidate(pt, py, pn, minute, active, ends[k] > begins[k] ? ends[k] : ends[k] + 1440)
+    }
+    for (int i = 0; i < used[py]; i++)
+    {
+      int k = py * periods + i
+      if (ends[k] < begins[k]) candidate(pt, py, pn, minute, active, ends[k])
+    }
+    for (int i = 0; i < used[pn]; i++)
+    {
+      int k = pn * periods + i
+      candidate(pt, py, pn, minute, active, begins[k] + 1440)
+      if (ends[k] > begins[k]) candidate(pt, py, pn, minute, active, ends[k] + 1440)
+    }
+    nextChange := best == 9999 ? -1 : best - minute
+    nextOccupied := best == 9999 ? active : bestState
+  }
+
+  private void candidate(int pt, int py, int pn, int minute, bool active, int c)
+  {
+    if (c <= minute || c >= best || c > 2880) return
+    bool state = false
+    if (c < 1440) state = activeAt(pt, py, c) >= 0
+    else if (c < 2880) state = activeAt(pn, pt, c - 1440) >= 0
+    else state = activeAt(pa, pn, 0) >= 0
+    if (state != active)
+    {
+      best = c
+      bestState = state
+    }
+  }
+
+  ** Reads all eight programs.
+  void parseAll()
+  {
+    int bad = 0
+    if (!parse(0, mon) && bad == 0) bad = 1
+    if (!parse(1, tue) && bad == 0) bad = 2
+    if (!parse(2, wed) && bad == 0) bad = 3
+    if (!parse(3, thu) && bad == 0) bad = 4
+    if (!parse(4, fri) && bad == 0) bad = 5
+    if (!parse(5, sat) && bad == 0) bad = 6
+    if (!parse(6, sun) && bad == 0) bad = 7
+    if (!parse(7, hol) && bad == 0) bad = 8
+    badProgram := bad
+    dirty = true
+  }
+
+  ** Reads one program into the tables; false when a period was wrong
+  ** (the right ones are kept).
+  bool parse(int p, Buf text)
+  {
+    used[p] = 0
+    bool ok = true
+    pos = 0
+    while (true)
+    {
+      while (separator(SchedTime.at(text, pos))) pos++
+      if (SchedTime.at(text, pos) == 0) break
+      int from = pos
+      if (!period(p, text))
+      {
+        ok = false
+        pos = from
+        while (SchedTime.at(text, pos) != 0 && !separator(SchedTime.at(text, pos))) pos++
+      }
+    }
+    return ok
+  }
+
+  private bool period(int p, Buf text)
+  {
+    int s = time(text)
+    if (s < 0 || s > 1439 || SchedTime.at(text, pos) != '-') return false
+    pos++
+    int e = time(text)
+    if (e < 0 || e == s) return false
+    float v = null
+    if (SchedTime.at(text, pos) == '=')
+    {
+      pos++
+      v = decimal(text)
+      if (!Pro.valid(v)) return false
+    }
+    int c = SchedTime.at(text, pos)
+    if (c != 0 && !separator(c)) return false
+    if (used[p] >= periods) return false
+    int k = p * periods + used[p]
+    begins[k] = s
+    ends[k] = e
+    values[k] = v
+    used[p] = used[p] + 1
+    return true
+  }
+
+  ** hh:mm as minutes (24:00 allowed), -1 when wrong.
+  private int time(Buf text)
+  {
+    int h = digits(text)
+    if (h < 0 || SchedTime.at(text, pos) != ':') return -1
+    pos++
+    int m = digits(text)
+    if (m < 0 || m > 59 || h > 24 || (h == 24 && m != 0)) return -1
+    return h * 60 + m
+  }
+
+  private int digits(Buf text)
+  {
+    int v = 0
+    int n = 0
+    while (SchedTime.digit(SchedTime.at(text, pos)) && n < 2)
+    {
+      v = v * 10 + SchedTime.at(text, pos) - '0'
+      pos++
+      n++
+    }
+    return n == 0 ? -1 : v
+  }
+
+  ** [-]digits[.digits]
+  private float decimal(Buf text)
+  {
+    bool negative = false
+    if (SchedTime.at(text, pos) == '-')
+    {
+      negative = true
+      pos++
+    }
+    float v = 0.0f
+    int n = 0
+    while (SchedTime.digit(SchedTime.at(text, pos)) && n < 7)
+    {
+      v = v * 10.0f + (float)(SchedTime.at(text, pos) - '0')
+      pos++
+      n++
+    }
+    if (n == 0) return null
+    if (SchedTime.at(text, pos) == '.')
+    {
+      pos++
+      float scale = 0.1f
+      while (SchedTime.digit(SchedTime.at(text, pos)) && scale > 0.00001f)
+      {
+        v = v + scale * (float)(SchedTime.at(text, pos) - '0')
+        scale = scale * 0.1f
+        pos++
+      }
+    }
+    return negative ? -v : v
+  }
+
+  private static bool separator(int c) { return c == ',' || c == ';' || c == ' ' || c == '\n' || c == '\t' }
+
+  inline Ticker ticker
+  DateTimeService clock
+  float left
+  bool lastRequest
+  bool dirty = true
+  int lastMinute = -1
+  int lastPt = -1
+  int pos
+  int best
+  int pa
+  bool bestState
+  inline int[programs] used
+  inline short[48] begins
+  inline short[48] ends
+  inline float[48] values
+}

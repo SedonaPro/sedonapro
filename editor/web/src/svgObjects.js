@@ -1,0 +1,17 @@
+const id=x=>typeof x==='string'&&/^[A-Za-z0-9_-]{1,64}$/.test(x);
+const text=(x,max)=>typeof x==='string'&&x.length<=max;
+const coordinate=x=>Number.isFinite(x)&&x>=0&&x<=100;
+const check=(ok,message)=>{if(!ok)throw Error(message)};
+export function validateLibrary(value){check(Array.isArray(value)&&value.length<=64,'Не более 64 SVG в библиотеке');const ids=new Set();return value.map(a=>{check(a&&id(a.id)&&!ids.has(a.id)&&text(a.title,128)&&[a.width,a.height].every(n=>Number.isFinite(n)&&n>0&&n<=2000),'Некорректный SVG-ресурс');ids.add(a.id);check(a.states&&typeof a.states==='object'&&!Array.isArray(a.states)&&typeof a.states.off==='string','Нужен вариант SVG Off');const states={};for(const [k,v]of Object.entries(a.states)){check(['off','on','fault','unknown','p25','p50','p75'].includes(k)&&text(v,512*1024)&&v.length>0,'Некорректное состояние SVG');states[k]=v;}return {id:a.id,title:a.title,width:a.width,height:a.height,states};});}
+function binding(b){check(b&&text(b.path,2048)&&b.path.length&&!b.path.split('/').some(p=>!p||p==='..')&&text(b.slot,128)&&b.slot.length&&b.slot!=='meta'&&!/password|secret|cred|^key$/i.test(b.slot)&&text(b.type,160)&&b.type.length,'Некорректная привязка SVG');return {path:b.path,slot:b.slot,type:b.type};}
+export function validateObjects(value,library){check(Array.isArray(value)&&value.length<=128,'Не более 128 SVG-объектов');const ids=new Set(),assets=new Set(library.map(a=>a.id));return value.map(o=>{check(o&&id(o.id)&&!ids.has(o.id)&&assets.has(o.assetId)&&text(o.label,128)&&coordinate(o.x)&&coordinate(o.y)&&[0,90,180,270].includes(o.rotation)&&['static','bool','position'].includes(o.mode),'Некорректный SVG-объект или отсутствует ресурс');ids.add(o.id);const result={id:o.id,assetId:o.assetId,label:o.label,x:o.x,y:o.y,rotation:o.rotation,mode:o.mode};if(o.binding)result.binding=binding(o.binding);if(o.fault)result.fault=binding(o.fault);if(o.mode!=='static')check(result.binding,'Выберите слот состояния SVG');if(result.binding){const t=result.binding.type.replace('sys::','');check(o.mode==='position'?['float','double','int','short','byte'].includes(t):t==='bool','Тип привязки не соответствует поведению SVG');}if(result.fault)check(result.fault.type.replace('sys::','')==='bool','Неисправность должна быть bool');return result;});}
+export function svgState(object,read,live){
+ if(!object.binding&&!object.fault||object.mode==='static'&&!object.fault)return {state:'off',quality:'Статический объект'};
+ if(!live)return {state:'unknown',quality:'Нет свежих данных'};
+ const bool=v=>v===true||v==='true'||v==='1'?true:v===false||v==='false'||v==='0'?false:null;
+ if(object.fault){const f=read(object.fault);if(f.error||bool(f.value)===null)return {state:'unknown',quality:f.error||'Нет сигнала неисправности'};if(bool(f.value))return {state:'fault',quality:'Неисправность'};}
+ if(object.mode==='static')return {state:'off',quality:'Норма'};
+ const r=read(object.binding);if(r.error)return {state:'unknown',quality:r.error};
+ if(object.mode==='bool'){const v=bool(r.value);return v===null?{state:'unknown',quality:'Нет bool-значения'}:{state:v?'on':'off',quality:v?'Включено':'Выключено'};}
+ const s=String(r.value??'').trim(),n=Number(s);if(!s||!Number.isFinite(n)||n<0||n>1)return {state:'unknown',quality:'Ожидается доля 0–1'};return {state:['off','p25','p50','p75','on'][Math.round(n*4)],quality:'Положение '+Math.round(n*100)+'%'};
+}

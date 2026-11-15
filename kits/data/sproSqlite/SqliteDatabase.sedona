@@ -1,0 +1,96 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2018 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+@palette=false
+class SqliteDatabase extends Component
+{
+	virtual SqliteDb getDatabase()
+	{
+		return null;
+	}
+
+	virtual Str getDatabaseName()
+	{
+		return "";
+	}
+
+	virtual int getInstanceCounter()
+	{
+		return 0;
+	}
+
+	virtual void setInstanceCounter(int val)
+	{
+	}
+
+	int getDatabaseInstance()
+	{
+		int ret = 0;
+		if (!getDatabase().isOpen()) {
+			Sys.out.print("SqliteDatabase: getDatabaseInstance called for closed db");
+			ret = -1;
+		} else {
+			int val = getInstanceCounter();
+			val = val + 1;
+			setInstanceCounter(val);
+			ret = val;
+		}
+		return ret;
+	}
+
+
+	int putDatabaseInstance()
+	{
+		int ret = 0;
+		if (!getDatabase().isOpen()) {
+			Sys.out.print("SqliteDatabase: putDatabaseInstance called for closed db");
+			ret = -1;
+		} else {
+			int val = getInstanceCounter();
+			if (val >= 0) {
+				val = val - 1;
+				ret = val;
+			} else {
+				Sys.out.print("SqliteDatabase: no available instances to put");
+				val = 0;
+				ret = -1;
+			}
+			setInstanceCounter(val);
+		}
+		return ret;
+	}
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		SqliteDb db;
+		db = getDatabase();
+		if (!db.isOpen()) {
+			db.open(getDatabaseName());
+		}
+		if (db.isOpen())
+			getDatabaseInstance();
+	}
+
+	virtual override void stop()
+	{
+		super.stop();
+		if (getDatabase().isOpen() && (putDatabaseInstance()==0)) {
+			getDatabase().close();
+		}
+	}
+}

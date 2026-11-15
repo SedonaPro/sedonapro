@@ -1,0 +1,72 @@
+<module>
+  <!-- Level 3: a thermostat seen and controlled over MQTT.
+       Broker: spro broker (127.0.0.1:1883).  The controller publishes
+         sedonapro/demo/status   online / offline (LWT)
+         sedonapro/demo/temp     AI2, °C (retained)
+         sedonapro/demo/heater   DO4 state (retained)
+         sedonapro/demo/state    {"temp":..,"sp":..} every 10 s
+       and takes
+         sedonapro/demo/sp/set   setpoint, e.g. spro pub sedonapro/demo/sp/set 23
+         sedonapro/demo/ao2/set  AO2 in volts, 0..10
+       Build: spro build sim, option example=mqtt (see README.md) -->
+  <kit name="hvac"/>
+  <kit name="sproHal"/>
+  <kit name="sproMqtt"/>
+  <into path="">
+    <comp name="mqdemo" type="sys::Folder">
+      <comp name="temp" type="sproHal::AnalogInput">
+        <prop name="channel" val="AI2"/>
+      </comp>
+      <comp name="tstat" type="hvac::Tstat">
+        <prop name="sp" val="21.0"/>
+        <prop name="diff" val="1.0"/>
+        <prop name="isHeating" val="true"/>
+      </comp>
+      <comp name="heater" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO4"/>
+      </comp>
+      <comp name="ao2" type="sproHal::AnalogOutput">
+        <prop name="channel" val="AO2"/>
+      </comp>
+      <comp name="mqtt" type="sproMqtt::MqttClient">
+        <prop name="host" val="127.0.0.1"/>
+        <prop name="port" val="1883"/>
+        <prop name="baseTopic" val="sedonapro/demo"/>
+        <comp name="temp" type="sproMqtt::MqttPubFloat">
+          <prop name="topic" val="~/temp"/>
+          <prop name="decimals" val="1"/>
+          <prop name="deadband" val="0.1"/>
+          <prop name="retain" val="true"/>
+        </comp>
+        <comp name="heater" type="sproMqtt::MqttPubBool">
+          <prop name="topic" val="~/heater"/>
+          <prop name="onText" val="ON"/>
+          <prop name="offText" val="OFF"/>
+          <prop name="retain" val="true"/>
+        </comp>
+        <comp name="state" type="sproMqtt::MqttPubJson">
+          <prop name="topic" val="~/state"/>
+          <prop name="keys" val="temp,sp"/>
+          <prop name="decimals" val="1"/>
+          <prop name="deadband" val="1000.0"/>
+          <prop name="maxInterval" val="10"/>
+        </comp>
+        <comp name="sp" type="sproMqtt::MqttSubFloat">
+          <prop name="topic" val="~/sp/set"/>
+          <prop name="initial" val="21.0"/>
+        </comp>
+        <comp name="ao2" type="sproMqtt::MqttSubFloat">
+          <prop name="topic" val="~/ao2/set"/>
+        </comp>
+      </comp>
+    </comp>
+  </into>
+  <link from="/mqdemo/temp.out" to="/mqdemo/tstat.cv"/>
+  <link from="/mqdemo/tstat.out" to="/mqdemo/heater.in"/>
+  <link from="/mqdemo/temp.out" to="/mqdemo/mqtt/temp.in"/>
+  <link from="/mqdemo/tstat.out" to="/mqdemo/mqtt/heater.in"/>
+  <link from="/mqdemo/temp.out" to="/mqdemo/mqtt/state.in1"/>
+  <link from="/mqdemo/mqtt/sp.out" to="/mqdemo/tstat.sp"/>
+  <link from="/mqdemo/mqtt/sp.out" to="/mqdemo/mqtt/state.in2"/>
+  <link from="/mqdemo/mqtt/ao2.out" to="/mqdemo/ao2.in"/>
+</module>

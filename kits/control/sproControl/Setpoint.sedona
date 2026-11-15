@@ -1,0 +1,118 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Setpoint ramp: out moves to in at 'rate' per minute (a floor heating
+** warm-up, a soft start of a pressure loop).  After start and reset it
+** begins at pv, if pv is valid, so the loop does not jump.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class SpRamp extends Component
+{
+  ** target setpoint
+  @config @summary property float in
+  ** measured value: the ramp starts from it
+  property float pv = null
+
+  ** change per minute (0 = no ramp)
+  @config @min=0 property float rate = 1.0f
+
+  ** the ramped setpoint
+  @readonly @summary @precision=2 property float out
+  ** out is moving to in
+  @readonly property bool ramping
+  ** ok, inputBad (in is null: out holds)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** start again from pv
+  action void reset() { primed = false }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    if (!Pro.valid(in))
+    {
+      status := Pro.inputBad
+      ramping := false
+      return
+    }
+    status := Pro.ok
+    if (!primed || !Pro.valid(out))
+    {
+      primed = true
+      out := Pro.valid(pv) ? pv : in
+    }
+    if (rate <= 0.0f) { out := in; ramping := false; return }
+    float stepMax = rate * dt / 60.0f
+    float d = in - out
+    if (d > stepMax) out := out + stepMax
+    else if (d < -stepMax) out := out - stepMax
+    else out := in
+    ramping := out != in
+  }
+
+  bool primed
+  inline Ticker ticker
+}
+
+**
+** On/off controller with a differential and minimum on/off times: a
+** thermostat for a heater, a fan or a pump.  Heating by default (on
+** below sp - diff/2, off above sp + diff/2); direct for cooling.
+**
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class OnOff extends Component
+{
+  ** measured value
+  @summary property float pv
+  ** setpoint
+  @config @summary property float sp
+  @config property bool enable = true
+
+  ** switching difference (on and off points are sp -/+ diff/2)
+  @config @min=0 property float diff = 1.0f
+  ** on when pv is high (cooling)
+  @config property bool direct = false
+  ** stays on at least this long, s
+  @config @unit=Units.second @min=0 property float minOn = 0.0f
+  ** stays off at least this long, s
+  @config @unit=Units.second @min=0 property float minOff = 0.0f
+
+  @readonly @summary property bool out
+  ** ok, disabled, inputBad (out off), waiting (minimum time holds out)
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    since += dt
+    if (enable != true || !Pro.valid(pv) || !Pro.valid(sp))
+    {
+      if (out) since = 0.0f
+      out := false
+      status := enable != true ? Pro.disabled : Pro.inputBad
+      return
+    }
+    float half = diff / 2.0f
+    bool wantOn = direct ? pv > sp + half : pv < sp - half
+    bool wantOff = direct ? pv < sp - half : pv > sp + half
+    status := Pro.ok
+    if (!out && wantOn)
+    {
+      if (since >= minOff) { out := true; since = 0.0f }
+      else status := Pro.waiting
+    }
+    else if (out && wantOff)
+    {
+      if (since >= minOn) { out := false; since = 0.0f }
+      else status := Pro.waiting
+    }
+  }
+
+  float since = 1000000.0f
+  inline Ticker ticker
+}

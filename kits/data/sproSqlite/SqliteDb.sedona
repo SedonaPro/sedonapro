@@ -1,0 +1,110 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2018 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+@palette=false
+class SqliteDb extends Component {
+	define int SQLITE_OK   = 0;
+	define int SQLITE_BUSY = 5;
+
+	define bool DEBUG_SQLITE = false;
+
+
+	static private native Obj  doOpen(Str fileName);
+	static private native void doClose(Obj handle);
+	static private native int  doExecSql(Obj handle, Str sql);
+	private native int  doExecInsertSql(Obj handle, Str sql, long[] rowid);
+	private native int  doExecSelectSql(Obj handle, Str sql, Slot dataIn);
+
+	bool open(Str fname)
+	{
+		handle = doOpen(fname);
+		bool ret = isOpen();
+		if (DEBUG_SQLITE)
+			Sys.out.print("SqliteDb: open ${filename}, ${ret}").nl();
+		if (ret)
+			filename.copyFromStr(fname, strLen);
+		return ret;
+	}
+
+	void close()
+	{
+		if (DEBUG_SQLITE)
+			Sys.out.print("SqliteDb: close").nl();
+		doClose(handle);
+		handle = null;
+	}
+
+
+	void remove()
+	{
+		if (DEBUG_SQLITE)
+			Sys.out.print("SqliteDb: remove").nl();
+		close();
+		FileStore.remove(filename);
+	}
+
+	void clean()
+	{
+		bool open = isOpen();
+		remove();
+		if (open)
+			open(filename);
+	}
+
+	int execSql(Str sql)
+	{
+		int ret = doExecSql(handle, sql)
+		if (DEBUG_SQLITE)
+			Sys.out.print("SqliteDb: ${sql}: ${ret}").nl();
+		return ret;
+	}
+
+	/*
+	  function returns id of added row or
+	   -errno if insert failed
+	*/
+	int execInsertSql(Str sql, long[] res)
+	{
+		int ret = doExecInsertSql(handle, sql, res);
+		if (DEBUG_SQLITE)
+			Sys.out.print("SqliteDb: ${sql}: ${ret}").nl();
+		return ret;
+	}
+
+	int execSelectSqlLong(Str sql, long[] res)
+	{
+		tmpLong := -1L;
+		int ret = doExecSelectSql(handle, sql, SqliteDb.tmpLong);
+		res[0] = tmpLong;
+		if (DEBUG_SQLITE)
+			Sys.out.print("SqliteDb: ${sql}: ${ret}, ${res[0]}").nl();
+		return ret;
+	}
+
+	bool isOpen()
+	{
+		return handle != null;
+	}
+
+	@hidden
+	property long tmpLong;
+
+        define int strLen = 255;
+        protected inline Str(strLen) filename;
+	protected Obj handle = null;
+}

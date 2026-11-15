@@ -1,0 +1,116 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+class AhuBuildTest extends Test
+{
+  static Ahu setup()
+  {
+    Sys.app.cleanupApp()
+    Sys.app.initApp(160)
+    Ahu a = (Ahu)Sys.app.add(Sys.app, "ahu", Ahu.type)
+    a.buildOnStart := false
+    return a
+  }
+
+  static Component kid(Ahu a, Str name) { return a.child(name) }
+
+  static bool linked(Ahu a, Str from, Slot fs, Str to, Slot ts)
+  {
+    Component f = a
+    if (from != null) f = a.child(from)
+    Component t = a.child(to)
+    if (f == null || t == null) return false
+    return Sys.app.lookupLink(f.id, fs.id, t.id, ts.id) != null
+  }
+
+  static void testWaterSupplyUnit()
+  {
+    Ahu a = setup()
+    a.build()
+    assert(kid(a, "season").type == Season.type)
+    assert(kid(a, "ctl").type == AhuControl.type)
+    assert(kid(a, "heater").type == WaterHeater.type)
+    assert(kid(a, "fanS").type == FanSpeed.type && kid(a, "fanE") == null)
+    assert(kid(a, "aoValve") != null && kid(a, "doPump") != null && kid(a, "tRet") != null)
+    assert(kid(a, "alFbS") != null && kid(a, "faults") != null && kid(a, "alFltS") != null)
+    assert(kid(a, "rec") == null && kid(a, "dx") == null)
+    assert(linked(a, "temp", SupplyTemp.heating, "heater", WaterHeater.demand))
+    assert(linked(a, "heater", WaterHeater.fanLimit, "fanS", FanSpeed.limit))
+    assert(linked(a, "heater", WaterHeater.frost, "ctl", AhuControl.frost))
+    assert(linked(a, "heater", WaterHeater.valve, "aoValve", AnalogOutput.in))
+    assert(linked(a, "faults", AlarmSum.any, "ctl", AhuControl.fault))
+    assert(linked(a, null, Ahu.request, "ctl", AhuControl.request))
+    // the sim board has 2 AI: tOut, tSup get them, tRet has none
+    assert(((HalPoint)kid(a, "tOut")).channel.toStr().equals("AI1"))
+    assert(((HalPoint)kid(a, "tSup")).channel.toStr().equals("AI2"))
+    assert(a.missing == 1 && a.status == Pro.config)
+    assert(a.ioList.toStr().startsWith("AI1 tOut, AI2 tSup, - tRet"))
+    MismatchAlarm al = (MismatchAlarm)kid(a, "alFbS")
+    assert(al.text.toStr().equals("Supply fan not running") && al.delay == 30.0f)
+    Sys.app.cleanupApp()
+  }
+
+  static void testRebuildKeepsSettings()
+  {
+    Ahu a = setup()
+    a.build()
+    WaterHeater wh = (WaterHeater)kid(a, "heater")
+    int id = wh.id
+    wh.minLo := 40.0f
+    ((HalPoint)kid(a, "tRet")).channel.copyFromStr("AI8")
+    a.valve := 1                                  // three point valve
+    a.build()
+    wh = (WaterHeater)kid(a, "heater")
+    assert(wh.id == id && wh.minLo == 40.0f)
+    assert(kid(a, "aoValve") == null && kid(a, "valve").type == ThreePoint.type)
+    assert(kid(a, "doOpen") != null && kid(a, "doClose") != null)
+    assert(linked(a, "heater", WaterHeater.valve, "valve", ThreePoint.in))
+    assert(((HalPoint)kid(a, "tRet")).channel.toStr().equals("AI8"))
+    // electric instead of water
+    a.heater := 2
+    a.elStages := 3
+    a.build()
+    assert(kid(a, "heater").type == ElectricHeater.type && ((ElectricHeater)kid(a, "heater")).stages == 3)
+    assert(kid(a, "doPump") == null && kid(a, "tRet") == null && kid(a, "valve") == null)
+    assert(kid(a, "doH3") != null && kid(a, "doH4") == null)
+    assert(linked(a, "heater", ElectricHeater.purge, "ctl", AhuControl.purge))
+    assert(linked(a, "temp", SupplyTemp.heating, "heater", ElectricHeater.demand))
+    Sys.app.cleanupApp()
+  }
+
+  static void testSupplyExhaustUnit()
+  {
+    Ahu a = setup()
+    a.layout := 1
+    a.recovery := 2                               // rotary
+    a.cooler := 2                                 // DX
+    a.fans := 2                                   // duct pressure
+    a.control := 1                                // room cascade
+    a.startSwitch := true
+    a.build()
+    assert(((Recuperator)kid(a, "rec")).kind == 1)
+    assert(((SupplyTemp)kid(a, "temp")).control == 1 && ((SupplyTemp)kid(a, "temp")).recShare == 30.0f)
+    assert(((FanSpeed)kid(a, "fanS")).mode == 1 && kid(a, "fanE") != null)
+    assert(((AhuControl)kid(a, "ctl")).hasExhaust)
+    assert(kid(a, "tExt") != null && kid(a, "tExh") != null && kid(a, "pDuct") != null && kid(a, "tRoom") == null)
+    assert(kid(a, "dx").type == Stager.type && ((Stager)kid(a, "dx")).minOff == 300.0f)
+    assert(linked(a, "tExt", AnalogInput.out, "temp", SupplyTemp.room))
+    assert(linked(a, "tExh", AnalogInput.out, "rec", Recuperator.exhaust))
+    assert(linked(a, "alFbE", AlarmPoint.alarm, "faults", AlarmSum.in2))
+    assert(linked(a, "diStart", DigitalInput.out, "ctl", AhuControl.request))
+    assert(!linked(a, null, Ahu.request, "ctl", AhuControl.request))
+    // back to a simple unit: the extra parts go
+    a.layout := 0
+    a.cooler := 0
+    a.fans := 0
+    a.startSwitch := false
+    a.build()
+    assert(kid(a, "rec") == null && kid(a, "fanE") == null && kid(a, "fanS") == null && kid(a, "dx") == null)
+    assert(kid(a, "tExt") == null && kid(a, "aoFanS") == null && kid(a, "diStart") == null)
+    assert(((SupplyTemp)kid(a, "temp")).recShare == 0.0f)
+    assert(linked(a, null, Ahu.request, "ctl", AhuControl.request))
+    Sys.app.cleanupApp()
+  }
+}

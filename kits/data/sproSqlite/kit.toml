@@ -1,0 +1,4 @@
+summary = "SQLite database access"
+targets = ["linux"]
+[build]
+libs = ["-lsqlite3"]

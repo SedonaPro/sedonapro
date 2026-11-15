@@ -1,0 +1,150 @@
+//
+// Copyright (c) 2009 Tridium, Inc
+// Licensed under the Academic Free License version 3.0
+//
+// History:
+//   14 Nov 11  Elizabeth McKenney  Creation
+//
+
+**
+** UnixProvDbFileStore converts filenames for the Manifest (or Kit) Database.
+**                 
+final class UnixProvDbFileStore 
+  extends FileStore
+{                      
+  **
+  ** Implementation for 'File.size'.  
+  ** Must work without opening the file.
+  **
+  override virtual int size(File f) 
+  {
+    Str path = substPath(f.name)
+    if (path == null) return -1
+    return doSize(path)
+  }
+
+  **
+  ** Implementation for 'File.open'.
+  **
+  override virtual bool open(File f, Str mode) 
+  { 
+    // manifests and the platform database are read-only (SedonaPro);
+    // kits ("k:") may be written by provisioning
+    if (mode.get(0) != 'r' && !prefix.equals("k:")) return false
+    Str path = substPath(f.name)
+    if (path == null) return false
+    f.fp = doOpen(path, mode)
+    return f.fp != null
+  }
+
+
+////////////////////////////////////////////////////////////////
+// accept
+////////////////////////////////////////////////////////////////
+
+  **
+  ** Parse the given filename, and return true if this is the appropriate
+  ** FileStore instance to handle it.  
+  **
+  override virtual bool accept(Str filename)
+  {
+    return filename.startsWith(prefix) 
+  }
+
+
+
+//////////////////////////////////////////////////////////////////////////
+// Natives
+//////////////////////////////////////////////////////////////////////////
+
+
+
+//////////////////////////////////////////////////////////////////////////
+// Utilities
+//////////////////////////////////////////////////////////////////////////
+
+  **
+  ** Strip prefix from filename, and substitute full path in its place;
+  ** null for names with '/', '\\' or "..", empty or too long ones.
+  ** 
+  internal Str substPath(Str fname)
+  {
+    // The platform database is transferred as one archive, regardless of URI.
+    if (prefix.equals("p:")) return pathStr
+    Str nameStr = fname.suffix( prefix.length() )
+
+    // a plain file name only: no directories, no "..", not empty (SedonaPro)
+    int n = nameStr.length()
+    if (n == 0 || n + pathStr.length() + 32 > maxPathLen) return null
+    for (int i = 0; i < n; ++i)
+    {
+      int c = nameStr.get(i)
+      if (c == '/' || c == '\\' || (c == '.' && i + 1 < n && nameStr.get(i + 1) == '.'))
+        return null
+    }
+
+    pathBuf.clear()
+
+    // Write path
+    fullpath.writeBytes(pathStr.toBytes(), 0, pathStr.length())
+
+    // Write kit name (nameStr up to dash; NOP if no dash)
+    int dash = nameStr.index('-')
+    if (dash>=0)
+    {
+      fullpath.writeBytes(nameStr.toBytes(), 0, dash)
+      fullpath.write('/')
+    }
+
+    // Write filename
+    fullpath.writeBytes(nameStr.toBytes(), 0, nameStr.length())
+    fullpath.write(0)
+
+    return pathBuf.toStr()
+  }
+
+
+//////////////////////////////////////////////////////////////////////////
+// Constructor
+//////////////////////////////////////////////////////////////////////////
+
+  **
+  ** Constructor sets instance fields and inserts self into FileStore list.
+  ** Note: assume args are (const) string literals, no need to copy.
+  **
+  UnixProvDbFileStore(Str pre, Str path)
+  {
+    this.prefix  = pre
+    this.pathStr = path
+
+    FileStore.insert(this)
+  }
+
+
+
+////////////////////////////////////////////////////////////////
+// Fields
+////////////////////////////////////////////////////////////////
+
+  Str prefix
+  Str pathStr
+
+  define int maxPathLen = 256
+
+
+  // Cache buffer for full path - shared by all UnixProvDbFileStore instances
+  //  (assumes full path only needed when calling doSize or doOpen, not after file is open)
+  static inline Buf(maxPathLen)        pathBuf
+  static inline BufOutStream(pathBuf)  fullpath
+  
+
+  //
+  // Static singleton instance(s) defined here;
+  //   to support a new scheme, add singleton instance for it 
+  //
+  
+  static inline UnixProvDbFileStore("m:", "manifests/") mfStore
+  static inline UnixProvDbFileStore("k:", "kits/") kitStore
+  static inline UnixProvDbFileStore("p:", "platforms/p.zip") platStore
+}
+

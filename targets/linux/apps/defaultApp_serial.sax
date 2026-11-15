@@ -1,0 +1,123 @@
+<?xml version='1.0'?>
+<sedonaApp>
+<schema>
+  <kit name="sys" />
+  <kit name="basicSchedule" />
+  <kit name="sproLib" />
+  <kit name="sproUtil" />
+  <kit name="sproModbusMaster" />
+  <kit name="sproModbusSlave" />
+  <kit name="sproPlatformLinux" />
+  <kit name="datetime" />
+  <kit name="datetimeStd" />
+  <kit name="func" />
+  <kit name="hvac" />
+  <kit name="inet" />
+  <kit name="logic" />
+  <kit name="math" />
+  <kit name="pstore" />
+  <kit name="sox" />
+  <kit name="timing" />
+  <kit name="tutorial" />
+  <kit name="types" />
+  <kit name="web" />
+</schema>
+<app>
+  <prop name="appName" val="demo"/>
+  <!-- /service -->
+  <comp name="service" id="1" type="sys::Folder">
+    <prop name="meta" val="33685505"/>
+    <!-- /service/plat -->
+    <comp name="plat" id="9" type="sproPlatformLinux::UnixPlatformService"/>
+    <!-- /service/users -->
+    <comp name="users" id="3" type="sys::UserService">
+      <prop name="meta" val="17367041"/>
+      <!-- /service/users/admin -->
+      <comp name="admin" id="4" type="sys::User">
+        <prop name="cred" val="@ADMIN_CRED@"/>
+        <prop name="perm" val="2147483647"/>
+        <prop name="prov" val="255"/>
+      </comp>
+    </comp>
+    <!-- /service/sox -->
+    <comp name="sox" id="5" type="sox::SoxService">
+      <prop name="meta" val="17104897"/>
+    </comp>
+    <!-- /service/web -->
+    <comp name="web" id="6" type="web::WebService">
+      <prop name="meta" val="16842753"/>
+      <prop name="port" val="8080"/>
+    </comp>
+    <!-- /service/pstore -->
+    <comp name="pstore" id="13" type="pstore::PstoreService"/>
+    <!-- /service/time -->
+    <comp name="time" id="17" type="datetimeStd::DateTimeServiceStd">
+      <prop name="utcOffset" val="10800"/>
+      <prop name="osUtcOffset" val="true"/>
+    </comp>
+  </comp>
+  <!-- /play -->
+  <comp name="play" id="10" type="sys::Folder">
+    <prop name="meta" val="34013185"/>
+    <!-- /play/rampA -->
+    <comp name="rampA" id="7" type="func::Ramp">
+      <prop name="meta" val="67371009"/>
+      <prop name="min" val="20.0"/>
+      <prop name="max" val="80.0"/>
+      <prop name="period" val="50.0"/>
+    </comp>
+    <!-- /play/rampB -->
+    <comp name="rampB" id="8" type="func::Ramp">
+      <prop name="meta" val="68288513"/>
+    </comp>
+    <!-- /play/adder -->
+    <comp name="adder" id="2" type="math::Add2">
+      <prop name="meta" val="386662401"/>
+    </comp>
+  </comp>
+  <!-- /TestMb -->
+  <comp name="TestMb" id="11" type="sys::Folder">
+    <prop name="meta" val="135200769"/>
+    <!-- /TestMb/ModbusS -->
+    <comp name="ModbusS" id="12" type="sproModbusSlave::ModbusSlaveSerialService">
+      <prop name="meta" val="51183617"/>
+      <prop name="enable" val="true"/>
+      <prop name="slaveAddr" val="1"/>
+      <prop name="port" val="1"/>
+      <prop name="parity" val="0"/>
+      <!-- /TestMb/ModbusS/ModbusS -->
+      <comp name="ModbusS" id="14" type="sproModbusSlave::ModbusSlavePointWord">
+        <prop name="meta" val="202178561"/>
+      </comp>
+      <!-- /TestMb/ModbusS/ConstIn -->
+      <comp name="ConstIn" id="15" type="types::ConstInt">
+        <prop name="meta" val="18153473"/>
+        <prop name="out" val="15"/>
+      </comp>
+    </comp>
+    <!-- /TestMb/ModbusM -->
+    <comp name="ModbusM" id="16" type="sproModbusMaster::ModbusSlaveSerialAsyncNetwork">
+      <prop name="meta" val="118882305"/>
+      <prop name="enable" val="true"/>
+      <prop name="port" val="2"/>
+      <prop name="parity" val="0"/>
+      <!-- /TestMb/ModbusM/ModbusS -->
+      <comp name="ModbusS" id="18" type="sproModbusMaster::ModbusSlaveDevice">
+        <prop name="meta" val="50528257"/>
+        <prop name="enable" val="true"/>
+        <prop name="address" val="1"/>
+        <!-- /TestMb/ModbusM/ModbusS/ModbusR -->
+        <comp name="ModbusR" id="19" type="sproModbusMaster::ModbusReadPointWord">
+          <prop name="meta" val="67764225"/>
+          <prop name="address" val="0"/>
+        </comp>
+      </comp>
+    </comp>
+  </comp>
+</app>
+<links>
+  <link from="/play/rampA.out" to="/play/adder.in1"/>
+  <link from="/play/rampB.out" to="/play/adder.in2"/>
+  <link from="/TestMb/ModbusS/ConstIn.out" to="/TestMb/ModbusS/ModbusS.in"/>
+</links>
+</sedonaApp>

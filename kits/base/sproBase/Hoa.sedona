@@ -1,0 +1,104 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Auto/hand/off switch of an analog command: in auto out follows in,
+** in hand it is handValue, in off it is offValue.  Put it between a
+** controller and an actuator so a technician can drive the valve by hand.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Hoa extends Component
+{
+  ** value in auto (from a controller)
+  @summary property float in
+
+  ** auto, hand, off
+  @config @range=Pro.modeRange property byte mode = 0
+
+  ** out in hand
+  @config property float handValue = 0.0f
+
+  ** out in off
+  @config property float offValue = 0.0f
+
+  ** the command
+  @readonly @summary property float out
+
+  ** ok, hand, off or inputBad (auto with an invalid in: out is offValue)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** true when mode is not auto (for a common "not in auto" indication)
+  @readonly property bool overridden
+
+  virtual override void execute()
+  {
+    if (mode == Pro.modeHand)
+    {
+      out := handValue
+      status := Pro.hand
+    }
+    else if (mode == Pro.modeOff)
+    {
+      out := offValue
+      status := Pro.off
+    }
+    else if (Pro.valid(in))
+    {
+      out := in
+      status := Pro.ok
+    }
+    else
+    {
+      out := offValue
+      status := Pro.inputBad
+    }
+    overridden := mode != Pro.modeAuto
+  }
+}
+
+**
+** Auto/hand/off switch of an on/off command.
+**
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class HoaBool extends Component
+{
+  ** command in auto
+  @summary property bool in
+
+  ** auto, hand, off
+  @config @range=Pro.modeRange property byte mode = 0
+
+  ** out in hand
+  @config property bool handValue = true
+
+  ** the command (false in off)
+  @readonly @summary property bool out
+
+  ** ok, hand or off
+  @readonly @range=Pro.statusRange property byte status
+
+  ** true when mode is not auto
+  @readonly property bool overridden
+
+  virtual override void execute()
+  {
+    if (mode == Pro.modeHand)
+    {
+      out := handValue
+      status := Pro.hand
+    }
+    else if (mode == Pro.modeOff)
+    {
+      out := false
+      status := Pro.off
+    }
+    else
+    {
+      out := in == true
+      status := Pro.ok
+    }
+    overridden := mode != Pro.modeAuto
+  }
+}

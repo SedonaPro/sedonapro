@@ -1,0 +1,11 @@
+<sedonaKit
+    name="sproLib"
+    vendor="SPro"
+    description="SedonaPro components library"
+    >
+  
+  <depend on="sys 1.2+" />
+
+  <source dir="." />
+  <source dir="test" testonly="true"/>
+</sedonaKit>

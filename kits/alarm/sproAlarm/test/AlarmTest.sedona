@@ -1,0 +1,165 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+class AlarmTest extends Test
+{
+  static bool near(float a, float b, float tol) { return a - b <= tol && b - a <= tol }
+
+  static AlarmService setup()
+  {
+    Sys.app.cleanupApp()
+    Sys.app.initApp(64)
+    AlarmService s = (AlarmService)Sys.app.add(Sys.app, "alarms", AlarmService.type)
+    s.filename.copyFromStr("spro-alarm-test.csv")
+    FileStore.remove("spro-alarm-test.csv")
+    return s
+  }
+
+  static void testLimitAlarm()
+  {
+    AlarmService s = setup()
+    LimitAlarm a = (LimitAlarm)Sys.app.add(Sys.app, "tHigh", LimitAlarm.type)
+    a.text.copyFromStr("Supply too hot")
+    a.hi := 30.0f
+    a.lo := 5.0f
+    a.hyst := 1.0f
+    a.delay := 3.0f
+    a.in := 20.0f
+    a.update(1.0f)
+    assert(!a.alarm && a.status == Pro.ok)
+    a.in := 31.0f
+    a.update(1.0f)
+    a.update(1.0f)
+    assert(!a.alarm)
+    a.update(1.0f)
+    assert(a.alarm && a.active && a.unacked && a.high && a.count == 1 && a.status == Pro.alarm)
+    a.in := 29.5f                          // inside the hysteresis
+    a.update(1.0f)
+    assert(a.active)
+    a.in := 28.5f
+    a.update(1.0f)
+    assert(!a.active && !a.alarm && a.unacked)   // not latched: off, still unacked
+    a.ack()
+    assert(!a.unacked)
+    // latched: stays until acknowledged
+    a.latch := true
+    a.in := 2.0f
+    for (int k = 0; k < 3; k++) a.update(1.0f)
+    assert(a.alarm && a.low)
+    a.in := 20.0f
+    a.update(1.0f)
+    assert(a.alarm && !a.active)
+    a.ackIn := true
+    a.update(1.0f)
+    assert(!a.alarm)
+    a.ackIn := false
+    // a bad sensor is an alarm
+    a.in := null
+    for (int k = 0; k < 3; k++) a.update(1.0f)
+    assert(a.alarm)
+    a.badIsAlarm := false
+    a.update(1.0f)
+    a.ack()
+    a.update(1.0f)
+    assert(!a.alarm)
+    // inhibit
+    a.in := 40.0f
+    a.inhibit := true
+    for (int k = 0; k < 5; k++) a.update(1.0f)
+    assert(!a.alarm && a.status == Pro.disabled)
+    a.inhibit := false
+
+    // the service counts and journals
+    for (int k = 0; k < 3; k++) a.update(1.0f)
+    s.lastScan = 0L
+    s.execute()
+    assert(s.active == 1 && s.anyAlarm && s.topPriority == 1 && s.urgent)
+    assert(s.last.toStr().startsWith("raise high tHigh Supply too hot"))
+    assert(s.events == AlarmLog.total)
+    s.ackAll()
+    a.in := 20.0f
+    a.update(1.0f)
+    s.lastScan = 0L
+    s.execute()
+    assert(s.active == 0 && s.unacked == 0 && !s.anyAlarm)
+    File f = s.file
+    f.name = "spro-alarm-test.csv"
+    assert(f.size() > 40)
+    FileStore.remove("spro-alarm-test.csv")
+    Sys.app.cleanupApp()
+  }
+
+  static void testBoolAlarms()
+  {
+    setup()
+    BoolAlarm b = (BoolAlarm)Sys.app.add(Sys.app, "filter", BoolAlarm.type)
+    b.delay := 0.0f
+    b.in := true
+    b.update(0.1f)
+    assert(b.alarm)
+    b.alarmValue := false
+    b.update(0.1f)
+    assert(!b.alarm)
+    MismatchAlarm m = (MismatchAlarm)Sys.app.add(Sys.app, "valve", MismatchAlarm.type)
+    m.delay := 10.0f
+    m.cmd := true
+    m.update(5.0f)
+    assert(!m.alarm)
+    m.update(5.0f)
+    assert(m.alarm)
+    m.fb := true
+    m.update(0.1f)
+    assert(!m.alarm)
+    AlarmSum sum = (AlarmSum)Sys.app.add(Sys.app, "sum", AlarmSum.type)
+    sum.in3 := true
+    sum.execute()
+    sum.in1 := true
+    sum.execute()
+    assert(sum.any && sum.count == 2 && sum.first == 3)
+    sum.in1 := false
+    sum.in3 := false
+    sum.execute()
+    assert(!sum.any && sum.first == 0)
+    FileStore.remove("spro-alarm-test.csv")
+    Sys.app.cleanupApp()
+  }
+
+  static void testTrip()
+  {
+    setup()
+    Trip t = (Trip)Sys.app.add(Sys.app, "dryRun", Trip.type)
+    t.delay := 2.0f
+    t.retries := 2
+    t.retryDelay := 60.0f
+    t.retryWindow := 3600.0f
+    t.update(1.0f)
+    assert(t.ok)
+    for (int trip = 1; trip <= 2; trip++)
+    {
+      t.in := true
+      t.update(1.0f)
+      assert(t.ok)
+      t.update(1.0f)
+      assert(!t.ok && t.alarm)
+      t.in := false                     // pumps stopped, suction recovers
+      for (int k = 0; k < 57; k++) t.update(1.0f)
+      assert(!t.ok)
+      t.update(1.0f)
+      t.update(1.0f)
+      assert(t.ok && !t.locked)         // retry
+    }
+    t.in := true                        // third trip within the hour: locked
+    t.update(1.0f)
+    t.update(1.0f)
+    t.in := false
+    for (int k = 0; k < 120; k++) t.update(1.0f)
+    assert(!t.ok && t.locked && t.alarm && t.status == Pro.alarm)
+    t.ack()
+    t.update(1.0f)
+    assert(t.ok && !t.locked && !t.alarm)
+    FileStore.remove("spro-alarm-test.csv")
+    Sys.app.cleanupApp()
+  }
+}

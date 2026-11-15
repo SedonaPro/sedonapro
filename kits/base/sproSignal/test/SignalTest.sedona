@@ -1,0 +1,316 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+class SignalTest extends Test
+{
+  static inline Scale sc
+  static inline Divider dv
+  static inline Rtd rtd
+  static inline Curve8 cv
+  static inline Lag lag
+  static inline MovingAvg ma
+  static inline Median med
+  static inline Validate va
+  static inline Select4 sel
+  static inline Totalizer tot
+  static inline PulseCounter pc
+  static inline RateOfChange roc
+  static inline Threshold th
+
+  static bool near(float a, float b, float tol) { return a - b <= tol && b - a <= tol }
+
+  static void testScale()
+  {
+    sc.in := 12.0f
+    sc.execute()
+    assert(near(sc.out, 50.0f, 0.001f) && !sc.bad && sc.status == Pro.ok)
+    sc.in := 20.5f
+    sc.execute()
+    assert(sc.out == 100.0f)               // limited
+    sc.limit := false
+    sc.execute()
+    assert(near(sc.out, 103.125f, 0.001f))
+    sc.in := 3.0f                          // broken wire: hold
+    sc.execute()
+    assert(sc.bad && sc.status == Pro.inputBad && near(sc.out, 103.125f, 0.001f))
+    sc.onBad := Pro.badFallback
+    sc.fallback := -1.0f
+    sc.execute()
+    assert(sc.out == -1.0f)
+    sc.onBad := Pro.badNull
+    sc.in := null
+    sc.execute()
+    assert(sc.out == null && sc.bad)
+    sc.in := 8.0f
+    sc.outLo := 100.0f                     // reversed range
+    sc.outHi := 0.0f
+    sc.limit := true
+    sc.execute()
+    assert(near(sc.out, 75.0f, 0.001f))
+    sc.inHi := 4.0f
+    sc.execute()
+    assert(sc.status == Pro.config)
+
+    dv.in := 1.65f
+    dv.execute()
+    assert(near(dv.out, 1000.0f, 0.01f))
+    dv.sensorHigh := true
+    dv.in := 1.1f
+    dv.execute()
+    assert(near(dv.out, 2000.0f, 0.1f))
+    dv.in := 3.3f
+    dv.execute()
+    assert(dv.out == null && dv.status == Pro.inputBad)
+  }
+
+  static float t(int type, float r) { return Rtd.temperature(type, r, 10000.0f, 3950.0f) }
+
+  static void testRtd()
+  {
+    // IEC 60751 table values
+    assert(near(t(Rtd.pt100, 100.0f), 0.0f, 0.01f))
+    assert(near(t(Rtd.pt100, 138.51f), 100.0f, 0.02f))
+    assert(near(t(Rtd.pt100, 80.31f), -50.0f, 0.02f))
+    assert(near(t(Rtd.pt100, 18.52f), -200.0f, 0.05f))
+    assert(near(t(Rtd.pt1000, 1385.1f), 100.0f, 0.02f))
+    assert(near(t(Rtd.pt500, 692.55f), 100.0f, 0.02f))
+    // DIN 43760
+    assert(near(t(Rtd.ni1000, 1000.0f), 0.0f, 0.01f))
+    assert(near(t(Rtd.ni1000, 1617.8f), 100.0f, 0.1f))
+    assert(near(t(Rtd.ni1000, 742.6f), -50.0f, 0.1f))
+    assert(near(t(Rtd.ni1000, 791.3f), -40.0f, 0.1f))
+    assert(near(t(Rtd.ni100, 161.78f), 100.0f, 0.1f))
+    // LG-Ni1000: 1500 ohm at 100 C
+    assert(near(t(Rtd.ni1000tk5000, 1500.0f), 100.0f, 0.1f))
+    assert(near(t(Rtd.ni1000tk5000, 1000.0f), 0.0f, 0.01f))
+    // NTC beta
+    assert(near(t(Rtd.ntc, 10000.0f), 25.0f, 0.01f))
+    assert(near(t(Rtd.ntc, 32650.0f), 0.55f, 0.05f))
+    assert(t(Rtd.ntc, 0.0f) == null)
+
+    rtd.sensor := Rtd.pt1000
+    rtd.in := 1077.9f
+    rtd.offset := 0.5f
+    rtd.execute()
+    assert(near(rtd.out, 20.5f, 0.02f) && rtd.status == Pro.ok)
+    rtd.in := 100000.0f                     // open circuit
+    rtd.execute()
+    assert(rtd.bad && rtd.status == Pro.inputBad && near(rtd.out, 20.5f, 0.02f))
+    rtd.in := 0.0f                          // short
+    rtd.onBad := Pro.badNull
+    rtd.execute()
+    assert(rtd.bad && rtd.out == null)
+  }
+
+  static void testCurve()
+  {
+    cv.points := 3
+    cv.x1 := -20.0f; cv.y1 := 90.0f
+    cv.x2 := 0.0f;   cv.y2 := 60.0f
+    cv.x3 := 10.0f;  cv.y3 := 40.0f
+    cv.in := -10.0f
+    cv.execute()
+    assert(near(cv.out, 75.0f, 0.001f) && cv.status == Pro.ok)
+    cv.in := 5.0f
+    cv.execute()
+    assert(near(cv.out, 50.0f, 0.001f))
+    cv.in := 30.0f
+    cv.execute()
+    assert(cv.out == 40.0f)
+    cv.extrapolate := true
+    cv.execute()
+    assert(near(cv.out, 0.0f, 0.001f))
+    cv.in := -30.0f
+    cv.execute()
+    assert(near(cv.out, 105.0f, 0.001f))
+    cv.x3 := -5.0f
+    cv.execute()
+    assert(cv.status == Pro.config && cv.out == null)
+    cv.x3 := 10.0f
+    cv.in := null
+    cv.execute()
+    assert(cv.status == Pro.inputBad)
+  }
+
+  static void testFilters()
+  {
+    lag.time := 10.0f
+    lag.in := 0.0f
+    lag.update(0.1f)
+    lag.in := 100.0f
+    for (int i = 0; i < 100; i++) lag.update(0.1f)
+    assert(near(lag.out, 63.2f, 0.5f))
+    lag.in := null
+    lag.update(0.1f)
+    assert(lag.status == Pro.inputBad && near(lag.out, 63.2f, 0.5f))
+
+    ma.window := 160.0f
+    ma.in := 10.0f
+    for (int i = 0; i < 160; i++) ma.update(1.0f)
+    assert(near(ma.out, 10.0f, 0.001f) && ma.filled > 0.9f)
+    ma.in := 20.0f
+    for (int i = 0; i < 80; i++) ma.update(1.0f)
+    assert(near(ma.out, 15.0f, 0.7f))
+    for (int i = 0; i < 200; i++) ma.update(1.0f)
+    assert(near(ma.out, 20.0f, 0.001f))
+    ma.in := null
+    for (int i = 0; i < 200; i++) ma.update(1.0f)
+    assert(ma.out == null && ma.status == Pro.inputBad)
+
+    med.period := 0.0f
+    samples[0] = 20.0f
+    samples[1] = 20.1f
+    samples[2] = 99.0f
+    samples[3] = 20.2f
+    samples[4] = 20.3f
+    samples[5] = 20.2f
+    samples[6] = 20.4f
+    float[] seq = samples
+    for (int i = 0; i < 7; i++)
+    {
+      med.in := seq[i]
+      med.update(0.1f)
+    }
+    assert(near(med.out, 20.3f, 0.001f))   // the 99 spike is gone
+  }
+
+  static inline float[7] samples
+
+  static void testValidate()
+  {
+    va.lo := 0.0f
+    va.hi := 50.0f
+    va.badDelay := 2.0f
+    va.goodDelay := 5.0f
+    va.in := 20.0f
+    va.update(1.0f)
+    assert(va.out == 20.0f && !va.bad)
+    va.in := 80.0f
+    va.update(1.0f)
+    assert(!va.bad && va.out == 20.0f && va.reason == 3)   // glitch: hold, not yet bad
+    va.update(1.0f)
+    assert(va.bad && va.status == Pro.inputBad && va.out == 20.0f)
+    va.in := 21.0f
+    for (int i = 0; i < 4; i++) va.update(1.0f)
+    assert(va.bad)
+    va.update(1.0f)
+    assert(!va.bad && va.out == 21.0f && va.reason == 0)
+    // rate of change
+    va.maxRate := 1.0f
+    va.in := 30.0f
+    va.update(1.0f)
+    assert(va.reason == 4 && !va.bad)        // one jump: held, not yet bad
+    va.maxRate := 0.0f
+    for (int i = 0; i < 6; i++) va.update(1.0f)
+    assert(!va.bad)
+    // stuck
+    va.stuckTime := 10.0f
+    for (int i = 0; i < 13; i++) va.update(1.0f)
+    assert(va.bad && va.reason == 5)
+  }
+
+  static void testSelect()
+  {
+    sel.in1 := 20.0f
+    sel.in2 := 22.0f
+    sel.in3 := 30.0f
+    sel.execute()
+    assert(near(sel.out, 24.0f, 0.001f) && sel.valid == 3)
+    sel.mode := Select4.median
+    sel.execute()
+    assert(sel.out == 22.0f)
+    sel.mode := Select4.min
+    sel.execute()
+    assert(sel.out == 20.0f)
+    sel.mode := Select4.max
+    sel.execute()
+    assert(sel.out == 30.0f)
+    sel.maxSpread := 5.0f
+    sel.execute()
+    assert(sel.spread)
+    sel.mode := Select4.first
+    sel.in1 := null
+    sel.execute()
+    assert(sel.out == 22.0f && sel.used == 2 && sel.valid == 2)
+    sel.minValid := 3
+    sel.execute()
+    assert(sel.out == null && sel.status == Pro.alarm)
+  }
+
+  static void testTotals()
+  {
+    tot.in := 3.6f
+    for (int i = 0; i < 3600; i++) tot.update(1.0f)
+    assert(near(tot.total, 3.6f, 0.0001f))
+    tot.in := -1.0f
+    tot.update(3600.0f)
+    assert(near(tot.total, 3.6f, 0.0001f))
+    tot.in := null
+    tot.update(1.0f)
+    assert(tot.status == Pro.inputBad)
+    tot.setTotal(1000000.0f)
+    tot.in := 0.36f                        // small steps on a large total
+    for (int i = 0; i < 10000; i++) tot.update(1.0f)
+    assert(near(tot.total, 1000001.0f, 0.2f))
+
+    pc.perPulse := 0.01f
+    for (int k = 0; k < 10; k++)
+    {
+      pc.in := true
+      pc.update(1.0f)
+      pc.in := false
+      pc.update(5.0f)
+    }
+    assert(pc.pulses == 10 && near(pc.total, 0.1f, 0.0001f))
+    assert(near(pc.rate, 6.0f, 0.01f))      // 0.01 per 6 s = 6 per hour
+    pc.update(400.0f)
+    assert(pc.rate == 0.0f)
+
+    roc.per := 1
+    roc.interval := 10.0f
+    for (int i = 0; i <= 10; i++)
+    {
+      roc.in := 20.0f + (float)i * 0.1f
+      roc.update(1.0f)
+    }
+    assert(near(roc.out, 6.0f, 0.01f))
+  }
+
+  static void testThreshold()
+  {
+    th.on := 80.0f
+    th.off := 75.0f
+    th.onDelay := 3.0f
+    th.in := 85.0f
+    th.update(1.0f)
+    th.update(1.0f)
+    assert(!th.out)
+    th.update(1.0f)
+    assert(th.out)
+    th.in := 77.0f
+    th.update(10.0f)
+    assert(th.out)
+    th.in := 74.0f
+    th.update(0.1f)
+    assert(!th.out)
+    // low limit (frost): on below 5, off above 8
+    th.on := 5.0f
+    th.off := 8.0f
+    th.onDelay := 0.0f
+    th.in := 4.0f
+    th.update(0.1f)
+    assert(th.out)
+    th.in := 6.0f
+    th.update(0.1f)
+    assert(th.out)
+    th.in := 9.0f
+    th.update(0.1f)
+    assert(!th.out)
+    th.onBad := 2
+    th.in := null
+    th.update(0.1f)
+    assert(th.out && th.status == Pro.inputBad)
+  }
+}

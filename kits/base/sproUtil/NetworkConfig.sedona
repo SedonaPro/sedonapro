@@ -1,0 +1,206 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2017 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+
+class NetworkConfig extends Component
+{
+	define int ipBufSize = 18;
+	define int maxStrSize = 255;
+
+	// No plat-specific properties or methods
+	@summary=true
+	@asStr
+	@max = ipBufSize
+	property Buf(ipBufSize) ip4Address = "10.42.0.208";
+
+	@summary=true
+	@asStr
+	@max = ipBufSize
+	property Buf(ipBufSize) ip4NetworkMask = "255.255.255.0";
+
+	@summary=true
+	@asStr
+	@max = ipBufSize
+	property Buf(ipBufSize) ip4Gateway = "0.0.0.0";
+
+	@readonly
+	property bool ip4ConfigOk = false;
+
+	define Str configName = "network.interface";
+	inline Str(ipBufSize) ifname = "eth0";
+	inline File networkConfig;
+	inline Buf(maxStrSize) tmpStr;
+	inline Str(maxStrSize) tmpStr2;
+	inline Buf(ipBufSize) ipAddress;
+
+	bool saveNetConfig()
+	{
+		networkConfig.name = configName;
+		if (!networkConfig.open("w"))
+			return false;
+		networkConfig.out.print("auto ${ifname}").nl();
+		networkConfig.out.print("iface ${ifname} inet static").nl();
+		networkConfig.out.print("address ${ip4Address.toStr()}").nl();
+		networkConfig.out.print("netmask ${ip4NetworkMask.toStr()}").nl();
+		networkConfig.out.print("gateway ${ip4Gateway.toStr()}").nl();
+		networkConfig.fsync();
+		networkConfig.close();
+		return true;
+	}
+
+	void loadDefaults() {
+		ip4Address.copyFromStr("10.42.0.208");
+		ip4NetworkMask.copyFromStr("255.255.255.0");
+		ip4Gateway.copyFromStr("0.0.0.0");
+	}
+
+	bool readString(InStream in, Buf s) {
+		int i;
+		bool ret = false;
+
+		for(i=0; i<(s.bytesLen-1); i++) {
+			int ch;
+			ch = in.readChar();
+			if (ch==-1)
+				break;
+			if (ch=='\n')
+				break;
+			ret = true;
+			s.bytes[i] = ch;
+		}
+		s.bytes[i] = 0;
+		s.size = i;
+		return ret;
+	}
+
+	int findSubString(Str in, Str label)
+	{
+		int max_j = label.length() + 1;
+		for (int i = 0; i < in.length(); ++i) {
+			int ch = 1;
+			for (int j = 0; j < max_j; ++j) {
+				ch = in.get(i + j);
+				int x = label.get(j);
+				if (x == 0) return i;
+				if (ch != x) break;
+			}
+		}
+		return -1;
+	}
+
+	int copySubString(Str in, int start, int end, Str dst) {
+		int ch = 1;
+		int i;
+		for (i = 0; ch != 0; ++i) {
+			ch = in.get(start + i);
+			dst.set(i, ch);
+		}
+		return i;
+	}
+
+	int parseIpAddress(Str in, Str label, Buf result)
+	{
+		int ret = -1;
+		int foundPos;
+		Str src = in.trim();
+		foundPos = findSubString(src, label);
+		if (foundPos >= 0) {
+			copySubString(src, foundPos + label.length(), maxStrSize, tmpStr2);
+			Str res = tmpStr2.trim();
+			result.copyFromStr(res);
+			ret = 0;
+		}
+		return ret;
+	}
+
+	bool loadNetConfig()
+	{
+		networkConfig.name = configName;
+		if (!networkConfig.open("r"))
+			return false;
+
+		while (readString(networkConfig.in, tmpStr)) {
+			// check for address
+			parseIpAddress(tmpStr.toStr(), "address", ip4Address);
+			parseIpAddress(tmpStr.toStr(), "netmask", ip4NetworkMask);
+			parseIpAddress(tmpStr.toStr(), "gateway", ip4Gateway);
+		}
+ 		networkConfig.close();
+
+		// check loaded network configuration
+		if (!checkNetConfig(ip4Address,
+				   ip4NetworkMask,
+				   ip4Gateway))
+			return false;
+
+		return true;
+	}
+
+
+	/*
+	 * Action to reboot the entire host platform.  This typically
+	 * means to reboot the entire operating system.
+	 */
+	@confirmRequired
+	action void applyNetConfig() {
+		// check network configuration
+		ip4ConfigOk := checkNetConfig(ip4Address,
+					      ip4NetworkMask,
+					      ip4Gateway);
+
+		// save network configuration
+		if (ip4ConfigOk)
+			if (!saveNetConfig())
+				ip4ConfigOk := false;
+	}
+
+	override virtual void start()
+	{
+		super.start();
+		if (!loadNetConfig()) {
+			loadDefaults();
+			saveNetConfig();
+		}
+
+		ip4ConfigOk := checkNetConfig(ip4Address,
+					      ip4NetworkMask,
+					      ip4Gateway);
+	}
+
+	virtual override void changed(Slot slot)
+	{
+                super.changed(slot);
+		if ((slot == NetworkConfig.ip4Address) ||
+		    (slot == NetworkConfig.ip4NetworkMask) ||
+		    (slot == NetworkConfig.ip4Gateway)) {
+			ip4ConfigOk := checkNetConfig(ip4Address,
+						      ip4NetworkMask,
+						      ip4Gateway);
+		}
+	}
+
+	void setNetworkName(Str newName)
+	{
+		ifname.copyFromStr(newName, ipBufSize);
+	}
+
+	Str getNetworkName()
+	{
+		return ifname;
+	}
+
+	internal static native bool checkNetConfig(Buf ip, Buf netmask, Buf gw);
+}

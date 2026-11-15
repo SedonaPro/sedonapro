@@ -1,0 +1,103 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+class PumpStationTest extends Test
+{
+  static PumpStation setup()
+  {
+    Sys.app.cleanupApp()
+    Sys.app.initApp(120)
+    PumpStation s = (PumpStation)Sys.app.add(Sys.app, "pumps", PumpStation.type)
+    s.buildOnStart := false
+    return s
+  }
+
+  static Component kid(PumpStation s, Str name) { return s.child(name) }
+
+  static bool linked(PumpStation s, Str from, Slot fs, Str to, Slot ts)
+  {
+    Component f = s
+    if (from != null) f = s.child(from)
+    Component t = s.child(to)
+    if (f == null || t == null) return false
+    return Sys.app.lookupLink(f.id, fs.id, t.id, ts.id) != null
+  }
+
+  static void testDefault()
+  {
+    PumpStation s = setup()
+    s.build()
+    assert(kid(s, "pid").type == Pid.type && kid(s, "casc").type == PumpCascade.type)
+    assert(kid(s, "lead").type == LeadLag.type && ((LeadLag)kid(s, "lead")).units == 2)
+    assert(kid(s, "m1").type == Motor.type && kid(s, "m2").type == Motor.type && kid(s, "m3") == null)
+    assert(kid(s, "do1") != null && kid(s, "do2") != null && kid(s, "flt1") != null && kid(s, "fb1") == null)
+    assert(kid(s, "vfd") != null && kid(s, "ao1") == null)
+    assert(kid(s, "dryIn") != null && kid(s, "dry").type == Trip.type && kid(s, "pIn") == null)
+    assert(kid(s, "alPress") != null)
+    assert(((Pid)kid(s, "pid")).sp == 4.0f && ((PumpCascade)kid(s, "casc")).maxPumps == 2)
+    assert(linked(s, "press", AnalogInput.out, "pid", Pid.pv))
+    assert(linked(s, "pid", Pid.sp, "casc", PumpCascade.sp))
+    assert(linked(s, "casc", PumpCascade.count, "lead", LeadLag.demand))
+    assert(linked(s, "lead", LeadLag.req2, "m2", Motor.request))
+    assert(linked(s, "m2", Motor.available, "lead", LeadLag.avail2))
+    assert(linked(s, "m1", Motor.cmd, "do1", DigitalOutput.in))
+    assert(linked(s, "dry", Trip.ok, "m2", Motor.permit))
+    assert(linked(s, "flt2", DigitalInput.out, "m2", Motor.fault))
+    assert(linked(s, "casc", PumpCascade.speed, "vfd", AnalogOutput.in))
+    assert(linked(s, null, PumpStation.request, "casc", PumpCascade.enable))
+    Trip t = (Trip)kid(s, "dry")
+    assert(t.text.toStr().equals("Dry running") && t.delay == 3.0f)
+    // the sim board: AI1 press, AO1 vfd, DO1..DO4, DI1..DI4
+    assert(((HalPoint)kid(s, "press")).channel.toStr().equals("AI1"))
+    assert(((HalPoint)kid(s, "vfd")).channel.toStr().equals("AO1"))
+    assert(s.status == Pro.ok && s.missing == 0)
+    assert(s.ioList.toStr().startsWith("AI1 press"))
+    Sys.app.cleanupApp()
+  }
+
+  static void testRebuild()
+  {
+    PumpStation s = setup()
+    s.build()
+    Motor m1 = (Motor)kid(s, "m1")
+    int id = m1.id
+    m1.minRun := 60.0f
+    ((Pid)kid(s, "pid")).sp := 3.5f
+    // three pumps, a VFD each, running contacts, suction sensor
+    s.pumps := 3
+    s.drive := 2
+    s.feedback := true
+    s.dryRun := 2
+    s.pressureAlarms := false
+    s.build()
+    m1 = (Motor)kid(s, "m1")
+    assert(m1.id == id && m1.minRun == 60.0f && m1.checkFeedback)
+    assert(((Pid)kid(s, "pid")).sp == 3.5f && ((LeadLag)kid(s, "lead")).units == 3)
+    assert(kid(s, "m3") != null && kid(s, "ao3") != null && kid(s, "vfd") == null)
+    assert(kid(s, "fb3") != null && kid(s, "dryIn") == null && kid(s, "pIn") != null)
+    assert(kid(s, "dryLvl").type == Threshold.type && kid(s, "alPress") == null)
+    assert(linked(s, "pIn", AnalogInput.out, "dryLvl", Threshold.in))
+    assert(linked(s, "dryLvl", Threshold.out, "dry", Trip.in))
+    assert(linked(s, "m3", Motor.speed, "ao3", AnalogOutput.in))
+    assert(linked(s, "fb3", DigitalInput.out, "m3", Motor.fb))
+    // back to one pump, on/off, no protection
+    s.pumps := 1
+    s.drive := 0
+    s.dryRun := 0
+    s.faultInputs := false
+    s.feedback := false
+    s.build()
+    assert(kid(s, "m2") == null && kid(s, "do2") == null && kid(s, "ao1") == null && kid(s, "vfd") == null)
+    assert(kid(s, "dry") == null && kid(s, "pIn") == null && kid(s, "flt1") == null)
+    assert(((PumpCascade)kid(s, "casc")).maxPumps == 1)
+    assert(s.parts == 6 && s.status == Pro.ok)
+    // start switch
+    s.startSwitch := true
+    s.build()
+    assert(linked(s, "diStart", DigitalInput.out, "pid", Pid.enable))
+    assert(!linked(s, null, PumpStation.request, "pid", Pid.enable))
+    Sys.app.cleanupApp()
+  }
+}

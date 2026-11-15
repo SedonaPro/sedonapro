@@ -1,0 +1,113 @@
+<sedonaApp>
+  <schema>
+    <kit name="sys" />
+    <kit name="sproSim" />
+  </schema>
+  <app>
+    <prop name="appName" val="thermal" />
+    <prop name="scanPeriod" val="20" />
+    <comp name="plat" type="sys::PlatformService" />
+    <comp name="cascade" type="sproSim::SimClock">
+      <prop name="autoRun" val="true" />
+      <prop name="dt" val="0.25" />
+      <prop name="rate" val="300" />
+      <prop name="maxSteps" val="100" />
+      <comp name="water" type="sproSim::StepSignal">
+        <prop name="phase" val="0" />
+        <prop name="before" val="60" />
+        <prop name="after" val="45" />
+        <prop name="at" val="600" />
+      </comp>
+      <comp name="setpt" type="sproSim::StepSignal">
+        <prop name="phase" val="0" />
+        <prop name="before" val="22" />
+        <prop name="after" val="23" />
+        <prop name="at" val="1800" />
+      </comp>
+      <comp name="resetOn" type="sproSim::BoolStep">
+        <prop name="phase" val="0" />
+        <prop name="before" val="true" />
+        <prop name="after" val="true" />
+        <prop name="at" val="0" />
+      </comp>
+      <comp name="manual" type="sproSim::BoolStep">
+        <prop name="phase" val="0" />
+        <prop name="before" val="false" />
+        <prop name="after" val="false" />
+        <prop name="at" val="2400" />
+      </comp>
+      <comp name="hand" type="sproSim::StepSignal">
+        <prop name="phase" val="0" />
+        <prop name="before" val="0.3" />
+        <prop name="after" val="0.3" />
+        <prop name="at" val="0" />
+      </comp>
+      <comp name="master" type="sproSim::SimPid">
+        <prop name="phase" val="1" />
+        <prop name="kp" val="2" />
+        <prop name="ti" val="600" />
+        <prop name="tt" val="60" />
+        <prop name="lo" val="18" />
+        <prop name="hi" val="35" />
+        <prop name="initial" val="25.37972" />
+        <prop name="safeOut" val="18" />
+      </comp>
+      <comp name="ff" type="sproSim::CoilFeedforward">
+        <prop name="phase" val="2" />
+      </comp>
+      <comp name="slave" type="sproSim::SimPid">
+        <prop name="phase" val="3" />
+        <prop name="kp" val="0.02" />
+        <prop name="ti" val="60" />
+        <prop name="tt" val="5" />
+      </comp>
+      <comp name="valve" type="sproSim::Valve">
+        <prop name="phase" val="4" />
+        <prop name="travel" val="10" />
+        <prop name="initial" val="0.214" />
+      </comp>
+      <comp name="coil" type="sproSim::WaterCoil">
+        <prop name="phase" val="5" />
+        <prop name="initialWater" val="30.60072" />
+        <prop name="initialAir" val="25.37972" />
+      </comp>
+      <comp name="room" type="sproSim::Room">
+        <prop name="phase" val="6" />
+      </comp>
+      <comp name="roomT" type="sproSim::Trace">
+        <prop name="phase" val="7" />
+        <prop name="every" val="120" />
+      </comp>
+      <comp name="airT" type="sproSim::Trace">
+        <prop name="phase" val="7" />
+        <prop name="every" val="120" />
+      </comp>
+      <comp name="airSp" type="sproSim::Trace">
+        <prop name="phase" val="7" />
+        <prop name="every" val="120" />
+      </comp>
+    </comp>
+  </app>
+  <links>
+    <link from="cascade/room.out" to="cascade/roomT.in" />
+    <link from="cascade/coil.airOut" to="cascade/airT.in" />
+    <link from="cascade/master.out" to="cascade/airSp.in" />
+    <link from="cascade/resetOn.out" to="cascade/master.externalReset" />
+    <link from="cascade/coil.airOut" to="cascade/master.resetOut" />
+    <link from="cascade/manual.out" to="cascade/slave.manual" />
+    <link from="cascade/manual.out" to="cascade/master.tracking" />
+    <link from="cascade/hand.out" to="cascade/slave.manualOut" />
+    <link from="cascade/coil.airOut" to="cascade/master.trackOut" />
+    <link from="cascade/setpt.out" to="cascade/master.sp" />
+    <link from="cascade/room.out" to="cascade/master.pv" />
+    <link from="cascade/master.out" to="cascade/slave.sp" />
+    <link from="cascade/master.out" to="cascade/ff.target" />
+    <link from="cascade/water.out" to="cascade/ff.waterIn" />
+    <link from="cascade/ff.out" to="cascade/slave.feedforward" />
+    <link from="cascade/water.out" to="cascade/coil.waterIn" />
+    <link from="cascade/slave.out" to="cascade/valve.command" />
+    <link from="cascade/valve.out" to="cascade/coil.opening" />
+    <link from="cascade/coil.airOut" to="cascade/slave.pv" />
+    <link from="cascade/coil.airOut" to="cascade/room.supply" />
+  </links>
+</sedonaApp>

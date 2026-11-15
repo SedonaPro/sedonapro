@@ -1,0 +1,22 @@
+# BeagleBone Black with the legacy sysfs GPIO interface (pins as in the old
+# sproIoBbb kit).  pin = global GPIO number of /sys/class/gpio/gpioN.
+name    = "beaglebone-black"
+title   = "BeagleBone Black (sysfs)"
+hal     = "linux-sysfs"
+targets = ["linux"]
+# serial ports for Modbus and serial protocols: port 1, 2, ... (as in the old sproIoBbb)
+serial  = ["/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyO0", "/dev/ttyO4"]
+
+[channels]
+DI1 = { kind = "di", pin = 117 }
+DI2 = { kind = "di", pin = 115 }
+DI3 = { kind = "di", pin = 60 }
+DI4 = { kind = "di", pin = 61 }
+DO1 = { kind = "do", pin = 66 }
+DO2 = { kind = "do", pin = 69 }
+DO3 = { kind = "do", pin = 68 }
+DO4 = { kind = "do", pin = 67 }
+DO5 = { kind = "do", pin = 5 }
+DO6 = { kind = "do", pin = 48 }
+AI1 = { kind = "ai", dev = "iio:device0/in_voltage4_raw", raw_max = 4095, range = [0.0, 1.8], unit = "V" }
+AO1 = { kind = "ao", dev = "/dev/sedona/pwmchip0", pin = 1, pwm_hz = 2000 }

@@ -1,0 +1,3 @@
+# control: measurement and control, the base of the other packs.
+summary = "Measurement and control: 4-20 mA, RTD/NTC, filters, validation, pro PID, sequences, stages, 3-point actuators"
+kits = ["sproBase", "sproSignal", "sproControl"]

@@ -1,0 +1,135 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+class HumidTest extends Test
+{
+  static inline Psychro ps
+  static inline RelHumidity rel
+  static inline Economizer eco
+  static inline Humidifier hu
+  static inline Dehumidifier de
+
+  static bool near(float a, float b, float tol) { return a - b <= tol && b - a <= tol }
+
+  static void testAir()
+  {
+    // 20 C 50 %: tables give 7.29 g/kg, 38.6 kJ/kg, dew 9.3 C, wet bulb 13.8 C
+    ps.temp := 20.0f
+    ps.rh := 50.0f
+    ps.execute()
+    assert(near(ps.absHumidity, 7.27f, 0.06f))
+    assert(near(ps.enthalpy, 38.6f, 0.2f))
+    assert(near(ps.dewPoint, 9.3f, 0.1f))
+    assert(near(ps.wetBulb, 13.8f, 0.2f) && ps.status == Pro.ok)
+    // -10 C 80 %: about 1.29 g/kg (over ice)
+    ps.temp := -10.0f
+    ps.rh := 80.0f
+    ps.execute()
+    assert(near(ps.absHumidity, 1.29f, 0.03f) && ps.dewPoint < -10.0f)
+    // saturated air: the dew point is the temperature
+    ps.temp := 25.0f
+    ps.rh := 100.0f
+    ps.execute()
+    assert(near(ps.dewPoint, 25.0f, 0.05f) && near(ps.wetBulb, 25.0f, 0.1f))
+    ps.rh := null
+    ps.execute()
+    assert(ps.status == Pro.inputBad && ps.dewPoint == null)
+    // the outdoor air of -10 C 80 % heated to 20 C is dry: about 9 %
+    rel.absHumidity := 1.29f
+    rel.temp := 20.0f
+    rel.execute()
+    assert(near(rel.rh, 8.9f, 0.3f) && !rel.condensing)
+    // 7.27 g/kg at a 5 C surface condenses
+    rel.absHumidity := 7.27f
+    rel.temp := 5.0f
+    rel.execute()
+    assert(rel.condensing && rel.rh == 100.0f)
+  }
+
+  static void testEconomizer()
+  {
+    eco.indoorTemp := 24.0f
+    eco.indoorRh := 50.0f
+    // 20 C 90 % outdoors is cooler, but its enthalpy is higher
+    eco.outdoorTemp := 20.0f
+    eco.outdoorRh := 90.0f
+    eco.execute()
+    assert(!eco.outdoorLower && eco.outdoorH > eco.indoorH)
+    eco.outdoorRh := 40.0f
+    eco.execute()
+    assert(eco.outdoorLower && eco.status == Pro.ok)
+    eco.outdoorRh := null
+    eco.outdoorTemp := 23.0f
+    eco.execute()
+    assert(eco.outdoorLower && eco.status == Pro.inputBad)
+    eco.outdoorTemp := 25.0f
+    eco.execute()
+    assert(!eco.outdoorLower)
+  }
+
+  ** room: rh -> 20 + 0.5 * out, 600 s; supply: 20 + 0.9 * out (20 s in the high limit part)
+  static void testHumidifier()
+  {
+    Humidifier h = hu
+    float room = 20.0f
+    h.airflow := false
+    h.pv := room
+    h.update(1.0f)
+    assert(h.out == 0.0f && h.status == Pro.waiting)
+    h.airflow := true
+    h.update(30.0f)
+    assert(h.out == 0.0f && h.status == Pro.waiting)
+    for (int i = 0; i < 7200; i++)
+    {
+      h.pv := room
+      h.supplyRh := 20.0f + 0.9f * h.out
+      h.update(1.0f)
+      room += (20.0f + 0.5f * h.out - room) / 600.0f
+    }
+    assert(near(room, 40.0f, 0.5f) && h.run && h.status == Pro.ok)
+    // high limit: a dry room asks for more than the supply can take
+    h.sp := 60.0f
+    float sup = 20.0f + 0.9f * h.out
+    for (int i = 0; i < 3600; i++)
+    {
+      h.pv := room
+      h.supplyRh := sup
+      h.update(1.0f)
+      room += (20.0f + 0.5f * h.out - room) / 600.0f
+      sup += (20.0f + 0.9f * h.out - sup) / 20.0f
+    }
+    assert(h.highLimited && near(sup, 85.0f, 1.0f) && h.status == Pro.limited)
+    // the fans stop: at once to 0
+    h.airflow := false
+    h.update(1.0f)
+    assert(h.out == 0.0f && !h.highLimited)
+    h.update(1.0f)
+    assert(!h.run)
+    h.airflow := true
+    h.update(100.0f)
+    h.hygrostat := true
+    h.update(1.0f)
+    assert(h.out == 0.0f && h.alarm && h.status == Pro.alarm)
+  }
+
+  static void testDehumidifier()
+  {
+    Dehumidifier d = de
+    d.airflow := true
+    d.pv := 55.0f
+    d.update(1.0f)
+    assert(d.out == 0.0f && !d.reheat && d.status == Pro.ok)
+    d.pv := 65.0f
+    for (int i = 0; i < 60; i++) d.update(1.0f)
+    assert(d.out > 25.0f && d.reheat)
+    d.permit := false
+    d.update(1.0f)
+    assert(d.out == 0.0f && !d.reheat && d.status == Pro.standby)
+    d.permit := true
+    d.pv := null
+    d.update(1.0f)
+    assert(d.out == 0.0f && d.status == Pro.inputBad)
+  }
+}

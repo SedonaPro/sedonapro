@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Normalized actuator, 0..1; full-travel duration in seconds.
+class Valve extends SimBlock
+{
+  property float command
+  @config property float travel = 30.0f
+  @config property float initial
+  property bool stuck = false
+  @readonly property float out
+  virtual override bool acceptsInput(Slot slot)
+  { return slot == Valve.command || slot == Valve.stuck }
+  virtual override bool valid()
+  {
+    return super.valid() && finite(travel) && travel >= 0.0f && finite(initial) && initial >= 0.0f && initial <= 1.0f
+  }
+  virtual override void resetState() { out := initial }
+  override void tick(float dt, double time)
+  {
+    if (stuck || !finite(command)) return
+    float target = clamp(command, 0.0f, 1.0f)
+    if (travel == 0.0f) { out := target; return }
+    out := out + clamp(target-out, -dt/travel, dt/travel)
+  }
+}
+
+

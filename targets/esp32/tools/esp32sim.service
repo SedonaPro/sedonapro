@@ -1,0 +1,17 @@
+# ESP32 Sedona simulator as a user service (reachable on the LAN):
+#   SOX udp/1876, web tcp/8080, UI tcp/8088, Modbus TCP tcp/1502
+# Install:  bash tools/sim_service.sh install
+[Unit]
+Description=SedonaPro Sedona ESP32 simulator
+After=network-online.target
+
+[Service]
+WorkingDirectory=@ROOT@
+# build.py simrun flashes build/sim/flash on first start, then execs esp32sim;
+# chip resets (reboot, watchdog) are handled inside esp32sim
+ExecStart=/usr/bin/python3 @ROOT@/build.py simrun
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

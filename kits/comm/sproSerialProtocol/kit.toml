@@ -1,0 +1,2 @@
+summary = "Building blocks for custom serial protocols"
+targets = ["linux", "sim"]

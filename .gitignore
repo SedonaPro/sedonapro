@@ -1,0 +1,16 @@
+/build/
+__pycache__/
+*.pyc
+node_modules/
+/editor/web/dist/
+/editor/server/classes/
+/editor/data/credentials/
+/targets/esp32/firmware/build/
+/targets/esp32/firmware/sdkconfig
+*.log
+.vscode/
+.idea/
+/editor/data/ui-projects/backups/
+/editor/data/ui-projects/[0-9a-f]*-*-*-*-*.json
+/targets/esp32/firmware/managed_components/
+/editor/data/catalog-parts.json

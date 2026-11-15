@@ -1,0 +1,84 @@
+<sedonaApp>
+  <schema>
+    <kit name="sys" />
+    <kit name="sproSim" />
+  </schema>
+  <app>
+    <prop name="appName" val="McsSim" />
+    <prop name="scanPeriod" val="20" />
+    <comp name="real" type="sproSim::SimClock">
+      <prop name="autoRun" val="true" />
+      <prop name="dt" val="0.1" />
+      <prop name="rate" val="1" />
+      <prop name="maxSteps" val="100" />
+      <comp name="pi" type="sproSim::SimPi">
+        <prop name="phase" val="1" />
+        <prop name="kp" val="1" />
+        <prop name="ti" val="10" />
+      </comp>
+      <comp name="plant" type="sproSim::FirstOrder">
+        <prop name="phase" val="2" />
+        <prop name="tau" val="10" />
+      </comp>
+      <comp name="sensor" type="sproSim::Sensor">
+        <prop name="phase" val="3" />
+      </comp>
+      <comp name="realLog" type="sproSim::Trace">
+        <prop name="phase" val="7" />
+        <prop name="every" val="10" />
+      </comp>
+      <comp name="setpt" type="sproSim::StepSignal">
+        <prop name="phase" val="0" />
+        <prop name="before" val="0.6" />
+        <prop name="after" val="0.6" />
+        <prop name="at" val="0" />
+      </comp>
+    </comp>
+    <comp name="fast" type="sproSim::SimClock">
+      <prop name="autoRun" val="true" />
+      <prop name="dt" val="0.1" />
+      <prop name="rate" val="60" />
+      <prop name="maxSteps" val="100" />
+      <comp name="pi" type="sproSim::SimPi">
+        <prop name="phase" val="1" />
+        <prop name="kp" val="1" />
+        <prop name="ti" val="10" />
+      </comp>
+      <comp name="plant" type="sproSim::FirstOrder">
+        <prop name="phase" val="2" />
+        <prop name="tau" val="10" />
+      </comp>
+      <comp name="sensor" type="sproSim::Sensor">
+        <prop name="phase" val="3" />
+      </comp>
+      <comp name="fastLog" type="sproSim::Trace">
+        <prop name="phase" val="7" />
+        <prop name="every" val="100" />
+      </comp>
+      <comp name="setpt" type="sproSim::StepSignal">
+        <prop name="phase" val="0" />
+        <prop name="before" val="0.6" />
+        <prop name="after" val="0.6" />
+        <prop name="at" val="0" />
+      </comp>
+      <comp name="fault" type="sproSim::BoolStep">
+        <prop name="phase" val="0" />
+        <prop name="at" val="40" />
+      </comp>
+    </comp>
+    <comp name="plat" type="sys::PlatformService" />
+  </app>
+  <links>
+    <link from="real/pi.out" to="real/plant.in" />
+    <link from="real/plant.out" to="real/sensor.in" />
+    <link from="real/sensor.out" to="real/pi.pv" />
+    <link from="real/sensor.out" to="real/realLog.in" />
+    <link from="fast/pi.out" to="fast/plant.in" />
+    <link from="fast/plant.out" to="fast/sensor.in" />
+    <link from="fast/sensor.out" to="fast/pi.pv" />
+    <link from="fast/sensor.out" to="fast/fastLog.in" />
+    <link from="real/setpt.out" to="real/pi.sp" />
+    <link from="fast/setpt.out" to="fast/pi.sp" />
+    <link from="fast/fault.out" to="fast/sensor.frozen" />
+  </links>
+</sedonaApp>

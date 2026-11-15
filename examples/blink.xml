@@ -1,0 +1,18 @@
+<module>
+  <!-- Level 1, "Hello world" of automation: DO2 blinks once a second.
+       Build: spro build sim, option example=blink; run: spro run sim, option erase
+       then watch DO2 at http://127.0.0.1:8090 -->
+  <kit name="func"/>
+  <kit name="sproHal"/>
+  <into path="">
+    <comp name="blink" type="sys::Folder">
+      <comp name="clock" type="func::TickTock">
+        <prop name="ticksPerSec" val="1"/>
+      </comp>
+      <comp name="led" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO2"/>
+      </comp>
+    </comp>
+  </into>
+  <link from="/blink/clock.out" to="/blink/led.in"/>
+</module>

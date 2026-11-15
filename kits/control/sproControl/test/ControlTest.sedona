@@ -1,0 +1,210 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+class ControlTest extends Test
+{
+  static inline Sequence4 seq
+  static inline Stager st
+  static inline ThreePoint tp
+  static inline TimeProp pwm
+  static inline SpRamp ramp
+  static inline OnOff oo
+
+  static bool near(float a, float b, float tol) { return a - b <= tol && b - a <= tol }
+
+  static void testSequence()
+  {
+    seq.in := 25.0f
+    seq.execute()
+    assert(seq.out1 == 50.0f && seq.out2 == 0.0f && seq.active == 1)
+    seq.in := 75.0f
+    seq.execute()
+    assert(seq.out1 == 100.0f && seq.out2 == 50.0f && seq.active == 2)
+    seq.count := 3
+    seq.lo3 := 100.0f                 // reversed: 100 % at in 0
+    seq.hi3 := 0.0f
+    seq.execute()
+    assert(seq.out3 == 25.0f)
+    seq.lo4 := 60.0f
+    seq.hi4 := 60.0f
+    seq.count := 4
+    seq.execute()
+    assert(seq.out4 == 100.0f)
+    seq.in := null
+    seq.execute()
+    assert(seq.status == Pro.inputBad && seq.out1 == 100.0f)
+  }
+
+  static void testStagerLinear()
+  {
+    st.start()
+    st.stages := 4
+    st.upDelay := 10.0f
+    st.downDelay := 10.0f
+    st.minOn := 30.0f
+    st.minOff := 30.0f
+    st.in := 0.0f
+    st.update(1.0f)
+    assert(st.step == 0 && !st.s1)
+    st.in := 80.0f                    // wants 3 stages (on at 12.5, 37.5, 62.5)
+    st.update(1.0f)
+    assert(st.step == 1 && st.s1 && !st.s2)
+    st.update(5.0f)
+    assert(st.step == 1 && st.status == Pro.waiting)
+    st.update(5.0f)
+    assert(st.step == 2 && st.s2)
+    st.update(10.0f)
+    assert(st.step == 3 && st.s3 && !st.s4)
+    st.update(60.0f)
+    assert(st.step == 3)
+    // vernier: 80 % of 4 stages = 3.2 steps
+    assert(near(st.vernier, 20.0f, 0.01f))
+    st.in := 0.0f
+    st.update(1.0f)
+    assert(st.step == 2 && !st.s3)    // last on, first off
+    st.update(10.0f)
+    assert(st.step == 1)
+    // minimum on time of stage 1 (on for 1+5+5+10+60+1+10 = 92 s) is long over
+    st.update(10.0f)
+    assert(st.step == 0)
+    // minimum off: stage 1 was switched off just now
+    st.in := 30.0f
+    st.update(15.0f)
+    assert(st.step == 0 && st.status == Pro.waiting)
+    st.update(15.0f)
+    assert(st.step == 1)
+    st.enable := false
+    st.update(0.1f)
+    assert(st.step == 0 && !st.s1 && st.status == Pro.disabled)
+    st.enable := true
+  }
+
+  static void testStagerBinary()
+  {
+    st.start()
+    st.mode := 1
+    st.stages := 3                    // 1, 2, 4 kW: 7 steps
+    st.upDelay := 0.0f
+    st.downDelay := 0.0f
+    st.minOn := 0.0f
+    st.minOff := 0.0f
+    st.in := 0.0f
+    st.update(1.0f)
+    st.in := 100.0f
+    for (int k = 0; k < 10; k++) st.update(1.0f)
+    assert(st.step == 7 && st.s1 && st.s2 && st.s3 && st.status == Pro.limited)
+    st.in := 45.0f                    // 3.15 steps -> 3 = 1 + 2 kW
+    for (int k = 0; k < 10; k++) st.update(1.0f)
+    assert(st.step == 3 && st.s1 && st.s2 && !st.s3)
+    st.mode := 0
+  }
+
+  static void testThreePoint()
+  {
+    tp.runTime := 100.0f
+    tp.minPulse := 1.0f
+    tp.overdrive := 10.0f
+    tp.deadband := 1.0f
+    tp.syncAtStart := true
+    tp.start()
+    tp.in := 50.0f
+    tp.update(0.5f)
+    assert(tp.close && !tp.open && tp.status == Pro.starting)
+    for (int k = 0; k < 109; k++) tp.update(1.0f)
+    assert(tp.close)                  // 110 s: runTime + 10 %
+    tp.update(1.0f)
+    assert(!tp.close && !tp.open && tp.position == 0.0f && tp.status == Pro.ok)
+    // open to 50 %: about 50 s after a pause of minPulse
+    int on = 0
+    for (int k = 0; k < 80; k++) { tp.update(1.0f); if (tp.open) on++ }
+    assert(!tp.open && near(tp.position, 50.0f, 1.5f) && on >= 49 && on <= 52)
+    // small change inside the deadband: nothing
+    tp.in := 50.5f
+    for (int k = 0; k < 5; k++) tp.update(1.0f)
+    assert(!tp.open && !tp.close)
+    // close fully: drives 10 % past 0
+    tp.in := 0.0f
+    on = 0
+    for (int k = 0; k < 100; k++) { tp.update(1.0f); if (tp.close) on++; assert(!(tp.open && tp.close)) }
+    assert(!tp.close && tp.position == 0.0f && on >= 59 && on <= 62)
+    // stays at the end without new pulses
+    for (int k = 0; k < 20; k++) { tp.update(1.0f); assert(!tp.close && !tp.open) }
+    tp.enable := false
+    tp.in := 80.0f
+    tp.update(1.0f)
+    assert(!tp.open && tp.status == Pro.disabled)
+  }
+
+  static void testTimeProp()
+  {
+    pwm.period := 10.0f
+    pwm.minOn := 1.0f
+    pwm.minOff := 1.0f
+    pwm.in := 30.0f
+    int on = 0
+    for (int k = 0; k < 100; k++) { pwm.update(0.1f); if (pwm.out) on++ }
+    assert(on >= 29 && on <= 31)
+    pwm.in := 5.0f                    // 0.5 s < minOn: no pulse
+    on = 0
+    for (int k = 0; k < 100; k++) { pwm.update(0.1f); if (pwm.out) on++ }
+    assert(on == 0)
+    pwm.in := 95.0f                   // pause 0.5 s < minOff: always on
+    on = 0
+    for (int k = 0; k < 100; k++) { pwm.update(0.1f); if (pwm.out) on++ }
+    assert(on == 100)
+    pwm.in := null
+    pwm.update(0.1f)
+    assert(!pwm.out && pwm.status == Pro.inputBad)
+  }
+
+  static void testRamp()
+  {
+    ramp.rate := 6.0f                 // 6 per minute = 0.1 per second
+    ramp.pv := 15.0f
+    ramp.in := 21.0f
+    ramp.update(0.0f)
+    assert(ramp.out == 15.0f && ramp.ramping)
+    for (int k = 0; k < 30; k++) ramp.update(1.0f)
+    assert(near(ramp.out, 18.0f, 0.01f))
+    for (int k = 0; k < 40; k++) ramp.update(1.0f)
+    assert(ramp.out == 21.0f && !ramp.ramping)
+    ramp.in := 19.0f
+    ramp.update(10.0f)
+    assert(near(ramp.out, 20.0f, 0.01f))
+  }
+
+  static void testOnOff()
+  {
+    oo.sp := 20.0f
+    oo.diff := 2.0f
+    oo.minOn := 0.0f
+    oo.minOff := 0.0f
+    oo.pv := 19.5f
+    oo.update(1.0f)
+    assert(!oo.out)
+    oo.pv := 18.9f
+    oo.update(1.0f)
+    assert(oo.out)
+    oo.pv := 20.5f
+    oo.update(1.0f)
+    assert(oo.out)
+    oo.pv := 21.1f
+    oo.update(1.0f)
+    assert(!oo.out)
+    oo.minOff := 60.0f
+    oo.pv := 18.0f
+    oo.update(10.0f)
+    assert(!oo.out && oo.status == Pro.waiting)
+    oo.update(50.0f)
+    assert(oo.out)
+    oo.direct := true
+    oo.minOn := 0.0f
+    oo.update(1.0f)
+    assert(!oo.out)
+    oo.pv := null
+    oo.update(1.0f)
+    assert(!oo.out && oo.status == Pro.inputBad)
+  }
+}

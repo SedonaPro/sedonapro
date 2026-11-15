@@ -1,0 +1,172 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Coordinates independent model contexts at one VM cycle boundary.
+** Member clocks use the same positive sessionId and dt; their rate/maxSteps
+** are inactive while managed. Model parameters and manual fault inputs survive reset.
+class SimSession extends Component
+{
+  @config property int sessionId = 1
+  @config property bool autoRun = false
+  @config property float dt = 0.25f
+  @config property float rate = 10.0f
+  @config property int maxSteps = 100
+  ** 0 paused, 1 running, 2 fault. Actions are committed by execute().
+  @readonly property int state = 0
+  @readonly property bool busy = false
+  @readonly property double time = 0.0d
+  @readonly property long steps = 0L
+  @readonly property long generation = 0L
+  @readonly property int members = 0
+  ** 0 OK, 1 settings, 2 membership/duplicate owner, 3 model, 4 state mismatch.
+  @readonly property int fault = 0
+  @readonly property double backlog = 0.0d
+  @readonly property bool overloaded = false
+  @readonly property long commandCount = 0L
+  @readonly property int rejected = 0
+  private int request = 0
+  private long lastWall = 0L
+  private double pending = 0.0d
+
+  action void pause() { queue(1) }
+  action void reset() { queue(2) }
+  action void restart() { queue(3) }
+  action void step() { queue(4) }
+  action void resume() { queue(5) }
+  private void queue(int command)
+  {
+    if (busy) { rejected := rejected+1; return }
+    request = command
+    busy := true
+  }
+  virtual override void start()
+  {
+    state := 0
+    queue(autoRun ? 3 : 2)
+  }
+  virtual override void execute()
+  {
+    long now = Sys.ticks()
+    double elapsed = lastWall == 0L ? 0.0d : (double)(now-lastWall)/1000000000.0d
+    lastWall = now
+    advance(elapsed)
+  }
+  private bool owns(Component c)
+  {
+    return c != null && c.type.is(SimClock.type) && ((SimClock)c).sessionId == sessionId
+  }
+  private void stopMembers()
+  {
+    for (int i=1; i<=Sys.app.maxId(); i++)
+    {
+      Component c=Sys.app.lookup(i)
+      if (owns(c)) ((SimClock)c).run := false
+    }
+  }
+  private void fail(int reason)
+  {
+    stopMembers()
+    state := 2
+    fault := reason
+    busy := false
+    request = 0
+  }
+  private bool validate(bool resetting)
+  {
+    fault := 0
+    if (sessionId < 1 || sessionId > 65535 || !SimBlock.finite(dt) || dt < 0.0001f || dt > 60.0f ||
+        !SimBlock.finite(rate) || rate < 0.0f || rate > 10000.0f || maxSteps < 1 || maxSteps > 1000)
+    { fail(1); return false }
+    int owners=0
+    int count=0
+    for (int i=1; i<=Sys.app.maxId(); i++)
+    {
+      Component c=Sys.app.lookup(i)
+      if (c == null) continue
+      if (c.type.is(SimSession.type) && ((SimSession)c).sessionId == sessionId) owners++
+      if (!owns(c)) continue
+      count++
+      SimClock clock=(SimClock)c
+      if (clock.dt != dt || !(resetting ? clock.validateReset() : clock.validate()))
+      { fail(3); return false }
+      if (!resetting && (clock.time != time || clock.steps != steps || clock.generation != generation))
+      { fail(4); return false }
+    }
+    members := count
+    if (owners != 1 || count < 1 || count > 16) { fail(2); return false }
+    return true
+  }
+  ** Testable wall-time injection; one shared accumulator prevents clock skew.
+  void advance(double elapsed)
+  {
+    int command=request
+    request=0
+    if (command != 0) commandCount := commandCount+1L
+    bool resetting=command == 2 || command == 3
+    if (state == 2 && !resetting) { busy := false; return }
+    if (command == 1)
+    {
+      stopMembers()
+      state := 0
+      busy := false
+      return
+    }
+    if (!validate(resetting)) return
+    if (resetting)
+    {
+      stopMembers()
+      for (int i=1; i<=Sys.app.maxId(); i++)
+      {
+        Component c=Sys.app.lookup(i)
+        if (!owns(c)) continue
+        SimClock clock=(SimClock)c
+        clock.reset()
+        clock.generation := generation+1L
+      }
+      generation := generation+1L
+      time := 0.0d
+      steps := 0L
+      pending=0.0d
+      backlog := 0.0d
+      overloaded := false
+      state := command == 3 ? 1 : 0
+      setRun(state == 1)
+      busy := false
+      return
+    }
+    if (command == 5) state := 1
+    if (command == 4 && state == 0) tick()
+    busy := false
+    setRun(state == 1)
+    if (state != 1 || command != 0) return
+    if (elapsed != elapsed || elapsed < 0.0d || elapsed > 3600.0d) { fail(1); return }
+    pending += elapsed*(double)rate
+    int count=0
+    while (pending+0.000000001d >= (double)dt && count < maxSteps)
+    {
+      tick()
+      pending -= (double)dt
+      if (pending < 0.0d) pending=0.0d
+      count++
+    }
+    backlog := pending
+    overloaded := pending+0.000000001d >= (double)dt
+  }
+  private void setRun(bool value)
+  {
+    for (int i=1; i<=Sys.app.maxId(); i++)
+    {
+      Component c=Sys.app.lookup(i)
+      if (owns(c)) ((SimClock)c).run := value
+    }
+  }
+  private void tick()
+  {
+    for (int i=1; i<=Sys.app.maxId(); i++)
+    {
+      Component c=Sys.app.lookup(i)
+      if (owns(c)) ((SimClock)c).sessionStep()
+    }
+    time := time+(double)dt
+    steps := steps+1L
+  }
+}

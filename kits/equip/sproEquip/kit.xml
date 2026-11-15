@@ -1,0 +1,17 @@
+<!--
+  -  sproEquip: pumps, fans, compressors.
+  -  Licensed under the Apache License, Version 2.0
+  -->
+<sedonaKit
+ name = "sproEquip"
+ vendor = "SPro"
+ description = "Equipment: motor with feedback and protections, lead/lag rotation of up to 6 units, pump cascade with sleep"
+ includeSource = "false"
+ doc = "true"
+>
+  <depend on="sys 1.2+" />
+  <depend on="sproBase 1.2+" />
+
+  <source dir="." />
+  <source dir="test" testonly="true" />
+</sedonaKit>

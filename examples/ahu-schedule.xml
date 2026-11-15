@@ -1,0 +1,60 @@
+<module replaces="hal">
+  <!-- Level 3: the supply air handling unit of example ahu, started by a weekly
+       schedule with holidays and optimum start instead of a switch.
+       Weekdays 08:00-18:00, Saturday 10:00-14:00, holidays (1-8 January,
+       8 March, 1 and 9 May, 12 June, 4 November) off.  OptimumStart starts
+       the unit earlier the colder the room (AI8) and the outdoor air (AI7)
+       are; ahu.request = schedule or early start.  Change week.mon etc. or
+       press extend on week to see it run outside the schedule.
+       Needs a clock: datetime::DateTimeService (in the Linux default app;
+       on ESP32 the datetime fragment adds it).
+       Build: spro build sim, options pack=hvac board=sim-large
+       example=ahu-schedule (see README.md) -->
+  <kit name="sproAhu"/>
+  <kit name="sproBase"/>
+  <kit name="sproAlarm"/>
+  <kit name="sproSched"/>
+  <kit name="sproHal"/>
+  <into path="">
+    <comp name="ahu" type="sproAhu::Ahu">
+      <prop name="layout" val="0"/>
+      <prop name="heater" val="1"/>
+      <prop name="valve" val="0"/>
+      <prop name="fans" val="1"/>
+      <prop name="startSwitch" val="false"/>
+    </comp>
+    <comp name="cal" type="sproSched::Calendar">
+      <prop name="dates" val="01-01..01-08, 03-08, 05-01, 05-09, 06-12, 11-04"/>
+    </comp>
+    <comp name="week" type="sproSched::WeekSchedule">
+      <prop name="mon" val="08:00-18:00"/>
+      <prop name="tue" val="08:00-18:00"/>
+      <prop name="wed" val="08:00-18:00"/>
+      <prop name="thu" val="08:00-18:00"/>
+      <prop name="fri" val="08:00-18:00"/>
+      <prop name="sat" val="10:00-14:00"/>
+      <prop name="sun" val=""/>
+      <prop name="hol" val=""/>
+    </comp>
+    <comp name="room" type="sproHal::AnalogInput">
+      <prop name="channel" val="AI8"/>
+    </comp>
+    <comp name="outdoor" type="sproHal::AnalogInput">
+      <prop name="channel" val="AI7"/>
+    </comp>
+    <comp name="optimum" type="sproSched::OptimumStart">
+      <prop name="sp" val="21.0"/>
+    </comp>
+    <comp name="retain" type="sproBase::RetainService"/>
+    <comp name="alarms" type="sproAlarm::AlarmService"/>
+  </into>
+  <link from="/cal.today" to="/week.holiday"/>
+  <link from="/cal.tomorrow" to="/week.holidayTomorrow"/>
+  <link from="/cal.yesterday" to="/week.holidayYesterday"/>
+  <link from="/week.occupied" to="/optimum.occupied"/>
+  <link from="/week.nextOccupied" to="/optimum.nextOccupied"/>
+  <link from="/week.nextChange" to="/optimum.nextChange"/>
+  <link from="/room.out" to="/optimum.room"/>
+  <link from="/outdoor.out" to="/optimum.outdoor"/>
+  <link from="/optimum.run" to="/ahu.request"/>
+</module>

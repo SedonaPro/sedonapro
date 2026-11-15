@@ -1,0 +1,114 @@
+<module replaces="hal">
+  <!-- Level 3: a heating substation (ИТП): heating circuit by the outdoor
+       temperature with a return limit, hot water with priority and a weekly
+       thermal disinfection, make-up of the circuit, night setback.
+       Inputs (sim-large panel): AI1 outdoor, AI3 heating supply, AI5 return,
+       AI4 hot water (the panel goes to 60 C, so its setpoint here is 55),
+       AI2 room, AI8 circuit pressure (0..10 V read as bar).
+       Outputs: AO1 heating valve, AO2 hot water valve, DO1 heating pump,
+       DO2 hot water circulation, DO3 make-up valve, DO4 common alarm.
+       Night setback 22:00-06:00 (sproSched, needs the clock); disinfection
+       on Sunday 02:00-03:00, or invoke dhw.startDisinfection.
+       Move AI1 down: curve.supplySp rises, the valve follows AI3.  Set AI8
+       below 1.5: make-up opens until 2.0.
+       Build: spro build sim, options pack=heat board=sim-large
+       example=heating (see README.md) -->
+  <kit name="sproHeat"/>
+  <kit name="sproSched"/>
+  <kit name="sproHal"/>
+  <kit name="logic"/>
+  <into path="">
+    <comp name="heat" type="sys::Folder">
+      <comp name="outT" type="sproHal::AnalogInput">
+        <prop name="channel" val="AI1"/>
+      </comp>
+      <comp name="roomT" type="sproHal::AnalogInput">
+        <prop name="channel" val="AI2"/>
+      </comp>
+      <comp name="supT" type="sproHal::AnalogInput">
+        <prop name="channel" val="AI3"/>
+      </comp>
+      <comp name="dhwT" type="sproHal::AnalogInput">
+        <prop name="channel" val="AI4"/>
+      </comp>
+      <comp name="retT" type="sproHal::AnalogInput">
+        <prop name="channel" val="AI5"/>
+      </comp>
+      <comp name="press" type="sproHal::AnalogInput">
+        <prop name="channel" val="AI8"/>
+      </comp>
+      <comp name="curve" type="sproHeat::HeatCurve">
+        <prop name="filter" val="0.0"/>
+        <prop name="averaging" val="0.0"/>
+      </comp>
+      <comp name="circ" type="sproHeat::HeatingCircuit"/>
+      <comp name="dhw" type="sproHeat::DhwCircuit">
+        <prop name="sp" val="55.0"/>
+        <prop name="spDisinfect" val="58.0"/>
+        <prop name="usePriority" val="true"/>
+      </comp>
+      <comp name="makeup" type="sproHeat::MakeUp"/>
+      <comp name="week" type="sproSched::WeekSchedule">
+        <prop name="mon" val="06:00-22:00"/>
+        <prop name="tue" val="06:00-22:00"/>
+        <prop name="wed" val="06:00-22:00"/>
+        <prop name="thu" val="06:00-22:00"/>
+        <prop name="fri" val="06:00-22:00"/>
+        <prop name="sat" val="06:00-22:00"/>
+        <prop name="sun" val="06:00-22:00"/>
+      </comp>
+      <comp name="night" type="logic::Not"/>
+      <comp name="disinf" type="sproSched::WeekSchedule">
+        <prop name="mon" val=""/>
+        <prop name="tue" val=""/>
+        <prop name="wed" val=""/>
+        <prop name="thu" val=""/>
+        <prop name="fri" val=""/>
+        <prop name="sun" val="02:00-03:00"/>
+      </comp>
+      <comp name="anyAl" type="logic::Or4"/>
+      <comp name="valve" type="sproHal::AnalogOutput">
+        <prop name="channel" val="AO1"/>
+      </comp>
+      <comp name="dhwV" type="sproHal::AnalogOutput">
+        <prop name="channel" val="AO2"/>
+      </comp>
+      <comp name="pump" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO1"/>
+      </comp>
+      <comp name="circP" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO2"/>
+      </comp>
+      <comp name="fill" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO3"/>
+      </comp>
+      <comp name="alarm" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO4"/>
+      </comp>
+    </comp>
+  </into>
+  <link from="/heat/outT.out" to="/heat/curve.outdoor"/>
+  <link from="/heat/roomT.out" to="/heat/curve.room"/>
+  <link from="/heat/week.occupied" to="/heat/night.in"/>
+  <link from="/heat/night.out" to="/heat/curve.setback"/>
+  <link from="/heat/curve.supplySp" to="/heat/circ.supplySp"/>
+  <link from="/heat/curve.heating" to="/heat/circ.heating"/>
+  <link from="/heat/curve.returnSp" to="/heat/circ.returnMax"/>
+  <link from="/heat/supT.out" to="/heat/circ.supply"/>
+  <link from="/heat/retT.out" to="/heat/circ.returnTemp"/>
+  <link from="/heat/outT.out" to="/heat/circ.outdoor"/>
+  <link from="/heat/dhw.heatingLimit" to="/heat/circ.limit"/>
+  <link from="/heat/circ.valve" to="/heat/valve.in"/>
+  <link from="/heat/circ.pump" to="/heat/pump.in"/>
+  <link from="/heat/dhwT.out" to="/heat/dhw.temp"/>
+  <link from="/heat/disinf.occupied" to="/heat/dhw.disinfect"/>
+  <link from="/heat/week.occupied" to="/heat/dhw.circulate"/>
+  <link from="/heat/dhw.valve" to="/heat/dhwV.in"/>
+  <link from="/heat/dhw.circPump" to="/heat/circP.in"/>
+  <link from="/heat/press.out" to="/heat/makeup.pressure"/>
+  <link from="/heat/makeup.out" to="/heat/fill.in"/>
+  <link from="/heat/circ.alarm" to="/heat/anyAl.in1"/>
+  <link from="/heat/dhw.alarm" to="/heat/anyAl.in2"/>
+  <link from="/heat/makeup.alarm" to="/heat/anyAl.in3"/>
+  <link from="/heat/anyAl.out" to="/heat/alarm.in"/>
+</module>

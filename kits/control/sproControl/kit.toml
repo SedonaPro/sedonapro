@@ -1,0 +1,2 @@
+summary = "Control: pro PID, override selection, sequences, stages, 3-point actuators, PWM, setpoint ramp"
+portable_tests = true

@@ -1,0 +1,9 @@
+<module>
+  <!-- Wall clock for schedules and alarm time stamps (datetime::DateTimeService).
+       In the simulator it is the PC's time.  On a board the time is valid only
+       after it has been set (no SNTP in the firmware yet); until then
+       sproSched components report status inputBad and hold their outputs. -->
+  <kit name="datetime"/>
+  <kit name="datetimeStd"/>
+  <into path="service"><comp name="time" type="datetimeStd::DateTimeServiceStd"/></into>
+</module>

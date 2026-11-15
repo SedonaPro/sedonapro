@@ -1,0 +1,3 @@
+targets = ["linux", "sim"]
+[native]
+all = ["native", "native/linux"]

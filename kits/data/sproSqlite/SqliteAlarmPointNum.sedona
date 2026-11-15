@@ -1,0 +1,91 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2018 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+@palette=false
+class SqliteAlarmPointNum extends SqliteAlarmPoint
+{
+	define int logicGreater  = 0;
+	define int logicLess     = 1;
+	define int logicInRange  = 2;
+	define int logicOutRange = 3;
+
+	define Str logicVals = "Greater, Less, InRange, OutRange";
+
+	@summary=false
+	@config
+	@min = 0
+	@max = 3
+	@range = logicVals
+	property int logic = logicGreater;
+
+	@config
+	@min = 0
+	property float hyst = 0.5;
+
+	@config
+	property float level1 = 10.0;
+
+	@config
+	property float level2 = 20.0;
+
+
+	virtual float getFloatValue()
+	{
+		return 0.0;
+	}
+
+	virtual override void checkAlarmState()
+	{
+		float val = getFloatValue();
+
+		switch (logic)
+		{
+			case logicGreater:
+				if (val > (level1+hyst))
+					alarmInternalState = true;
+				if (val < (level1-hyst))
+					alarmInternalState = false;
+				break;
+			case logicLess:
+				if (val > (level1+hyst))
+					alarmInternalState = false;
+				if (val < (level1-hyst))
+					alarmInternalState = true;
+				break;
+			case logicInRange:
+				if ((val > (level1 + hyst)) && (val < (level2 - hyst)))
+					alarmInternalState = true;
+				if ((val < (level1 - hyst)) || (val > (level2 + hyst)))
+					alarmInternalState = false;
+				break;
+			case logicOutRange:
+				if ((val > (level1 + hyst)) && (val < (level2 - hyst)))
+					alarmInternalState = false;
+				if ((val < (level1 - hyst)) || (val > (level2 + hyst)))
+					alarmInternalState = true;
+				break;
+			default:
+				alarmInternalState = false;
+				break;
+		}
+
+		if (!enable)
+			alarmInternalState = false;
+
+		super.checkAlarmState();
+	}
+}

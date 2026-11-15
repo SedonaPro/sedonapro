@@ -1,0 +1,12 @@
+<sedonaKit
+    name="sproUiConnect"
+    vendor="SPro"
+    description="library to connect sedona VM with external applications"
+    >
+
+  <depend on="sys 1.2+" />
+  <depend on="inet 1.2+" />
+  <depend on="sproUtil 1.2+" />
+  <depend on="sproLib 1.2+" />
+  <source dir="." />
+</sedonaKit>

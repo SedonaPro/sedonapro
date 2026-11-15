@@ -1,0 +1,165 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Heating curve (outdoor reset): the supply and return water
+** temperatures a radiator system needs at the current outdoor
+** temperature, from its design point.  With the relative load
+**
+**   q = (ti - to) / (roomSp - designOutdoor)
+**
+** the supply is
+**
+**   ti + dm * q^(1/(1+exponent)) + dw/2 * q
+**
+** and the return the same with - dw/2, where dm is the mean design water
+** temperature above the room and dw the design difference of supply and
+** return (95/70 C at -28 C: dm = 62.5, dw = 25).  ti is the room
+** setpoint now: roomSp, or setbackSp while setback is on.
+**
+** On top: a parallel shift, a room correction (roomGain K of supply per K
+** the room is below its setpoint, at most roomLimit), the limits
+** supplyMin..supplyMax.  The curve uses the outdoor temperature filtered
+** with 'filter' hours (the building's inertia); heating stops when the
+** average over 'averaging' hours rises above heatOff and starts again
+** below heatOn.  mode hand keeps the heating on, off keeps it off.  With a
+** failed outdoor sensor the last average is kept (outdoorOnBad until the
+** first good value) and status = inputBad.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class HeatCurve extends Component
+{
+  ** outdoor temperature, C
+  @summary @unit=Units.celsius property float outdoor
+  ** room temperature for the room correction, C (null: no correction)
+  @unit=Units.celsius property float room = null
+  ** reduced mode (night, unoccupied): room setpoint setbackSp
+  property bool setback
+
+  ** auto (by the outdoor temperature), hand (heating on), off (heating off)
+  @config @range=Pro.modeRange property byte mode
+
+  ** room setpoint (comfort) and the design inside temperature, C
+  @config @unit=Units.celsius property float roomSp = 20.0f
+  ** room setpoint in reduced mode, C
+  @config @unit=Units.celsius property float setbackSp = 17.0f
+  ** design outdoor temperature (coldest five days), C
+  @config @unit=Units.celsius property float designOutdoor = -28.0f
+  ** design supply and return temperatures, C
+  @config @unit=Units.celsius property float designSupply = 95.0f
+  @config @unit=Units.celsius property float designReturn = 70.0f
+  ** heater exponent minus one: 0.3 radiators, 0.25..0.35 convectors, 0.1 floor heating
+  @config @min=0 @max=1 @precision=2 property float exponent = 0.3f
+  ** parallel shift of the curve, K
+  @config @min=-20 @max=20 property float shift = 0.0f
+  ** supply limits while heating, C
+  @config @unit=Units.celsius property float supplyMin = 35.0f
+  @config @unit=Units.celsius property float supplyMax = 95.0f
+  ** room correction: K of supply per K the room is below its setpoint (0 = off)
+  @config @min=0 @max=10 property float roomGain = 2.0f
+  ** largest room correction, K
+  @config @min=0 @max=30 property float roomLimit = 10.0f
+  ** outdoor filter for the curve, hours (0 = none)
+  @config @unit=Units.hour @min=0 @max=24 property float filter = 1.0f
+  ** outdoor average for the heating on/off decision, hours
+  @config @unit=Units.hour @min=0 @max=120 property float averaging = 24.0f
+  ** heating stops above this average outdoor temperature, C
+  @config @unit=Units.celsius property float heatOff = 10.0f
+  ** heating starts below this average outdoor temperature, C
+  @config @unit=Units.celsius property float heatOn = 8.0f
+  ** outdoor temperature assumed before the sensor ever gave a good value, C
+  @config @unit=Units.celsius property float outdoorOnBad = -10.0f
+
+  ** supply water setpoint, C
+  @readonly @summary @unit=Units.celsius @precision=1 property float supplySp
+  ** return water by the curve, C (to limit the return)
+  @readonly @unit=Units.celsius @precision=1 property float returnSp
+  ** heating is needed (season)
+  @readonly @summary property bool heating
+  ** filtered outdoor temperature the curve uses, C
+  @readonly @unit=Units.celsius @precision=1 property float outdoorCurve
+  ** average outdoor temperature for the season, C
+  @readonly @unit=Units.celsius @precision=1 property float outdoorAvg
+  ** room setpoint now, C
+  @readonly @unit=Units.celsius property float roomSpNow
+  ** ok, hand, off, inputBad (outdoor failed), config (design values wrong)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** decide heating on/off now from the current outdoor temperature
+  action void decide()
+  {
+    if (Pro.valid(outdoor)) { fc = outdoor; fa = outdoor; decided = false }
+  }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  ** one step of dt seconds
+  void update(float dt)
+  {
+    bool ok = Pro.valid(outdoor)
+    if (ok)
+    {
+      if (!Pro.valid(fc)) { fc = outdoor; fa = outdoor }
+      fc = lag(fc, outdoor, filter, dt)
+      fa = lag(fa, outdoor, averaging, dt)
+    }
+    else if (!Pro.valid(fc)) { fc = outdoorOnBad; fa = outdoorOnBad }
+    outdoorCurve := fc
+    outdoorAvg := fa
+
+    // the season
+    if (!decided) { decided = true; on = fa < (heatOn + heatOff) * 0.5f }
+    else if (on && fa > heatOff) on = false
+    else if (!on && fa < heatOn) on = true
+    if (mode == Pro.modeHand) heating := true
+    else if (mode == Pro.modeOff) heating := false
+    else heating := on
+
+    float ti = setback == true ? setbackSp : roomSp
+    roomSpNow := ti
+    float span = roomSp - designOutdoor
+    float dm = (designSupply + designReturn) * 0.5f - roomSp
+    float dw = designSupply - designReturn
+    if (!(span > 1.0f) || !(dm > 0.0f) || dw < 0.0f || !(supplyMax >= supplyMin))
+    {
+      supplySp := null
+      returnSp := null
+      status := Pro.config
+      return
+    }
+    float q = (ti - fc) / span
+    float s = ti
+    float r = ti
+    if (q > 0.0f)
+    {
+      float m = dm * Math.pow(q, 1.0f / (1.0f + exponent))
+      s = ti + m + dw * 0.5f * q
+      r = ti + m - dw * 0.5f * q
+    }
+    s += shift
+    r += shift
+    if (Pro.valid(room) && roomGain > 0.0f)
+      s += Pro.clamp(roomGain * (ti - room), -roomLimit, roomLimit)
+    supplySp := Pro.clamp(s, supplyMin, supplyMax)
+    returnSp := Pro.min(r, supplySp)
+
+    if (mode == Pro.modeHand) status := Pro.hand
+    else if (mode == Pro.modeOff) status := Pro.off
+    else status := ok ? Pro.ok : Pro.inputBad
+  }
+
+  ** first-order lag of hours h
+  static float lag(float y, float x, float h, float dt)
+  {
+    if (!(h > 0.0f)) return x
+    return y + (x - y) * dt / (h * 3600.0f + dt)
+  }
+
+  float fc = null
+  float fa = null
+  bool on
+  bool decided
+  inline Ticker ticker
+}

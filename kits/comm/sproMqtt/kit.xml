@@ -1,0 +1,41 @@
+<!--
+  -  sproMqtt: MQTT 3.1.1 client for SedonaPro (Linux, ESP32).
+  -  Licensed under the Apache License, Version 2.0
+  -->
+<sedonaKit
+ name = "sproMqtt"
+ vendor = "SPro"
+ description = "MQTT client: publish and subscribe points, JSON, online/offline status"
+ includeSource = "false"
+ doc = "true"
+>
+  <depend on="sys 1.2+" />
+
+  <source dir="." />
+  <source dir="test" testonly="true" />
+
+  <native qname="sproMqtt::Mqtt.open"            id="117::0" />
+  <native qname="sproMqtt::Mqtt.close"           id="117::1" />
+  <native qname="sproMqtt::Mqtt.server"          id="117::2" />
+  <native qname="sproMqtt::Mqtt.auth"            id="117::3" />
+  <native qname="sproMqtt::Mqtt.will"            id="117::4" />
+  <native qname="sproMqtt::Mqtt.enable"          id="117::5" />
+  <native qname="sproMqtt::Mqtt.restart"         id="117::6" />
+  <native qname="sproMqtt::Mqtt.poll"            id="117::7" />
+  <native qname="sproMqtt::Mqtt.publish"         id="117::8" />
+  <native qname="sproMqtt::Mqtt.subscribe"       id="117::9" />
+  <native qname="sproMqtt::Mqtt.unsubscribe"     id="117::10" />
+  <native qname="sproMqtt::Mqtt.fetch"           id="117::11" />
+  <native qname="sproMqtt::Mqtt.fetchLen"        id="117::12" />
+  <native qname="sproMqtt::Mqtt.stat"            id="117::13" />
+  <native qname="sproMqtt::Mqtt.topicMatch"      id="117::14" />
+  <native qname="sproMqtt::Mqtt.defaultClientId" id="117::15" />
+  <native qname="sproMqtt::Mqtt.expandTopic"     id="117::16" />
+  <native qname="sproMqtt::Mqtt.fmtFloat"        id="117::17" />
+  <native qname="sproMqtt::Mqtt.fmtInt"          id="117::18" />
+  <native qname="sproMqtt::Mqtt.jsonPut"         id="117::19" />
+  <native qname="sproMqtt::Mqtt.jsonGet"         id="117::20" />
+  <native qname="sproMqtt::Mqtt.parseFloat"      id="117::21" />
+  <native qname="sproMqtt::Mqtt.parseInt"        id="117::22" />
+  <native qname="sproMqtt::Mqtt.parseBool"       id="117::23" />
+</sedonaKit>

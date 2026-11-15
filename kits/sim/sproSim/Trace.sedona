@@ -1,0 +1,20 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Optional console trace. Use phase 7; output SIM,name,time,value.
+class Trace extends SimBlock
+{
+  property float in
+  @config property int every = 100
+  private int count = 0
+  virtual override bool acceptsInput(Slot slot)
+  { return slot == Trace.in }
+  virtual override bool valid() { return super.valid() && every >= 1 }
+  virtual override void resetState() { count = 0 }
+  override void tick(float dt, double time)
+  {
+    if (count == 0) Sys.out.print("SIM,").print(name).print(",").printDouble(time).print(",").printFloat(in).nl()
+    count++
+    if (count >= every) count = 0
+  }
+}
+

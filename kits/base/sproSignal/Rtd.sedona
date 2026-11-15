@@ -1,0 +1,135 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Temperature from the resistance of a sensor:
+**   Pt100/Pt500/Pt1000  IEC 60751 (Callendar-Van Dusen), -200..850 C
+**   Ni100/Ni1000        DIN 43760, 6180 ppm/K, -60..250 C
+**   Ni1000TK5000        5000 ppm/K (LG-Ni1000), -50..150 C
+**   NTC                 beta equation with ntcR25 and ntcBeta
+** A value outside lo..hi is a fault (open or shorted sensor).
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Rtd extends Component
+{
+  ** sensor resistance, ohm
+  @summary @unit=Units.ohm property float in
+
+  define Str sensorRange = "Pt100, Pt500, Pt1000, Ni100, Ni1000, Ni1000TK5000, NTC"
+  define int pt100 = 0
+  define int pt500 = 1
+  define int pt1000 = 2
+  define int ni100 = 3
+  define int ni1000 = 4
+  define int ni1000tk5000 = 5
+  define int ntc = 6
+
+  ** sensor type
+  @config @range=sensorRange property byte sensor = 2
+
+  ** NTC: resistance at 25 C, ohm
+  @config @unit=Units.ohm @min=1 property float ntcR25 = 10000.0f
+  ** NTC: beta, K (3950, 3435 ...)
+  @config @min=1 property float ntcBeta = 3950.0f
+
+  ** added to the result (calibration, wire resistance), C
+  @config @unit=Units.celsius property float offset = 0.0f
+
+  ** lowest plausible temperature, C
+  @config @unit=Units.celsius property float lo = -50.0f
+  ** highest plausible temperature, C
+  @config @unit=Units.celsius property float hi = 150.0f
+
+  ** out while the sensor is bad: hold, fallback or null
+  @config @range=Pro.onBadRange property byte onBad = 0
+  @config @unit=Units.celsius property float fallback = 0.0f
+
+  ** temperature, C
+  @readonly @summary @unit=Units.celsius @precision=2 property float out
+
+  ** the sensor is open, shorted or out of lo..hi
+  @readonly property bool bad
+
+  ** ok, inputBad
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute()
+  {
+    float t = temperature(sensor, in, ntcR25, ntcBeta)
+    if (Pro.valid(t)) t += offset
+    if (!Pro.valid(t) || t < lo || t > hi)
+    {
+      bad := true
+      status := Pro.inputBad
+      if (onBad == Pro.badFallback) out := fallback
+      else if (onBad == Pro.badNull) out := null
+      else if (!Pro.valid(out)) out := fallback
+      return
+    }
+    out := t
+    bad := false
+    status := Pro.ok
+  }
+
+  ** temperature in C of a sensor with resistance r ohm; null if impossible
+  static float temperature(int type, float r, float r25, float beta)
+  {
+    if (!Pro.valid(r) || r <= 0.0f) return null
+    if (type == ntc)
+    {
+      if (r25 <= 0.0f || beta <= 0.0f) return null
+      return 1.0f / (1.0f / 298.15f + Math.log(r / r25) / beta) - 273.15f
+    }
+    float r0 = 1000.0f
+    if (type == pt100 || type == ni100) r0 = 100.0f
+    else if (type == pt500) r0 = 500.0f
+    float x = r / r0
+    if (type <= pt1000)
+    {
+      // T >= 0: R/R0 = 1 + A T + B T^2 solved directly
+      float d = ptA * ptA - 4.0f * ptB * (1.0f - x)
+      if (d < 0.0f) return null
+      float t = (-ptA + Math.sqrt(d)) / (2.0f * ptB)
+      if (t >= 0.0f) return t
+      return solve(type, x, t)
+    }
+    // nickel: first guess from the linear slope, then Newton
+    float t0 = (x - 1.0f) / (type == ni1000tk5000 ? 0.005f : 0.00618f)
+    return solve(type, x, t0)
+  }
+
+  ** resistance ratio R(T)/R0 of a sensor type
+  static float ratio(int type, float t)
+  {
+    if (type <= pt1000)
+    {
+      float c = t < 0.0f ? ptC * (t - 100.0f) * t * t * t : 0.0f
+      return 1.0f + ptA * t + ptB * t * t + c
+    }
+    if (type == ni1000tk5000)
+      return 1.0f + t * (4.427e-3f + t * (5.172e-6f + t * 5.585e-9f))
+    float t2 = t * t
+    return 1.0f + 5.485e-3f * t + 6.65e-6f * t2 + 2.805e-11f * t2 * t2 - 2.0e-17f * t2 * t2 * t2
+  }
+
+  ** T with ratio(T) = x, Newton's method from t
+  static float solve(int type, float x, float t)
+  {
+    for (int i = 0; i < 12; i++)
+    {
+      float f = ratio(type, t) - x
+      float d = (ratio(type, t + 0.01f) - ratio(type, t - 0.01f)) / 0.02f
+      if (d <= 0.0f) return null
+      float step = f / d
+      t -= step
+      if (step < 0.0005f && step > -0.0005f) return t
+    }
+    return t
+  }
+
+  define float ptA = 3.9083e-3f
+  define float ptB = -5.775e-7f
+  define float ptC = -4.183e-12f
+}

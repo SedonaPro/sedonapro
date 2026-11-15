@@ -1,0 +1,111 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Linear scaling of a transmitter signal with wire break detection.
+** The defaults are 4-20 mA to 0-100 with NAMUR NE 43 limits: below
+** 3.6 mA is a broken wire, above 21 mA a short or overrange.
+** For 0-10 V: inLo 0, inHi 10, badLo null (no check), badHi 10.5.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Scale extends Component
+{
+  ** raw signal (mA, V, counts)
+  @summary property float in
+
+  ** raw value at outLo
+  @config property float inLo = 4.0f
+  ** raw value at outHi
+  @config property float inHi = 20.0f
+  ** engineering value at inLo
+  @config property float outLo = 0.0f
+  ** engineering value at inHi
+  @config property float outHi = 100.0f
+
+  ** keep out within outLo..outHi
+  @config property bool limit = true
+
+  ** raw value below this is a fault (broken wire); null = no check
+  @config property float badLo = 3.6f
+  ** raw value above this is a fault (short, overrange); null = no check
+  @config property float badHi = 21.0f
+
+  ** out while the signal is bad: hold the last value, fallback, or null
+  @config @range=Pro.onBadRange property byte onBad = 0
+  ** out when onBad is fallback
+  @config property float fallback = 0.0f
+
+  ** the value in engineering units
+  @readonly @summary property float out
+
+  ** the signal is bad (null, below badLo, above badHi)
+  @readonly property bool bad
+
+  ** ok, inputBad, config (inLo = inHi)
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute()
+  {
+    if (inHi == inLo || !Pro.valid(inLo) || !Pro.valid(inHi))
+    {
+      status := Pro.config
+      bad := true
+      out := null
+      return
+    }
+    if (!Pro.valid(in) || (badLo != null && in < badLo) || (badHi != null && in > badHi))
+    {
+      bad := true
+      status := Pro.inputBad
+      if (onBad == Pro.badFallback) out := fallback
+      else if (onBad == Pro.badNull) out := null
+      else if (!Pro.valid(out)) out := fallback
+      return
+    }
+    float v = outLo + (in - inLo) * (outHi - outLo) / (inHi - inLo)
+    if (limit)
+      v = outLo < outHi ? Pro.clamp(v, outLo, outHi) : Pro.clamp(v, outHi, outLo)
+    out := v
+    bad := false
+    status := Pro.ok
+  }
+}
+
+**
+** Resistance of a sensor in a voltage divider: the sensor between the
+** input and ground, rRef between the input and vRef (or the other way
+** round with sensorHigh).  Feed out to Rtd.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Divider extends Component
+{
+  ** voltage at the input, V
+  @summary property float in
+
+  ** divider supply, V
+  @config @unit=Units.volt property float vRef = 3.3f
+  ** reference resistor, ohm
+  @config @unit=Units.ohm @min=0 property float rRef = 1000.0f
+  ** the sensor is between vRef and the input (rRef to ground)
+  @config property bool sensorHigh = false
+
+  ** sensor resistance, ohm; null on an open or shorted divider
+  @readonly @unit=Units.ohm @summary property float out
+
+  ** ok, inputBad
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute()
+  {
+    if (!Pro.valid(in) || !Pro.valid(vRef) || in <= 0.0f || in >= vRef || rRef <= 0.0f)
+    {
+      out := null
+      status := Pro.inputBad
+      return
+    }
+    out := sensorHigh ? rRef * (vRef - in) / in : rRef * in / (vRef - in)
+    status := Pro.ok
+  }
+}

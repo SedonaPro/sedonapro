@@ -1,0 +1,144 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Connection to an MQTT broker.  Publish and subscribe points (MqttPub*,
+** MqttSub*, MqttPubJson) are its children.  Reconnects by itself with a
+** back-off of 1 to 30 s; configuration changes apply at once.
+**
+@niagaraIcon="module://icons/x16/device.png"
+class MqttClient extends Component
+{
+  define Str stateRange = "disabled, waiting, connecting, connected"
+  define Str errorRange = "ok, noHost, dns, connect, timeout, protocol, auth, rejected, closed, noMemory"
+
+  ** connect to the broker
+  @config property bool enabled = true
+
+  ** broker host name or IP address
+  @config @asStr property Buf(64) host = ""
+
+  @config property int port = 1883
+
+  ** empty: spro-<MAC> on ESP32, spro-<host>-<pid> on Linux
+  @config @asStr property Buf(48) clientId = ""
+
+  @config @asStr property Buf(48) username = ""
+
+  @config @asStr property Buf(64) password = ""
+
+  ** keep alive interval; the broker drops the client after 1.5 x this without traffic
+  @config @unit=Units.second @min=0 @max=3600
+  property int keepAlive = 30
+
+  ** point topics that start with "~" are relative to it: "~/temp" -> "<baseTopic>/temp"
+  @config @asStr property Buf(64) baseTopic = ""
+
+  ** publish "online" to <baseTopic>/status when connected and leave "offline"
+  ** as the will for the broker (both retained); needs baseTopic
+  @config property bool statusTopic = true
+
+  @readonly @range=stateRange property byte state = 0
+  @readonly @range=errorRange property byte lastError = 0
+  ** client id in use
+  @readonly @asStr property Buf(48) activeClientId = ""
+  ** messages published
+  @readonly property int sent = 0
+  ** messages received
+  @readonly property int received = 0
+  ** successful connects
+  @readonly property int connects = 0
+
+  ** drop the connection and connect again now
+  action void reconnect()
+  {
+    if (handle != null)
+      Mqtt.restart(handle)
+  }
+
+  override void start()
+  {
+    dirty = true
+  }
+
+  override void stop()
+  {
+    if (handle != null)
+    {
+      Mqtt.close(handle)
+      handle = null
+    }
+  }
+
+  override virtual void changed(Slot slot)
+  {
+    super.changed(slot)
+    if (slot.isProp() && slot.isConfig())
+      dirty = true
+  }
+
+  override virtual void execute()
+  {
+    if (handle == null)
+    {
+      handle = Mqtt.open(bufSize)
+      if (handle == null)
+      {
+        lastError := 9
+        return
+      }
+      generation++
+      dirty = true
+    }
+    if (dirty)
+    {
+      dirty = false
+      configure()
+    }
+    Mqtt.poll(handle)
+    state := (byte)Mqtt.stat(handle, Mqtt.statState)
+    lastError := (byte)Mqtt.stat(handle, Mqtt.statError)
+    sent := Mqtt.stat(handle, Mqtt.statTx)
+    received := Mqtt.stat(handle, Mqtt.statRx)
+    connects := Mqtt.stat(handle, Mqtt.statConnects)
+  }
+
+  private void configure()
+  {
+    Mqtt.enable(handle, false)
+    Mqtt.server(handle, host.toStr(), port, keepAlive)
+    if (clientId.toStr().length() > 0)
+      activeClientId.copyFromStr(clientId.toStr())
+    else
+    {
+      int n = Mqtt.defaultClientId(activeClientId.bytes, activeClientId.bytesLen)
+      activeClientId.size = (short)(n + 1)
+    }
+    changed(MqttClient.activeClientId)
+    Mqtt.auth(handle, activeClientId.toStr(), username.toStr(), password.toStr())
+    if (statusTopic && baseTopic.toStr().length() > 0 &&
+        Mqtt.expandTopic(tmp.bytes, tmp.bytesLen, "~/status", baseTopic.toStr()) > 0)
+      Mqtt.will(handle, tmp.toStr(), "offline", "online")
+    else
+      Mqtt.will(handle, "", "", "")
+    Mqtt.enable(handle, enabled)
+  }
+
+  ** true when publishing is possible
+  bool isConnected()
+  {
+    return handle != null && state == Mqtt.connected
+  }
+
+  ** client buffer: biggest message sent or received
+  define int bufSize = 1024
+
+  ** native client, null until the first execute
+  Obj handle = null
+  ** changes when the native client is created again; subscribers resubscribe
+  int generation = 0
+  bool dirty = true
+  inline Buf(128) tmp
+}

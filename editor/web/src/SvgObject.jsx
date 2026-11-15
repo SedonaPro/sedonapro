@@ -1,0 +1,13 @@
+import React,{useMemo,useRef,useState}from'react';import{useValues}from'./useValues';import{resolveBinding}from'./viewBindings';import{svgState}from'./svgObjects';import{imageUri}from'./svgImage';
+export default function SvgObject({object,asset,view,graph,live,arrange,selected,onSelect,onMove,canvas}){
+ const main=object.binding?resolveBinding(graph,view.folder,object.binding):{},fault=object.fault?resolveBinding(graph,view.folder,object.fault):{},m=useValues(main.node?.id||''),f=useValues(fault.node?.id||'');
+ const result=svgState(object,b=>{const isFault=b===object.fault,r=isFault?fault:main;return {error:r.error,value:(isFault?f:m)[b.slot]}},live);
+ const missing=!asset?.states[result.state],state=missing&&result.state!=='unknown'&&result.state!=='fault'?'unknown':result.state,svg=asset?.states[state]||asset?.states.off||'';
+ const url=useMemo(()=>svg?imageUri(svg,state!=='on'):'',[svg,state]),ref=useRef(),[drag,setDrag]=useState(null);if(!asset)return null;
+ function down(e){if(!arrange)return;onSelect(object.id,e.shiftKey);e.preventDefault();e.stopPropagation();const box=ref.current.getBoundingClientRect(),stage=ref.current.parentElement.getBoundingClientRect();e.currentTarget.setPointerCapture(e.pointerId);setDrag({dx:e.clientX-box.left,dy:e.clientY-box.top,stage,width:box.width,height:box.height,x:object.x,y:object.y})}
+ function move(e){if(!drag)return;setDrag({...drag,x:Math.max(0,Math.min(drag.stage.width-drag.width,e.clientX-drag.stage.left-drag.dx))/drag.stage.width*100,y:Math.max(0,Math.min(drag.stage.height-drag.height,e.clientY-drag.stage.top-drag.dy))/drag.stage.height*100})}
+ function up(){if(drag){if(Math.abs(drag.x-object.x)+Math.abs(drag.y-object.y)>.001)onMove(object.id,{x:drag.x,y:drag.y});setDrag(null)}}
+ const quality=missing&&state==='unknown'&&result.state!=='unknown'?'Нет SVG для состояния '+result.state:result.quality;
+ return <div ref={ref} data-svg-object={object.id} data-state={state} className={'svg-scene-object '+(selected?'svg-selected ':'')+((state==='unknown'||state==='fault')?'svg-'+state:'')} style={{left:(drag?.x??object.x)+'%',top:(drag?.y??object.y)+'%',width:asset.width/canvas.width*100+'%',height:asset.height/canvas.height*100+'%'}} title={object.label+' · '+quality} onClick={e=>{e.stopPropagation();if(!arrange)onSelect(object.id,e.shiftKey)}} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={()=>setDrag(null)}>
+ <img alt={object.label} draggable={false} src={url} style={{transform:`rotate(${object.rotation}deg)`}}/>{(state==='unknown'||state==='fault')&&<span className="svg-quality-badge" aria-label={quality}>{state==='fault'?'!':'?'}</span>}{arrange&&<span className="svg-object-caption">{object.label}</span>}</div>;
+}

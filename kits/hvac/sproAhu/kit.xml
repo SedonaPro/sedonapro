@@ -1,0 +1,22 @@
+<!--
+  -  sproAhu: air handling unit configurator.
+  -  Licensed under the Apache License, Version 2.0
+  -->
+<sedonaKit
+ name = "sproAhu"
+ vendor = "SPro"
+ description = "Air handling unit configurator: pick the unit's parts, it builds the blocks, I/O points and links"
+ includeSource = "false"
+ doc = "true"
+>
+  <depend on="sys 1.2+" />
+  <depend on="sproBase 1.2+" />
+  <depend on="sproControl 1.2+" />
+  <depend on="sproAlarm 1.2+" />
+  <depend on="sproHal 1.2+" />
+  <depend on="sproHvac 1.2+" />
+  <depend on="datetime 1.2+" />
+
+  <source dir="." />
+  <source dir="test" testonly="true" />
+</sedonaKit>

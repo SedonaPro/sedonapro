@@ -1,0 +1,164 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Make-up of a closed heating circuit: a solenoid valve or a make-up
+** pump keeps the static pressure between startBelow and stopAbove.
+**
+**  - out turns on below startBelow and off above stopAbove, with at
+**    least minPause between two fills;
+**  - a fill longer than maxFill stops the make-up (the source is empty
+**    or a large leak) and latches 'fillFault' until reset;
+**  - more than maxStarts fills within an hour sets 'leak' (a warning:
+**    the make-up goes on) until reset;
+**  - pressure below lowAlarm for alarmDelay sets 'low' (stop the
+**    circulation pumps with it: dry running); above highAlarm 'high'
+**    (the safety valve is next);
+**  - no make-up while 'source' is false (network pressure low, tank
+**    empty) or the pressure sensor failed.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class MakeUp extends Component
+{
+  ** circuit pressure, bar
+  @summary property float pressure
+  ** the make-up source is available
+  property bool source = true
+
+  @config property bool enable = true
+  ** auto, hand (make-up on while the pressure is below highAlarm), off
+  @config @range=Pro.modeRange property byte mode
+
+  ** fill below this pressure, bar
+  @config @min=0 property float startBelow = 1.5f
+  ** stop filling above this pressure, bar
+  @config @min=0 property float stopAbove = 2.0f
+  ** shortest time between two fills, s
+  @config @unit=Units.second @min=0 property float minPause = 30.0f
+  ** longest fill, s
+  @config @unit=Units.second @min=1 property float maxFill = 300.0f
+  ** fills per hour that mean a leak
+  @config @min=1 @max=16 property int maxStarts = 6
+  ** low and high pressure alarms, bar
+  @config @min=0 property float lowAlarm = 0.8f
+  @config @min=0 property float highAlarm = 3.0f
+  @config @unit=Units.second @min=0 property float alarmDelay = 10.0f
+
+  ** make-up valve or pump
+  @readonly @summary property bool out
+  ** pressure low: stop the circulation pumps
+  @readonly property bool low
+  ** pressure high
+  @readonly property bool high
+  ** too many fills: a leak (warning, latched until reset)
+  @readonly property bool leak
+  ** a fill took too long: make-up stopped until reset
+  @readonly property bool fillFault
+  ** fills within the last hour
+  @readonly property int startsHour
+  ** length of the current or the last fill, s
+  @readonly @unit=Units.second property float fillTime
+  ** low, high, leak or fillFault
+  @readonly property bool alarm
+  @readonly @range=Pro.statusRange property byte status
+
+  ** clear leak and fillFault
+  action void reset()
+  {
+    leak := false
+    fillFault := false
+    for (int i = 0; i < slots; i++) ages[i] = 0.0f
+  }
+
+  virtual override void start() { reset() }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  ** one step of dt seconds
+  void update(float dt)
+  {
+    bool ok = Pro.valid(pressure)
+    int n = 0
+    for (int i = 0; i < slots; i++)
+    {
+      if (ages[i] <= 0.0f) continue
+      ages[i] = ages[i] + dt
+      if (ages[i] >= 3600.0f) ages[i] = 0.0f
+      else n++
+    }
+    startsHour := n
+
+    if (ok && pressure < lowAlarm) lowFor += dt
+    else lowFor = 0.0f
+    if (ok && pressure > highAlarm) highFor += dt
+    else highFor = 0.0f
+    low := lowFor >= alarmDelay
+    high := highFor >= alarmDelay
+
+    bool filling = out
+    int stat = Pro.ok
+    if (mode == Pro.modeOff) { filling = false; stat = Pro.off }
+    else if (mode == Pro.modeHand)
+    {
+      filling = ok && pressure < highAlarm
+      stat = Pro.hand
+    }
+    else if (enable != true) { filling = false; stat = Pro.disabled }
+    else if (!ok) { filling = false; stat = Pro.inputBad }
+    else if (fillFault) { filling = false; stat = Pro.locked }
+    else if (source != true) { filling = false; stat = Pro.waiting }
+    else if (filling)
+    {
+      if (pressure > stopAbove) filling = false
+      else if (fillTime + dt >= maxFill)
+      {
+        filling = false
+        fillFault := true
+        stat = Pro.fault
+      }
+    }
+    else if (pressure < startBelow)
+    {
+      if (pauseFor + dt >= minPause)
+      {
+        filling = true
+        fillTime := 0.0f
+        countStart()
+      }
+      else stat = Pro.waiting
+    }
+    else stat = Pro.standby
+
+    if (filling) fillTime := fillTime + dt
+    if (out && !filling) pauseFor = 0.0f
+    else if (!filling) pauseFor += dt
+    out := filling
+    alarm := low || high || leak || fillFault
+    if (stat == Pro.ok || stat == Pro.standby)
+      if (low || high) stat = Pro.alarm
+    status := stat
+  }
+
+  private void countStart()
+  {
+    int n = 1
+    bool put = false
+    for (int i = 0; i < slots; i++)
+    {
+      if (ages[i] > 0.0f) n++
+      else if (!put) { ages[i] = 0.001f; put = true }
+    }
+    startsHour := n
+    if (n > maxStarts) leak := true
+  }
+
+  ** ages of the fills within the last hour, s (0 = free)
+  define int slots = 17
+  inline float[slots] ages
+  float lowFor
+  float highFor
+  float pauseFor = 1000000.0f
+  inline Ticker ticker
+}

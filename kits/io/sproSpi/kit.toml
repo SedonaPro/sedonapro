@@ -1,0 +1,2 @@
+summary = "SPI bus access (Linux spidev)"
+targets = ["linux"]

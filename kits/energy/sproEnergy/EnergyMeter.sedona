@@ -1,0 +1,207 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Energy meter with tariff zones and period totals.  The energy comes
+** from 'power' (kW, integrated) or from a meter's 'reading' (kWh: a
+** Modbus register, PulseCounter.total; its increments are counted).
+**
+** Zones by the time of day: 'night' (T2) and 'peak' (T3) list periods
+** like "23:00-07:00" or "07:00-10:00, 17:00-21:00"; the rest of the day
+** is 'day' (T1; the semi-peak of a three-zone tariff).  An empty peak
+** gives a two-zone tariff, both empty a single one.
+**
+** today/yesterday and thisMonth/lastMonth follow the controller's clock
+** (datetime::DateTimeService).  Everything survives a restart with a
+** RetainService; with 'reading' the energy used while the controller was
+** off is counted at the first reading after the start (in the zone of
+** that moment).  A reading that goes back or jumps by more than maxJump
+** (a meter replaced) is not counted.  Without a clock all goes to the
+** day zone, the periods do not move and status = inputBad.
+**
+** This is an operational meter, not a billing one.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class EnergyMeter extends Retained
+{
+  ** power, kW (source power)
+  @summary @unit=Units.kilowatt property float power
+  ** a meter's reading, kWh (source reading)
+  @unit=Units.kilowatt_hour property float reading = null
+
+  define Str sourceRange = "power, reading"
+  @config @range=sourceRange property byte source
+
+  ** night zone T2, periods hh:mm-hh:mm
+  @config @asStr property Buf(48) night = "23:00-07:00"
+  ** peak zone T3, periods hh:mm-hh:mm (empty: a two-zone tariff)
+  @config @asStr property Buf(48) peak = ""
+  ** a reading jump larger than this is not counted, kWh
+  @config @min=0 property float maxJump = 1000.0f
+
+  ** all energy, kWh
+  @readonly @summary @unit=Units.kilowatt_hour @precision=2 property float total
+  ** zone T1 (day, semi-peak), kWh
+  @readonly @unit=Units.kilowatt_hour @precision=2 property float dayTotal
+  ** zone T2 (night), kWh
+  @readonly @unit=Units.kilowatt_hour @precision=2 property float nightTotal
+  ** zone T3 (peak), kWh
+  @readonly @unit=Units.kilowatt_hour @precision=2 property float peakTotal
+  @readonly @unit=Units.kilowatt_hour @precision=2 property float today
+  @readonly @unit=Units.kilowatt_hour @precision=2 property float yesterday
+  @readonly @unit=Units.kilowatt_hour @precision=2 property float thisMonth
+  @readonly @unit=Units.kilowatt_hour @precision=2 property float lastMonth
+
+  define Str zoneRange = "day, night, peak"
+  ** zone now
+  @readonly @range=zoneRange property byte zone
+  ** ok, inputBad (no input or no clock), config (a wrong period)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** set the total (from the meter's display); the zones keep theirs
+  @confirmRequired
+  action void setTotal(float v)
+  {
+    if (!Pro.valid(v)) return
+    sum[0] = (double)v
+    publish()
+    Retained.retainChanged()
+  }
+
+  ** all totals and periods to 0
+  @confirmRequired
+  action void resetAll()
+  {
+    for (int i = 0; i < 8; i++) sum[i] = 0.0D
+    publish()
+    Retained.retainChanged()
+  }
+
+  virtual override void start()
+  {
+    clock = (DateTimeService)Sys.app.lookupService(DateTimeService.type)
+  }
+
+  virtual override void execute()
+  {
+    float dt = ticker.next()
+    if (clock == null || clock.year < 1971) { updateAt(dt, -1, 0); return }
+    updateAt(dt, SchedTime.dayNumber(clock.year, clock.month, clock.day), clock.hour * 60 + clock.minute)
+  }
+
+  ** one step of dt seconds on day number dayNo (-1: no clock) at minute of the day
+  void updateAt(float dt, int dayNo, int minute)
+  {
+    // periods
+    if (dayNo >= 0)
+    {
+      int ymd = SchedTime.date(dayNo)
+      int mon = (ymd / 10000) * 12 + (ymd / 100) % 100
+      if (lastDay < 0) lastDay = dayNo
+      else if (dayNo != lastDay)
+      {
+        sum[5] = dayNo == lastDay + 1 ? sum[4] : 0.0D
+        sum[4] = 0.0D
+        lastDay = dayNo
+        Retained.retainChanged()
+      }
+      if (lastMonthNo < 0) lastMonthNo = mon
+      else if (mon != lastMonthNo)
+      {
+        sum[7] = mon == lastMonthNo + 1 ? sum[6] : 0.0D
+        sum[6] = 0.0D
+        lastMonthNo = mon
+      }
+    }
+
+    // zone
+    int z = 0
+    bool bad = false
+    if (dayNo >= 0)
+    {
+      int p = SchedTime.inPeriods(peak, minute)
+      int n = SchedTime.inPeriods(night, minute)
+      bad = (p & 2) != 0 || (n & 2) != 0
+      if ((p & 1) != 0) z = 2
+      else if ((n & 1) != 0) z = 1
+    }
+    zone := z
+
+    // energy of this step
+    double e = 0.0D
+    bool inOk = true
+    if (source == 1)
+    {
+      if (!Pro.valid(reading)) inOk = false
+      else
+      {
+        double r = (double)reading
+        if (lastReading == lastReading)
+        {
+          double d = r - lastReading
+          if (d >= 0.0D && d <= (double)maxJump) e = d
+          else inOk = false
+        }
+        lastReading = r
+      }
+    }
+    else if (!Pro.valid(power)) inOk = false
+    else if (dt > 0.0f && power > 0.0f) e = (double)(power * dt / 3600.0f)
+
+    if (e > 0.0D)
+    {
+      sum[0] = sum[0] + e
+      sum[1 + z] = sum[1 + z] + e
+      sum[4] = sum[4] + e
+      sum[6] = sum[6] + e
+    }
+    publish()
+    if (!inOk || dayNo < 0) status := Pro.inputBad
+    else status := bad ? Pro.config : Pro.ok
+  }
+
+  private void publish()
+  {
+    total := (float)sum[0]
+    dayTotal := (float)sum[1]
+    nightTotal := (float)sum[2]
+    peakTotal := (float)sum[3]
+    today := (float)sum[4]
+    yesterday := (float)sum[5]
+    thisMonth := (float)sum[6]
+    lastMonth := (float)sum[7]
+  }
+
+  override int retainSize() { return 80 }
+
+  override void saveRetain(OutStream out)
+  {
+    for (int i = 0; i < 8; i++) out.writeF8(sum[i])
+    out.writeF8(lastReading)
+    out.writeI4(lastDay)
+    out.writeI4(lastMonthNo)
+  }
+
+  override void loadRetain(InStream in)
+  {
+    for (int i = 0; i < 8; i++)
+    {
+      double v = in.readF8()
+      sum[i] = v == v ? v : 0.0D
+    }
+    lastReading = in.readF8()
+    lastDay = in.readS4()
+    lastMonthNo = in.readS4()
+    publish()
+  }
+
+  ** total, day, night, peak, today, yesterday, thisMonth, lastMonth
+  inline double[8] sum
+  double lastReading = null
+  int lastDay = -1
+  int lastMonthNo = -1
+  DateTimeService clock
+  inline Ticker ticker
+}

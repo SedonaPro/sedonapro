@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+**
+** Platform service for ESP32 controllers (ESP-IDF / FreeRTOS).
+**
+** memAvailable (inherited) is the free heap; minFreeHeap is its low-water
+** mark since boot, which shows how close the controller came to running out.
+**
+class Esp32PlatformService extends PlatformService
+{
+  ** Lowest free heap since boot, bytes
+  @readonly property int minFreeHeap = 0
+
+  ** Seconds since the chip started
+  @readonly property int uptime = 0
+
+  ** esp_reset_reason() of the last chip reset (1 power-on, 3 software,
+  ** 4 panic, 5..7 watchdogs, 9 brownout; see ESP-IDF esp_reset_reason_t)
+  @readonly property int resetReason = 0
+
+  override virtual void start()
+  {
+    super.start()
+    resetReason := chipResetReason()
+  }
+
+  override virtual void execute()
+  {
+    super.execute()
+    int s = uptimeSec()
+    if (s != uptime)
+    {
+      uptime := s
+      minFreeHeap := heapMinFree()
+    }
+  }
+
+  ** Restart the whole chip (software reset).
+  @confirmRequired
+  override action void reboot()
+  {
+    rebootSystem()
+  }
+
+  internal static native void rebootSystem()
+  internal static native int heapMinFree()
+  internal static native int uptimeSec()
+  internal static native int chipResetReason()
+}

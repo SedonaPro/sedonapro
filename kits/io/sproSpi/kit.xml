@@ -1,0 +1,17 @@
+<sedonaKit
+    name="sproSpi"
+    vendor="SPro"
+    description="library to work with SPI slave devices"
+    >
+
+  <depend on="sys 1.2+" />
+  <depend on="inet 1.2+" />
+  <depend on="sproLib 1.2+" />
+  <depend on="sproUtil 1.2+" />
+
+  <native qname="sproSpi::SpiBaseApi.open"     id="114::0" />
+  <native qname="sproSpi::SpiBaseApi.close"    id="114::1" />
+  <native qname="sproSpi::SpiBaseApi.sendByte" id="114::2" />
+  <native qname="sproSpi::SpiBaseApi.initMode" id="114::3" />
+  <source dir="." />
+</sedonaKit>

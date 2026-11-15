@@ -1,0 +1,4 @@
+summary = "Platform service of ESP32 (reboot, heap, reset reason, manifests over SOX)"
+targets = ["sim", "esp32"]
+[native]
+all = ["native", "../sys_esp32"]

@@ -1,0 +1,110 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Table of up to 8 points with linear interpolation: sensor
+** characteristics, valve curves, pump and fan curves, outdoor reset.
+** x1 < x2 < ... must increase over the used points.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Curve8 extends Component
+{
+  @summary property float in
+
+  ** points used, 2..8
+  @config @min=2 @max=8 property int points = 2
+
+  ** beyond the first or last point continue the end segment instead of holding its y
+  @config property bool extrapolate = false
+
+  @config property float x1 = 0.0f
+  @config property float y1 = 0.0f
+  @config property float x2 = 100.0f
+  @config property float y2 = 100.0f
+  @config property float x3
+  @config property float y3
+  @config property float x4
+  @config property float y4
+  @config property float x5
+  @config property float y5
+  @config property float x6
+  @config property float y6
+  @config property float x7
+  @config property float y7
+  @config property float x8
+  @config property float y8
+
+  @readonly @summary property float out
+
+  ** ok, inputBad (in is null: out null), config (points or x order wrong: out null)
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute()
+  {
+    int n = points
+    if (n < 2 || n > 8 || !ordered(n))
+    {
+      out := null
+      status := Pro.config
+      return
+    }
+    if (!Pro.valid(in))
+    {
+      out := null
+      status := Pro.inputBad
+      return
+    }
+    int seg = 1
+    while (seg < n - 1 && in > x(seg + 1)) seg++
+    float xa = x(seg)
+    float xb = x(seg + 1)
+    float ya = y(seg)
+    float yb = y(seg + 1)
+    if (!extrapolate)
+    {
+      if (in <= x(1)) { out := y(1); status := Pro.ok; return }
+      if (in >= x(n)) { out := y(n); status := Pro.ok; return }
+    }
+    out := ya + (in - xa) * (yb - ya) / (xb - xa)
+    status := Pro.ok
+  }
+
+  private bool ordered(int n)
+  {
+    for (int i = 1; i < n; i++)
+      if (!Pro.valid(x(i)) || !Pro.valid(y(i)) || !(x(i + 1) > x(i))) return false
+    return Pro.valid(y(n))
+  }
+
+  float x(int i)
+  {
+    switch (i)
+    {
+      case 1: return x1
+      case 2: return x2
+      case 3: return x3
+      case 4: return x4
+      case 5: return x5
+      case 6: return x6
+      case 7: return x7
+    }
+    return x8
+  }
+
+  float y(int i)
+  {
+    switch (i)
+    {
+      case 1: return y1
+      case 2: return y2
+      case 3: return y3
+      case 4: return y4
+      case 5: return y5
+      case 6: return y6
+      case 7: return y7
+    }
+    return y8
+  }
+}

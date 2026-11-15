@@ -1,0 +1,208 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Base of all I/O points: binds to a board channel by name.
+** Changing 'channel' at run time rebinds on the next scan.
+**
+@palette=false
+abstract class HalPoint extends Component
+{
+  define Str statusRange = "ok, noChannel, wrongKind, ioError"
+
+  ** channel name from the board file (DI1, DO1, AI1, AO1 ...)
+  @config @asStr @max=15
+  property Buf(16) channel = ""
+
+  @range=statusRange
+  @readonly property byte status = Hal.noChannel
+
+  int ch = -1
+  bool rebind = true
+
+  ** kind this point needs: Hal.kindDi, kindDo, kindAi or kindAo
+  abstract int needKind()
+
+  ** called after a successful bind
+  virtual void bound() {}
+
+  override virtual void changed(Slot slot)
+  {
+    super.changed(slot)
+    if (slot == HalPoint.channel)
+      rebind = true
+  }
+
+  bool attached()
+  {
+    if (rebind)
+    {
+      rebind = false
+      ch = Hal.find(channel.toStr())
+      if (ch < 0)
+        status := Hal.noChannel
+      else if (Hal.kind(ch) != needKind())
+      {
+        ch = -1
+        status := Hal.wrongKind
+      }
+      else
+      {
+        status := (byte)Hal.open(ch)
+        if (status != Hal.ok)
+          ch = -1
+        else
+          bound()
+      }
+    }
+    return ch >= 0
+  }
+}
+
+**
+** Digital input: out = channel state (board inversion applied).
+**
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class DigitalInput extends HalPoint
+{
+  @readonly property bool out
+
+  override int needKind() { return Hal.kindDi }
+
+  override virtual void execute()
+  {
+    if (!attached())
+      return
+    float v = Hal.read(ch)
+    if (v == null)
+      status := Hal.ioError
+    else
+    {
+      status := Hal.ok
+      out := v != 0.0
+    }
+  }
+}
+
+**
+** Digital output: drives the channel from 'in'.
+**
+@niagaraIcon="module://icons/x16/control/booleanPointWr.png"
+class DigitalOutput extends HalPoint
+{
+  property bool in
+
+  bool written = false
+  bool last
+
+  override int needKind() { return Hal.kindDo }
+
+  override void bound() { written = false }
+
+  override virtual void execute()
+  {
+    if (!attached())
+      return
+    if (written && last == in)
+      return
+    status := (byte)Hal.write(ch, in ? 1.0 : 0.0)
+    written = status == Hal.ok
+    last = in
+  }
+}
+
+**
+** Analog input: out = channel value in the units of the board file.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class AnalogInput extends HalPoint
+{
+  @readonly property float out
+
+  override int needKind() { return Hal.kindAi }
+
+  override virtual void execute()
+  {
+    if (!attached())
+      return
+    float v = Hal.read(ch)
+    if (v == null)
+      status := Hal.ioError
+    else
+    {
+      status := Hal.ok
+      out := v
+    }
+  }
+}
+
+**
+** Analog output (PWM or DAC): drives the channel from 'in',
+** in the units of the board file (default 0..100 %).
+**
+@niagaraIcon="module://icons/x16/control/numericPointWr.png"
+class AnalogOutput extends HalPoint
+{
+  property float in
+
+  bool written = false
+  float last
+
+  override int needKind() { return Hal.kindAo }
+
+  override void bound() { written = false }
+
+  override virtual void execute()
+  {
+    if (!attached())
+      return
+    if (written && last == in)
+      return
+    status := (byte)Hal.write(ch, in)
+    written = status == Hal.ok
+    last = in
+  }
+}
+
+**
+** Shows which board and HAL backend the VM was built for and its channels.
+**
+class HalBoard extends Component
+{
+  @readonly @asStr property Buf(32) board = ""
+  @readonly @asStr property Buf(16) backend = ""
+  @readonly property int channels = 0
+  ** channel names separated by spaces
+  @readonly @asStr property Buf(256) names = ""
+
+  override virtual void start()
+  {
+    super.start()
+    board.copyFromStr(Hal.board())
+    changed(HalBoard.board)
+    backend.copyFromStr(Hal.backend())
+    changed(HalBoard.backend)
+    channels := Hal.count()
+    names.clear()
+    for (int i = 0; i < Hal.count(); ++i)
+    {
+      Str n = Hal.name(i)
+      if (names.size + n.length() + 2 > names.bytesLen)
+        break
+      if (i > 0)
+        appendByte(names, ' ')
+      for (int j = 0; j < n.length(); ++j)
+        appendByte(names, n.get(j))
+    }
+    appendByte(names, 0)
+    changed(HalBoard.names)
+  }
+
+  static void appendByte(Buf b, int c)
+  {
+    b.bytes[b.size] = c
+    b.size++
+  }
+}

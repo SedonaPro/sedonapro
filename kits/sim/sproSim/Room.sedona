@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Mixed room with envelope losses, ventilation and internal heat load.
+** Temperatures degC, flow kg/s, capacity J/K, envelope W/K, load W.
+class Room extends SimBlock
+{
+  property float supply = 25.0f
+  property float outdoor = 5.0f
+  property float load = 0.0f
+  property float flowScale = 1.0f
+  @config property float airFlow = 0.5f
+  @config property float cpAir = 1006.0f
+  @config property float envelope = 100.0f
+  @config property float capacity = 1000000.0f
+  @config property float initial = 22.0f
+  @readonly property float out
+  @readonly property float supplyPower
+  @readonly property float envelopePower
+  @readonly property float balanceError
+  @readonly property bool good = true
+  virtual override bool acceptsInput(Slot s)
+  { return s == Room.supply || s == Room.outdoor || s == Room.load || s == Room.flowScale }
+  virtual override bool valid()
+  {
+    return super.valid() && finite(airFlow) && airFlow >= 0.0f && airFlow <= 1000.0f &&
+      finite(cpAir) && cpAir > 0.0f && cpAir <= 100000.0f && finite(envelope) && envelope >= 0.0f && envelope <= 1.0e9f &&
+      finite(capacity) && capacity > 0.0f && capacity <= 1.0e12f && finite(initial)
+  }
+  virtual override void resetState()
+  { out := initial; supplyPower := 0.0f; envelopePower := 0.0f; balanceError := 0.0f; good := true }
+  override void tick(float dt, double time)
+  {
+    good := finite(supply) && finite(outdoor) && finite(load) && finite(flowScale) && flowScale >= 0.0f && flowScale <= 100.0f
+    if (!good) return
+    double ga = (double)airFlow*(double)cpAir*(double)flowScale
+    double c = (double)capacity/(double)dt
+    double next = (c*(double)out+ga*(double)supply+(double)envelope*(double)outdoor+(double)load)/(c+ga+(double)envelope)
+    double qs = ga*((double)supply-next)
+    double qe = (double)envelope*((double)outdoor-next)
+    if (!finite((float)next) || !finite((float)qs) || !finite((float)qe)) { good := false; return }
+    balanceError := (float)(qs+qe+(double)load-c*(next-(double)out))
+    out := (float)next
+    supplyPower := (float)qs
+    envelopePower := (float)qe
+  }
+}

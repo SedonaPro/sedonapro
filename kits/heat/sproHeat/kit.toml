@@ -1,0 +1,2 @@
+summary = "Heating substations: heating curve, heating circuit with return limit and frost protection, hot water with disinfection and priority, make-up"
+portable_tests = true

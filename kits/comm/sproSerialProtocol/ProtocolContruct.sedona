@@ -1,0 +1,906 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+@palette=false
+class SerialProtPortBase extends DebugComponent
+{
+	define Str parityVals = "None, Odd, Even, Mark, Space";
+	define Str rs485Vals  = "RS232, RS485";
+	define Str portVals   = "VirtPort1, VirtPort2, None, Port1, Port2, Port3, Port4, Port5, Port6";
+	define Str rtsVals    = "Low, High";
+
+	@config
+	@defaultOnClone
+	@range=portVals
+	@min=-2
+	property int port = 0;
+
+	@config
+	@range=SerialInfo.baudrateVals
+        property int baudrate = 3;
+
+	@config
+        @min=7
+        @max=8
+        property int databits = 8;
+
+	@config
+        @min=1
+        @max=2
+        property int stopbits = 1;
+
+
+	@config
+        @range=parityVals
+        property int parity = 0;
+
+	@config
+	@allowNull=false
+	@range=rtsVals
+	property int rts = 0;
+
+	@config
+	@allowNull=false
+	@defaultOnClone
+	@range=rs485Vals
+	property int rs485 = 0;
+
+	@readonly
+	property bool fault;
+
+	bool debug = true;
+	inline SerialPort      serial;
+
+	bool started;
+
+	void init() {
+		int baudrateInt = SerialInfo.getBaudrateInt(baudrate);
+		started = true;
+		serial.setParams(port, baudrateInt, databits, stopbits, parity, rts, rs485);
+		fault := serial.open() != 0;
+	}
+
+	void deinit() {
+		if (!fault)
+		   serial.close();
+	}
+
+	virtual override void execute() {
+		super.execute();
+		if (!started)
+		   init();
+	}
+	virtual override void changed(Slot slot) {
+                super.changed(slot);
+		if (
+			(slot == SerialProtPortBase.port)     ||
+			(slot == SerialProtPortBase.baudrate) ||
+			(slot == SerialProtPortBase.databits) ||
+			(slot == SerialProtPortBase.parity)   ||
+			(slot == SerialProtPortBase.stopbits) ||
+			(slot == SerialProtPortBase.rts) ||
+			(slot == SerialProtPortBase.rs485)
+			) {
+			deinit();
+			init();
+		}
+	}
+
+	virtual override void remove() {
+		super.remove();
+		deinit();
+	}
+}
+
+@palette=false
+class updatePeriod
+{
+	long lastUpdate;
+
+	int actualUpdatePeriodMs;
+
+	int update() {
+		long cur = Sys.ticks();
+		actualUpdatePeriodMs = sinceLastUpdateMs();
+		lastUpdate = cur;
+		return actualUpdatePeriodMs;
+	}
+
+	int sinceLastUpdateMs() {
+		long cur = Sys.ticks();
+		return (int)((cur - lastUpdate)/(long)(1000*1000));
+	}
+}
+
+class SerialProtPort extends SerialProtPortBase
+{
+	@readonly
+	property int readBytes;
+
+	@readonly
+	property int writtenBytes;
+
+
+
+	int read(){
+		int b = -1;
+		if (!fault) {
+		   b = serial.in.read();
+		   if (b>=0)
+		      readBytes := readBytes + 1;
+		}
+		return b;
+	}
+
+	void write(int b){
+		if (!fault) {
+		   serial.out.write(b);
+		   writtenBytes := writtenBytes + 1;
+		}
+	}
+
+
+	action void resetStats()
+	{
+		writtenBytes := 0;
+		readBytes    := 0;
+	}
+
+
+}
+
+
+@palette=false
+class SerialProtStat extends DebugComponent
+{
+	@readonly
+	@unit=Units.millisecond
+	property int  actualUpdatePeriodMs;
+
+
+	@config
+	@allowNull=false
+	@defaultOnClone
+	property bool enable = false;
+
+	@readonly
+	property int packets;
+
+	@readonly
+	property bool fault;
+
+	inline updatePeriod updateProtPeriod;
+
+	action void resetStats()
+	{
+		packets := 0;
+	}
+
+	void newPacket()
+	{
+		fault := false;
+		packets := packets + 1;
+		actualUpdatePeriodMs := updateProtPeriod.update();
+	}
+
+	bool isParentOk() {
+		Component comp = Sys.app.lookup(parent);
+		if (!comp?.type?.is(SerialProtPort.type))
+			return false;
+		return !((SerialProtPort)comp).fault;
+	}
+
+
+	virtual override void execute()
+	{
+		super.execute();
+		fault := fault || (!isParentOk());
+	}
+}
+
+@palette=false
+class SerialProtBase extends SerialProtStat
+{
+	define Str checksumVals="None, CRC16-IBM, CRC32";
+	define int checksumNONE     = 0;
+	define int checksumCRC16IBM = 1;
+	define int checksumCRC32    = 2;
+
+	@config
+	@allowNull=false
+	property int prefixByte1 = 83; // S
+
+	@config
+	@allowNull=false
+	property int prefixByte2 = -1;
+
+	@config
+	@allowNull=false
+	property int prefixByte3 = -1;
+
+
+	@config
+	@allowNull=false
+	property int suffixByte1 = 69; // E
+
+	@config
+	@allowNull=false
+	property int suffixByte2 = -1;
+
+	@config
+	@allowNull=false
+	property int suffixByte3 = -1;
+
+	@config
+	@allowNull=false
+	@range=checksumVals
+	property int checksum = checksumNONE;
+
+	int prefixLen;
+	int payloadLen;
+	int suffixLen;
+	int checksumLen;
+	int packetLen;
+
+	inline Crc32 		checksumCrc32;
+	inline Crc16IBM		checksumCrc16IBM;
+	inline ChecksumNone 	checksumNone;
+
+	Checksum checksumCommon = checksumNone;
+	inline TypesToBytesConvert checksumData;
+
+	int getPrefixLen()
+	{
+		int len = 0;
+		if (prefixByte1 >= 0)
+			len++;
+		if (prefixByte2 >= 0)
+			len++;
+		if (prefixByte3 >= 0)
+			len++;
+		return len;
+	}
+
+	int getSuffixLen()
+	{
+		int len = 0;
+		if (suffixByte1 >= 0)
+			len++;
+		if (suffixByte2 >= 0)
+			len++;
+		if (suffixByte3 >= 0)
+			len++;
+		return len;
+	}
+
+	int getChecksumLen()
+	{
+		return checksumCommon?.len();
+	}
+
+	int getPacketLength()
+	{
+		int len = 0;
+		len += getPrefixLen();
+		len += getPayloadLength(SerialProtPointRead.type);
+		len += getSuffixLen();
+		len += getChecksumLen();
+		return len;
+	}
+
+	void updateChecksum()
+	{
+		switch(checksum) {
+		case checksumCRC32:
+			checksumCommon = checksumCrc32;
+			break;
+		case checksumCRC16IBM:
+			checksumCommon = checksumCrc16IBM;
+			break;
+		case checksumNONE:
+		default:
+			checksumCommon = checksumNone;
+			break;
+
+
+		}
+	}
+
+	void updatePacketInfo()
+	{
+		updateChecksum();
+		sortList();
+		prefixLen  = getPrefixLen();
+		payloadLen = getPayloadLength(SerialProtPointRead.type);
+		suffixLen  = getSuffixLen();
+		checksumLen= getChecksumLen();
+		packetLen  = prefixLen + payloadLen + suffixLen + checksumLen;
+	}
+
+	int calcHashListType(Type t) {
+		int ret = 0;
+		Component c = Sys.app.getFirstChildOfType(this, t);
+		for (; c != null; c = Sys.app.getNextSiblingOfType(c, t)) {
+			SerialProtPoint pnt = (SerialProtPoint)c;
+			ret = (pnt.order*pnt.id) + pnt.id*pnt.sizeInBytes + pnt.id + pnt.sizeInBytes*5;
+		}
+		return ret;
+	}
+
+	void updateDataType(Type t) {
+		Component c = Sys.app.getFirstChildOfType(this, t);
+		for (; c != null; c = Sys.app.getNextSiblingOfType(c, t)) {
+			SerialProtPoint pnt = (SerialProtPoint)c;
+			pnt.update();
+		}
+	}
+
+	int  getPayloadLength(Type t) {
+		int len = 0;
+		Component c = Sys.app.getFirstChildOfType(this, t);
+		for (; c != null; c = Sys.app.getNextSiblingOfType(c, t)) {
+			SerialProtPoint pnt = (SerialProtPoint)c;
+			len += pnt.sizeInBytes;
+		}
+		return len;
+	}
+
+
+	void  setFaultToChilds() {
+		Type t = SerialProtPoint.type;
+		Component c = Sys.app.getFirstChildOfType(this, t);
+		for (; c != null; c = Sys.app.getNextSiblingOfType(c, t)) {
+			SerialProtPoint pnt = (SerialProtPoint)c;
+			pnt.fault := true;
+		}
+	}
+
+	void printListType(Type type) {
+		printMessage("points:\n");
+		Component c = Sys.app.getFirstChildOfType(this, type);
+		if (c == null)
+			printMessage("The list is empty\n");
+
+		for (; c != null; c = Sys.app.getNextSiblingOfType(c, type)) {
+			SerialProtPoint pnt = (SerialProtPoint)c;
+			printMessage("");
+			ShowInternals.printComponentName(pnt);
+			Sys.out.print("  order: ${pnt.order}").nl();
+		}
+		printMessage("---------\n");
+	}
+
+	virtual void printList() {
+	}
+
+	action void printInternalState() {
+		printList()
+	}
+
+
+	void sortList() {
+		bool debug = false;
+		/* previous element is necessary to
+		   exchange two elements in one-way list */
+		Component prev_pnt1;
+		Component prev_pnt2;
+		SerialProtPoint pnt1;
+		SerialProtPoint pnt2;
+
+		bool changed;
+
+
+		int i_max = 100;
+		int i;
+
+		for(i=0 ;i<i_max ;i++) {
+			prev_pnt1 = null;
+			prev_pnt2 = null;
+			pnt1 = null;
+			pnt2 = null;
+			changed = false;
+
+			Component prev_c = null;
+			Component c = Sys.app.lookup(children);
+
+			/* bubble sort */
+			for (; c != null; ) {
+				if (debug) {
+					printMessage("Element ");
+					Sys.out.printInt(prev_c?.id).print("->$c.id").nl();
+				}
+
+				if (c.type.is(SerialProtPoint.type)) {
+					if (debug)
+						printMessage("SerialProtPoint\n");
+
+
+					if (pnt1 == null) {
+						prev_pnt1 = prev_c;
+						pnt1 = (SerialProtPoint)c;
+					} else {
+						prev_pnt2 = prev_c;
+						pnt2 = (SerialProtPoint)c;
+						if (pnt1.order > pnt2.order) {
+							/* exchange */
+							if (debug) {
+								printMessage("Exchange ");
+								Sys.out.printInt(prev_pnt1?.id).print("->$pnt1.id to ");
+								Sys.out.printInt(prev_pnt2?.id).print("->$pnt2.id").nl();
+							}
+
+
+							changed = true;
+							if (prev_pnt1 == null) {
+								Component parent= Sys.app.lookup(c.parent);
+								parent.children = pnt2.id;
+							} else {
+								prev_pnt1.nextSibling = pnt2.id;
+							}
+
+							if (pnt1.nextSibling != pnt2.id) {
+								int tmpId = pnt2.nextSibling;
+								pnt2.nextSibling = pnt1.nextSibling;
+								pnt1.nextSibling = tmpId;
+								prev_pnt2.nextSibling = pnt1.id;
+								prev_pnt1 = prev_pnt2;
+							} else {
+								pnt1.nextSibling = pnt2.nextSibling;
+								pnt2.nextSibling = pnt1.id;
+								prev_pnt1 = pnt2;
+							}
+
+
+							c = pnt1;
+							if (debug) {
+								printMessage("After exchange ");
+								Sys.out.printInt(prev_pnt1?.id).print("->$pnt1.id to ");
+								Sys.out.printInt(prev_pnt2?.id).print("->$pnt2.id").nl();
+							}
+						} else {
+							prev_pnt1 = prev_pnt2;
+							pnt1 = pnt2;
+						}
+					}
+				}
+				prev_c = c;
+				c = Sys.app.lookup(c.nextSibling);
+			}
+			if (debug)
+				printMessage("Loop done\n");
+			if (!changed)
+				break;
+		}
+		if (i >= i_max)
+			printMessage("Infinite loop in sort\n");
+	}
+}
+
+@niagaraIcon="module://icons/x16/deviceNetwork.png"
+class SerialProtRead extends SerialProtBase
+{
+	define int bufferSize=100;
+
+	@config
+	@unit=Units.millisecond
+	property int receiveTimeoutMs = 1000;
+
+
+	int bufLen;
+	inline int[bufferSize] buf;
+
+	inline updatePeriod updateReceiveTimeout;
+
+	virtual override void printList() {
+		super.printList();
+		printMessage("SerialProtPointRead\n");
+		printListType(SerialProtPointRead.type);
+	}
+
+	bool checkByte(int indx, int b) {
+		return (b>=0) && (buf[indx]==b) && (indx < bufLen) && (indx < bufferSize);
+	}
+
+	bool isStart(int indx) {
+		bool ret = true;
+		if (prefixByte1 > 0) {
+			ret = ret && checkByte(indx, prefixByte1);
+			indx++;
+		}
+		if (prefixByte2 > 0) {
+			ret = ret && checkByte(indx, prefixByte2);
+			indx++;
+		}
+
+		if (prefixByte3 > 0) {
+			ret = ret && checkByte(indx, prefixByte3);
+			indx++;
+		}
+		return ret;
+	}
+
+
+	bool isEnd(int indx) {
+		bool ret = true;
+		if (suffixByte1 > 0) {
+			ret = ret && checkByte(indx, suffixByte1);
+			indx++;
+		}
+		if (suffixByte2 > 0) {
+			ret = ret && checkByte(indx, suffixByte2);
+			indx++;
+		}
+
+		if (suffixByte3 > 0) {
+			ret = ret && checkByte(indx, suffixByte3);
+			indx++;
+		}
+		return ret;
+	}
+
+	void byteReceived(int c) {
+		if (bufLen >= bufferSize)
+			return;
+
+		buf[bufLen] = c;
+		bufLen++;
+	}
+
+	void shiftBuffer(int shift)
+	{
+		if (bufLen <= shift) {
+			bufLen = 0;
+			return;
+		}
+
+		for(int i=0; i<(bufLen-shift); i++)
+			buf[i] = buf[i+shift];
+		bufLen -= shift;
+	}
+
+	bool checksumOk()
+	{
+		if (checksumLen == 0)
+			return true;
+
+		int maxIndx = prefixLen + payloadLen + suffixLen;
+		int calcSum;
+		int recvSum;
+
+		checksumCommon.init();
+		for(int i=0; i<maxIndx; i++)
+			checksumCommon.update(buf[i]);
+		calcSum = checksumCommon.get();
+
+		checksumData.clearData();
+		for(int i=0; i<checksumLen; i++)
+			checksumData.setByte(i, buf[maxIndx + i]);
+
+		recvSum = checksumData.bytesToInt(checksumLen);
+		return (recvSum == calcSum);
+	}
+
+	bool checkPacket()
+	{
+		bool found;
+		int indxEnd = prefixLen + payloadLen;
+
+		do {
+			found = (bufLen >=packetLen) && isStart(0) && isEnd(indxEnd) && checksumOk();
+			if (found || (bufLen < packetLen))
+				break;
+			shiftBuffer(1);
+		} while	(true);
+
+		return found;
+	}
+
+
+	void readData() {
+		int indx = prefixLen;
+		int maxIndx = prefixLen + payloadLen;
+
+		Type t = SerialProtPointRead.type;
+		Component c = Sys.app.getFirstChildOfType(this, t);
+		for (; c != null; c = Sys.app.getNextSiblingOfType(c, t)) {
+			SerialProtPointRead pnt = (SerialProtPointRead)c;
+			for(int i=0; i<pnt.sizeInBytes; i++) {
+				if (indx <= maxIndx) {
+					pnt.data.setByte(i, buf[indx]);
+					indx++;
+				}
+			}
+		}
+	}
+
+	void checkReceiveTimeout() {
+		if ((updateProtPeriod.sinceLastUpdateMs() > receiveTimeoutMs) &&
+		    (updateReceiveTimeout.sinceLastUpdateMs() > receiveTimeoutMs)) {
+			updateReceiveTimeout.update();
+			fault := true;
+		}
+	}
+
+	int read()
+	{
+		Component comp = Sys.app.lookup(parent);
+		return ((SerialProtPort)comp).read();
+	}
+
+	void processRx()
+	{
+		if (!isParentOk())
+			return;
+
+		bool once = false;
+		int c = -1;
+		do {
+			c = read();
+			if (c >= 0) {
+				byteReceived(c);
+				if (!once) {
+					updatePacketInfo();
+					once = true;
+				}
+				if (checkPacket()) {
+					newPacket();
+					readData();
+					updateDataType(SerialProtPointRead.type);
+					shiftBuffer(packetLen);
+				}
+			}
+			checkReceiveTimeout();
+		} while(c>=0);
+	}
+
+	virtual override void execute()
+	{
+		super.execute();
+		if (fault)
+			setFaultToChilds();
+
+		if (enable)
+			processRx();
+	}
+}
+
+@niagaraIcon="module://icons/x16/deviceNetwork.png"
+class SerialProtWrite extends SerialProtBase
+{
+	define int defaultWritePeriodMs = 1000;
+
+	@config
+	@unit=Units.millisecond
+	property int writePeriodMs = defaultWritePeriodMs;
+
+
+
+	virtual override void printList() {
+		super.printList();
+		printMessage("SerialProtPointWrite\n");
+		printListType(SerialProtPointWrite.type);
+	}
+
+
+	bool needUpdatePeriodically()
+	{
+		long lastUpdate = updateProtPeriod.lastUpdate;
+		long curTime = Sys.ticks();
+		long  elapsedMs = (curTime - lastUpdate)/(long)(1000*1000);
+		return elapsedMs >= (long)writePeriodMs;
+	}
+
+	void writePrefix() {
+		checksumCommon.init();
+		if (prefixByte1 > 0)
+			write(prefixByte1);
+		if (prefixByte2 > 0)
+			write(prefixByte2);
+		if (prefixByte3 > 0)
+			write(prefixByte3);
+	}
+
+	void writeSuffix() {
+		if (suffixByte1 > 0)
+			write(suffixByte1);
+		if (suffixByte2 > 0)
+			write(suffixByte2);
+		if (suffixByte3 > 0)
+			write(suffixByte3);
+	}
+
+	void writeChecksum() {
+		int sum = checksumCommon.get();
+		int len = checksumCommon.len();
+		checksumData.intToBytes(sum, len);
+		for(int i=0; i<len; i++)
+			write(checksumData.getByte(i));
+	}
+
+	void writeData() {
+		Type t = SerialProtPointWrite.type;
+		Component c = Sys.app.getFirstChildOfType(this, t);
+		for (; c != null; c = Sys.app.getNextSiblingOfType(c, t)) {
+			SerialProtPointWrite pnt = (SerialProtPointWrite)c;
+			for(int i=0; i<pnt.sizeInBytes; i++)
+				write(pnt.data.getByte(i));
+		}
+	}
+
+	void write(int b)
+	{
+		checksumCommon.update(b);
+		Component comp = Sys.app.lookup(parent);
+		((SerialProtPort)comp).write(b);
+	}
+
+	virtual override void execute() {
+		super.execute();
+		fault := !isParentOk();
+		if (enable && (!fault)) {
+			if (needUpdatePeriodically()) {
+				newPacket();
+				updateDataType(SerialProtPointWrite.type);
+				updatePacketInfo();
+
+				// write packet to the port
+				writePrefix();
+				writeData();
+				writeSuffix();
+				writeChecksum();
+			}
+		}
+	}
+}
+
+@palette=false
+class SerialProtPoint extends DebugComponent
+{
+	@summary
+	@config
+	@min = 0
+	property int order = 0;
+
+	@readonly
+	property bool fault = true;
+
+	int sizeInBytes;
+	inline TypesToBytesConvert data;
+
+
+	virtual void convertData() {
+	}
+
+	virtual void update() {
+		fault := false;
+	}
+}
+
+
+@palette=false
+class SerialProtPointRead extends SerialProtPoint
+{
+	int tmp;
+
+	virtual override void convertData() {
+		tmp = data.bytesToInt(sizeInBytes);
+	}
+
+	virtual override void update() {
+		super.update();
+		convertData();
+		data.clearData();
+	}
+}
+
+@palette=false
+class SerialProtPointWrite extends SerialProtPoint
+{
+	int tmp;
+
+	virtual override void convertData() {
+		data.intToBytes(tmp, sizeInBytes);
+	}
+
+	virtual override void update() {
+		super.update();
+		data.clearData();
+		convertData();
+	}
+}
+
+
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class SerialProtReadPointInt extends SerialProtPointRead
+{
+	@summary=false
+	@config
+	@min = 1
+	@max = 4
+	property int size = 1;
+
+	@summary
+	@readonly
+	property int out;
+
+	virtual override void convertData() {
+		super.convertData();
+		out := tmp;
+	}
+
+	virtual override void execute() {
+		super.execute();
+		sizeInBytes = size;
+	}
+}
+
+@niagaraIcon="module://icons/x16/control/numericPointWr.png"
+class SerialProtWritePointInt extends SerialProtPointWrite
+{
+	@summary=false
+	@config
+	@min = 1
+	@max = 4
+	property int size = 1;
+
+	@summary
+	property int in;
+
+	virtual override void convertData() {
+		tmp = in;
+		super.convertData();
+	}
+
+	virtual override void execute() {
+		super.execute();
+		sizeInBytes = size;
+	}
+}
+
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class SerialProtReadPointFloat extends SerialProtPointRead
+{
+	@summary
+	@readonly
+	property float out;
+
+	virtual override void convertData() {
+		super.convertData();
+		out := ConvertFloat.Int2Float(tmp);
+	}
+
+	virtual override void loaded() {
+		sizeInBytes = 4;
+	}
+}
+
+
+@niagaraIcon="module://icons/x16/control/numericPointWr.png"
+class SerialProtWritePointFloat extends SerialProtPointWrite
+{
+	@summary
+	property float in;
+
+	virtual override void convertData() {
+		tmp = ConvertFloat.Float2Int(in);
+		super.convertData();
+	}
+
+	virtual override void loaded() {
+		sizeInBytes = 4;
+	}
+}

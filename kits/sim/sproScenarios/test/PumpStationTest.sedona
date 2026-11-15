@@ -1,0 +1,155 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Water pressure booster set: 3 equal pumps on VFDs, a pressure Pid,
+** PumpCascade, LeadLag and a Motor per pump, on a model of the network:
+**   pump head at speed s and flow q: 5 s^2 - 0.02 q^2 bar,
+**   suction 1 bar, draw-off 'flow' m3/h shared by the running pumps,
+**   pressure lag 1 s; with all pumps stopped the pressure tank drains
+**   with the draw-off and a small leak.
+**
+class PumpStationTest extends Test
+{
+  static inline Pid pid
+  static inline PumpCascade pc
+  static inline LeadLag ll
+  static inline Motor m1
+  static inline Motor m2
+  static inline Motor m3
+
+  static float p
+  static float flow
+
+  static bool near(float a, float b, float tol) { return a - b <= tol && b - a <= tol }
+
+  static void setup()
+  {
+    p = 1.0f
+    flow = 5.0f
+    pid.sp := 4.0f
+    pid.kp := 15.0f
+    pid.ti := 4.0f
+    pid.period := 0.0f
+    pid.startValue := 50.0f
+    pid.reset()
+    pc.maxPumps := 3
+    pc.upAt := 95.0f
+    pc.upDelay := 5.0f
+    pc.downAt := 86.0f
+    pc.downDelay := 20.0f
+    pc.minSpeed := 30.0f
+    pc.sleep := true
+    pc.sleepSpeed := 80.0f
+    pc.sleepDelay := 30.0f
+    pc.wakeDiff := 0.3f
+    pc.sp := 4.0f
+    ll.units := 3
+    ll.rotation := LeadLag.byRuntime
+    ll.rotateHours := 100.0f
+    ll.overlap := 2.0f
+    m1.start()
+    m2.start()
+    m3.start()
+  }
+
+  ** one step of 0.5 s of controller and plant
+  static void step()
+  {
+    float dt = 0.5f
+    pid.pv := p
+    pid.update(dt)
+    pc.in := pid.out
+    pc.pv := p
+    pc.available := ll.availableCount
+    pc.update(dt)
+    pid.track := pc.sleeping
+    pid.trackValue := pc.minSpeed
+    ll.demand := pc.count
+    ll.avail1 := m1.available
+    ll.avail2 := m2.available
+    ll.avail3 := m3.available
+    ll.update(dt)
+    m1.request := ll.req1
+    m2.request := ll.req2
+    m3.request := ll.req3
+    m1.speedIn := pc.speed
+    m2.speedIn := pc.speed
+    m3.speedIn := pc.speed
+    m1.update(dt)
+    m2.update(dt)
+    m3.update(dt)
+
+    int n = 0
+    float s = 0.0f
+    if (m1.running) { n++; s = m1.speed }
+    if (m2.running) { n++; s = m2.speed }
+    if (m3.running) { n++; s = m3.speed }
+    if (n == 0)
+    {
+      p -= (0.002f + 0.05f * flow) * dt
+      if (p < 1.0f) p = 1.0f
+      return
+    }
+    float q = flow / (float)n
+    float sp = s / 100.0f
+    float target = 1.0f + 5.0f * sp * sp - 0.02f * q * q
+    if (target < 1.0f) target = 1.0f
+    p += (target - p) * dt / 1.0f
+  }
+
+  static void run(int seconds) { for (int k = 0; k < seconds * 2; k++) step() }
+
+  static int pumps()
+  {
+    int n = 0
+    if (m1.running) n++
+    if (m2.running) n++
+    if (m3.running) n++
+    return n
+  }
+
+  static void testPumpStation()
+  {
+    setup()
+    // small draw-off: one pump holds 4 bar
+    run(300)
+    assert(pumps() == 1 && near(p, 4.0f, 0.05f))
+    // peak draw-off: the cascade adds pumps
+    flow = 25.0f
+    float low = 10.0f
+    for (int k = 0; k < 600; k++) { step(); if (k > 240 && p < low) low = p }
+    assert(pumps() == 3 && pc.count == 3)
+    assert(near(p, 4.0f, 0.05f) && low > 3.7f)
+    // moderate draw-off: back to 2
+    flow = 15.0f
+    run(300)
+    assert(pumps() == 2 && near(p, 4.0f, 0.05f))
+    // a running pump trips: the third starts, pressure recovers
+    Motor failing = m1.running ? m1 : m2
+    failing.fault := true
+    run(120)
+    assert(pumps() == 2 && !failing.cmd && failing.status == Pro.locked)
+    assert(near(p, 4.0f, 0.05f) && !ll.alarm)
+    failing.fault := false
+    failing.reset()
+    // night: no draw-off, the pumps sleep; the leak wakes them
+    flow = 0.0f
+    run(400)
+    assert(pc.sleeping || pumps() == 1)
+    bool slept = false
+    bool woke = false
+    for (int k = 0; k < 2000; k++)
+    {
+      step()
+      if (pc.sleeping) slept = true
+      if (slept && !pc.sleeping) woke = true
+    }
+    assert(slept && woke)
+    assert(p > 3.6f)
+    // run hours are spread over the pumps
+    assert(m1.hours > 0.0f && m2.hours > 0.0f && m3.hours > 0.0f)
+  }
+}

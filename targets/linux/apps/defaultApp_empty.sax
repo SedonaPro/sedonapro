@@ -1,0 +1,121 @@
+<?xml version='1.0'?>
+<sedonaApp>
+<schema>
+  <kit name="sys" />
+  <kit name="basicSchedule" />
+  <kit name="sproIo" />
+  <kit name="sproLib" />
+  <kit name="sproUtil" />
+  <kit name="sproMath" />
+  <kit name="sproModbusMaster" />
+  <kit name="sproModbusSlave" />
+  <kit name="sproPlatformLinux" />
+  <kit name="sproSerialProtocol" />
+  <kit name="sproSpi" />
+  <kit name="sproUiConnect" />
+  <kit name="sproSqlite" />
+  <kit name="sproExpr" />
+  <kit name="control" />
+  <kit name="datetime" />
+  <kit name="datetimeStd" />
+  <kit name="func" />
+  <kit name="hvac" />
+  <kit name="inet" />
+  <kit name="logic" />
+  <kit name="math" />
+  <kit name="pstore" />
+  <kit name="serial" />
+  <kit name="sox" />
+  <kit name="timing" />
+  <kit name="types" />
+  <kit name="web" />
+</schema>
+<app>
+  <prop name="appName" val="demo"/>
+  <!-- /service -->
+  <comp name="service" id="1" type="sys::Folder">
+    <prop name="meta" val="33685505"/>
+    <!-- /service/plat -->
+    <comp name="plat" id="9" type="sproPlatformLinux::UnixPlatformService"/>
+    <comp name="network" id="19" type="sproUtil::NetworkConfig"/>
+    <!-- /service/users -->
+    <comp name="users" id="3" type="sys::UserService">
+      <prop name="meta" val="17367041"/>
+      <!-- /service/users/admin -->
+      <comp name="admin" id="4" type="sys::User">
+        <prop name="cred" val="@ADMIN_CRED@"/>
+        <prop name="perm" val="2147483647"/>
+        <prop name="prov" val="255"/>
+      </comp>
+    </comp>
+    <!-- /service/sox -->
+    <comp name="sox" id="5" type="sox::SoxService">
+      <prop name="meta" val="17104897"/>
+    </comp>
+    <!-- /service/web -->
+    <comp name="web" id="6" type="web::WebService">
+      <prop name="meta" val="16842753"/>
+      <prop name="port" val="8080"/>
+    </comp>
+    <!-- /service/ui -->
+    <comp name="ui" id="80" type="sproUiConnect::UIConnectService">
+      <prop name="port" val="8088"/>
+      <!-- /service/ui/UIReadW -->
+      <comp name="UIReadW" id="11" type="sproUiConnect::UIReadWritePointFloat">
+        <prop name="meta" val="470155265"/>
+        <prop name="dataId" val="1"/>
+        <prop name="val" val="0.9"/>
+      </comp>
+      <!-- /service/ui/UIRead1 -->
+      <comp name="UIRead1" id="12" type="sproUiConnect::UIReadWritePointInt">
+        <prop name="meta" val="789118977"/>
+        <prop name="val" val="83"/>
+      </comp>
+      <!-- /service/ui/UIRead2 -->
+      <comp name="UIRead2" id="14" type="sproUiConnect::UIReadWritePointStr">
+        <prop name="meta" val="487653377"/>
+        <prop name="dataId" val="3"/>
+        <prop name="val" val="String from Sedona!"/>
+      </comp>
+      <!-- /service/ui/UIRead3 -->
+      <comp name="UIRead3" id="15" type="sproUiConnect::UIReadWritePointBool">
+        <prop name="meta" val="840761345"/>
+        <prop name="dataId" val="5"/>
+        <prop name="val" val="true"/>
+      </comp>
+    </comp>
+    <!-- /service/pstore -->
+    <comp name="pstore" id="13" type="pstore::PstoreService"/>
+    <!-- /service/time -->
+    <comp name="time" id="17" type="datetimeStd::DateTimeServiceStd">
+      <prop name="osUtcOffset" val="true"/>
+    </comp>
+  </comp>
+  <!-- /play -->
+  <comp name="play" id="10" type="sys::Folder">
+    <prop name="meta" val="34013185"/>
+    <!-- /play/rampA -->
+    <comp name="rampA" id="7" type="func::Ramp">
+      <prop name="meta" val="67371009"/>
+      <prop name="min" val="20.0"/>
+      <prop name="max" val="80.0"/>
+      <prop name="period" val="50.0"/>
+    </comp>
+    <!-- /play/rampB -->
+    <comp name="rampB" id="8" type="func::Ramp">
+      <prop name="meta" val="68288513"/>
+    </comp>
+    <!-- /play/adder -->
+    <comp name="adder" id="2" type="math::Add2">
+      <prop name="meta" val="386662401"/>
+    </comp>
+    <comp name="expr" id="23" type="sproExpr::ExpressionFloat">
+      <prop name="meta" val="386662401"/>
+    </comp>    
+  </comp>
+</app>
+<links>
+  <link from="/play/rampB.out" to="/play/adder.in2"/>
+  <link from="/play/rampA.out" to="/play/adder.in1"/>
+</links>
+</sedonaApp>

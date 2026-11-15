@@ -1,0 +1,57 @@
+# SedonaPro SVM: пример конфигурации. Скопировать как svm.conf в рабочий
+# каталог VM (рядом с kits.scode/app.sab). Все ключи необязательны:
+# закомментированное значение = значение по умолчанию.
+# Описание: SVM_CONFIG_RU.md
+
+# Источник времени Sys.ticks/Sys.sleep: monotonic (по умолчанию) | legacy
+#clock = monotonic
+
+# Размер стека VM в ячейках (1024..1048576)
+#stack.cells = 4096
+
+# Проверять kits.scode.stage / app.sab.stage перед установкой
+stage.validate = 1
+
+# Хранить last-known-good и откатывать неудачное обновление
+stage.rollback = 1
+#stage.trial.seconds = 120
+#stage.trial.attempts = 3
+
+# Сохранять app.sab через app.sab.tmp + fsync + rename
+save.atomic = 1
+#save.atomic.suffixes = .sab
+# Поколения резервных копий: app.sab.bak, app.sab.bak.1 ... (1 = только .bak)
+#save.keep = 5
+
+# Журнал фатальных сигналов с backtrace
+crash.handler = 1
+
+# systemd watchdog: auto | 1 | 0 (auto = если unit задаёт WatchdogSec)
+#watchdog = auto
+#watchdog.seconds = 10
+
+# Статистика цикла раз в N секунд (0 = выкл.) и файл с последним отчётом
+stats.interval = 300
+#stats.file = stats.txt
+
+# Безопасный запуск после N неудачных запусков подряд (0 = выкл.)
+safeboot.after = 3
+#safeboot.healthy.seconds = 60
+#safeboot.app = safe.sab
+
+# Цикл после перегрузки: off (догонять) | skip (по сетке) | now
+#scan.resync = off
+#scan.resync.periods = 1
+
+# Modbus Master: освобождать регистры удалённых точек и не терять
+# изменения адреса во время запроса
+modbus.safe = 1
+
+# Освобождать память, которую теряют парсер выражений и Modbus Slave
+mem.fixes = 1
+
+# Реальное время (нужны LimitRTPRIO / LimitMEMLOCK в unit)
+#rt.mlockall = 0
+#rt.sched = other
+#rt.cpus =
+#rt.strict = 0

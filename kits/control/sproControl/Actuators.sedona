@@ -1,0 +1,197 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** 3-point (floating) actuator without position feedback: drives the
+** open and close relays so the valve follows in.  The position is
+** estimated from runTime; at 0 % and 100 % the actuator is driven on
+** for 'overdrive' more to sit on the end stop, which also corrects the
+** estimate.  At start (syncAtStart) and on the sync action it drives
+** fully closed first.  open and close are never on together, and a
+** change of direction waits for minPulse.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class ThreePoint extends Component
+{
+  ** wanted position, %
+  @summary property float in
+  ** false: both relays off
+  @config property bool enable = true
+
+  ** full stroke time of the actuator, s
+  @config @unit=Units.second @min=1 property float runTime = 120.0f
+  ** shortest move and pause, s
+  @config @unit=Units.second @min=0 property float minPulse = 0.5f
+  ** smaller changes are not followed, %
+  @config @min=0 property float deadband = 1.0f
+  ** extra drive at 0 % and 100 %, % of runTime
+  @config @min=0 @max=100 property float overdrive = 10.0f
+  ** drive closed at start to know the position
+  @config property bool syncAtStart = true
+
+  ** open relay
+  @readonly @summary property bool open
+  ** close relay
+  @readonly @summary property bool close
+  ** estimated position, %
+  @readonly @precision=1 property float position
+
+  ** ok, starting (sync), disabled, inputBad (stopped)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** drive fully closed to correct the position
+  action void sync()
+  {
+    syncing = true
+    timer = 0.0f
+  }
+
+  override void start()
+  {
+    if (syncAtStart) sync()
+  }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    float speed = 100.0f / runTime
+    if (open) position := position + speed * dt
+    if (close) position := position - speed * dt
+    moved += dt
+
+    if (syncing)
+    {
+      if (open) { halt(); return }
+      if (!close)
+      {
+        if (pause < minPulse) { pause += dt; status := Pro.starting; return }
+        drive(false)
+      }
+      timer += dt
+      status := Pro.starting
+      if (timer >= runTime * (1.0f + overdrive / 100.0f))
+      {
+        halt()
+        syncing = false
+        position := 0.0f
+        endGoal = -1
+        status := Pro.ok
+      }
+      return
+    }
+
+    if (enable != true || !Pro.valid(in))
+    {
+      halt()
+      status := enable != true ? Pro.disabled : Pro.inputBad
+      return
+    }
+    status := Pro.ok
+    float target = Pro.clamp(in, 0.0f, 100.0f)
+    float extra = overdrive
+    // goal beyond the end stop when the target is an end
+    float goal = target
+    if (target <= 0.0f) goal = -extra
+    else if (target >= 100.0f) goal = 100.0f + extra
+
+    if (open || close)
+    {
+      bool reached = open ? position >= goal : position <= goal
+      bool reverse = open ? goal < position - deadband : goal > position + deadband
+      if ((reached || reverse) && moved >= minPulse)
+      {
+        halt()
+        position := Pro.clamp(position, 0.0f, 100.0f)
+      }
+      return
+    }
+
+    pause += dt
+    if (pause < minPulse) return
+    position := Pro.clamp(position, 0.0f, 100.0f)
+    float diff = goal - position
+    bool atEnd = (target <= 0.0f && position <= 0.0f && endGoal == -1) ||
+                 (target >= 100.0f && position >= 100.0f && endGoal == 1)
+    if (atEnd) return
+    if (Pro.abs(diff) <= deadband && target > 0.0f && target < 100.0f) return
+    if (Pro.abs(diff) * runTime / 100.0f < minPulse && target > 0.0f && target < 100.0f) return
+    endGoal = target <= 0.0f ? -1 : (target >= 100.0f ? 1 : 0)
+    drive(diff > 0.0f)
+  }
+
+  private void drive(bool up)
+  {
+    open := up
+    close := !up
+    moved = 0.0f
+  }
+
+  private void halt()
+  {
+    if (open || close) pause = 0.0f
+    open := false
+    close := false
+  }
+
+  bool syncing
+  float timer
+  float moved
+  float pause = 1000.0f
+  int endGoal
+  inline Ticker ticker
+}
+
+**
+** Time proportioning (slow PWM): a demand in % becomes an on/off
+** output over a fixed period, for heater elements through a contactor
+** or SSR.  Pulses shorter than minOn are skipped and pauses shorter than
+** minOff are filled, so a contactor is not chattered.
+**
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class TimeProp extends Component
+{
+  ** demand, %
+  @summary property float in
+  @config property bool enable = true
+
+  ** cycle time, s
+  @config @unit=Units.second @min=0.1 property float period = 10.0f
+  ** shortest on pulse, s
+  @config @unit=Units.second @min=0 property float minOn = 0.5f
+  ** shortest off pause, s
+  @config @unit=Units.second @min=0 property float minOff = 0.5f
+
+  @readonly @summary property bool out
+  ** ok, disabled, inputBad (out off)
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    if (enable != true || !Pro.valid(in))
+    {
+      out := false
+      phase = period
+      status := enable != true ? Pro.disabled : Pro.inputBad
+      return
+    }
+    status := Pro.ok
+    phase += dt
+    if (phase >= period)
+    {
+      phase = 0.0f
+      onTime = Pro.clamp(in, 0.0f, 100.0f) * period / 100.0f
+      if (onTime < minOn) onTime = 0.0f
+      if (period - onTime < minOff) onTime = period
+    }
+    out := phase < onTime
+  }
+
+  float phase = 1000000.0f
+  float onTime
+  inline Ticker ticker
+}

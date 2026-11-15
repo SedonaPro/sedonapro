@@ -1,0 +1,2 @@
+summary = "Energy: meter with tariff zones and day/month totals, calculated heat meter, demand with load shedding, automatic transfer switch (two inputs, generator)"
+portable_tests = true

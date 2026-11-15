@@ -1,0 +1,82 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+//
+// Kit manifests over SOX for ESP32 (the same "m:" scheme as platUnix).
+//
+// SoxClient (MCS, Workbench) resolves kits it does not know with
+//   fileOpen "m:m.zip"              -> manifests/m.zip
+//   fileOpen "m:<kit>-<chk>.xml"    -> manifests/<kit>/<kit>-<chk>.xml
+// build.py writes both into the data partition for exactly the kits
+// in kits.scode (option --manifests).  Paths are relative to the
+// Sedona home (/sedona on LittleFS); a missing file is "not found".
+//
+final class Esp32ManifestStore
+  extends FileStore
+{
+  override virtual int size(File f)
+  {
+    Str path = substPath(f.name)
+    if (path == null) return -1
+    return doSize(path)
+  }
+
+  override virtual bool open(File f, Str mode)
+  {
+    // manifests are read-only on the device
+    if (mode.get(0) != 'r') return false
+    Str path = substPath(f.name)
+    if (path == null) return false
+    f.fp = doOpen(path, mode)
+    return f.fp != null
+  }
+
+  override virtual bool accept(Str filename)
+  {
+    return filename.startsWith(prefix)
+  }
+
+  ** "m:name-chk.xml" -> "manifests/name/name-chk.xml", "m:m.zip" -> "manifests/m.zip";
+  ** null for names with '/', '\\' or "..", empty or too long ones
+  internal Str substPath(Str fname)
+  {
+    pathBuf.clear()
+    int n = fname.length()
+    int start = prefix.length()
+    for (int i = start; i < n; ++i)
+    {
+      int c = fname.get(i)
+      if (c == '/' || c == '\\' || (c == '.' && i + 1 < n && fname.get(i + 1) == '.'))
+        return null
+    }
+    if (n == start || n - start + 32 > maxPathLen)
+      return null
+    out.writeBytes(dir.toBytes(), 0, dir.length())
+    int dash = -1
+    for (int i = start; i < n; ++i)
+      if (fname.get(i) == '-') { dash = i; break }
+    if (dash >= 0)
+    {
+      out.writeBytes(fname.toBytes(), start, dash - start)
+      out.write('/')
+    }
+    out.writeBytes(fname.toBytes(), start, n - start)
+    out.write(0)
+    return pathBuf.toStr()
+  }
+
+  Esp32ManifestStore(Str pre, Str d)
+  {
+    this.prefix = pre
+    this.dir = d
+    FileStore.insert(this)
+  }
+
+  Str prefix
+  Str dir
+
+  define int maxPathLen = 128
+  static inline Buf(maxPathLen) pathBuf
+  static inline BufOutStream(pathBuf) out
+
+  static inline Esp32ManifestStore("m:", "manifests/") mfStore
+}

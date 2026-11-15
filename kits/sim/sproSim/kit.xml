@@ -1,0 +1,3 @@
+<sedonaKit name="sproSim" vendor="SPro" description="Deterministic offline simulation blocks" includeSource="true" doc="true">
+<depend on="sys 1.2+"/><source dir="."/><source dir="test" testonly="true"/>
+</sedonaKit>

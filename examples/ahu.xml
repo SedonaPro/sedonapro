@@ -1,0 +1,27 @@
+<module replaces="hal">
+  <!-- Level 3: supply air handling unit from the configurator (sproAhu::Ahu).
+       The app holds one Ahu component with the options below; at the first
+       start it builds the blocks, I/O points and links itself (see its
+       ioList).  Water heater with a 0-10 V valve, fans on VFDs, start switch.
+       Channels on the sim-large board, in the order the points are made:
+         AI1 outdoor, AI2 supply air, AI3 return water
+         DI1 start, DI2 fire, DI3 frost thermostat, DI4 filter, DI5 fan proving
+         DO1 dampers, DO2 supply fan, DO3 heater pump
+         AO1 valve, AO2 supply fan speed
+       Build: spro build sim, options pack=hvac board=sim-large
+       example=ahu (see README.md) -->
+  <kit name="sproAhu"/>
+  <kit name="sproBase"/>
+  <kit name="sproAlarm"/>
+  <into path="">
+    <comp name="ahu" type="sproAhu::Ahu">
+      <prop name="layout" val="0"/>
+      <prop name="heater" val="1"/>
+      <prop name="valve" val="0"/>
+      <prop name="fans" val="1"/>
+      <prop name="startSwitch" val="true"/>
+    </comp>
+    <comp name="retain" type="sproBase::RetainService"/>
+    <comp name="alarms" type="sproAlarm::AlarmService"/>
+  </into>
+</module>

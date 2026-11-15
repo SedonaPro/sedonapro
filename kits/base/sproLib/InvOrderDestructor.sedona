@@ -1,0 +1,22 @@
+// Hey, emacs! -*- c++ -*-
+
+
+@palette=false
+public class InvOrderDestructor extends Component
+{
+	virtual override void stop() {
+		super.stop();
+		remove();
+	}
+	
+	virtual void remove() {
+		Component c = Sys.app.lookup(children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			if (c.type.is(DebugComponent.type)) {
+				DebugComponent chld = (DebugComponent)c;
+				chld.remove();
+			}
+		}
+	}
+}
+	

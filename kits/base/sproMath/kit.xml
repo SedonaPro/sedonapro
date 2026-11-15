@@ -1,0 +1,38 @@
+<sedonaKit
+    name="sproMath"
+    vendor="SPro"
+    description="mathematical library"
+    >
+
+  <depend on="sys 1.2+" />
+
+  <native qname="sproMath::Math.arccos" id="110::1" />
+  <native qname="sproMath::Math.arcsin" id="110::2" />
+  <native qname="sproMath::Math.arctan" id="110::3" />
+  <native qname="sproMath::Math.arctan2" id="110::4" />
+  <native qname="sproMath::Math.ceil" id="110::5" />
+  <native qname="sproMath::Math.cos" id="110::6" />
+  <native qname="sproMath::Math.cosh" id="110::7" />
+  <native qname="sproMath::Math.exp" id="110::8" />
+  <!-- <native qname="sproMath::Math.fabs" id="110::9" /> -->
+  <native qname="sproMath::Math.floor" id="110::10" />
+  <native qname="sproMath::Math.fmod" id="110::11" />
+  <native qname="sproMath::Math.frexp" id="110::12" />
+  <native qname="sproMath::Math.ldexp" id="110::13" />  
+  <native qname="sproMath::Math.log" id="110::14" />
+  <native qname="sproMath::Math.log10" id="110::15" />
+  <native qname="sproMath::Math.modf" id="110::16" />
+  <native qname="sproMath::Math.pow" id="110::17" />
+  <native qname="sproMath::Math.sin" id="110::18" />
+  <native qname="sproMath::Math.sinh" id="110::19" />  
+  <native qname="sproMath::Math.sqrt" id="110::20" />
+  <native qname="sproMath::Math.tan" id="110::21" />
+  <native qname="sproMath::Math.tanh" id="110::22" />
+  <native qname="sproMath::Math.arccosh" id="110::23" />
+  <native qname="sproMath::Math.arcsinh" id="110::24" />
+  <native qname="sproMath::Math.arctanh" id="110::25" />
+  <native qname="sproMath::Math.cbrt" id="110::26" />  
+
+  <source dir="." />
+  <source dir="test" testonly="true"/>  
+</sedonaKit>

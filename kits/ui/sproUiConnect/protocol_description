@@ -1,0 +1,16 @@
+header BC
+version 1
+type (READ, WRITE)
+len
+
+READ:
+int  fields;
+int  len;
+char string[];
+int  value;
+
+
+WRITE:
+int  fields;
+int  value;
+

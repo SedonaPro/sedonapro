@@ -1,0 +1,344 @@
+// -*- mode: c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+class TcpCommandHandlerList
+{
+	// Linked list of command handlers
+	TcpCommandHandler cmdHandlers;
+
+
+	// Register the TcpCommandHandler
+	void register(TcpCommandHandler h)
+	{
+		if (h != null) {
+			h.nextCmdHandler = cmdHandlers;
+			cmdHandlers = h;
+		}
+	}
+
+	// Remove this cmdHandler from the TcpHandl.
+	void unregister(TcpCommandHandler h)
+	{
+		if (h == null)
+			return;
+
+		TcpCommandHandler w = cmdHandlers;
+		if (w == h)
+			cmdHandlers = w.nextCmdHandler;
+		else
+		{
+			while (w != null && w.nextCmdHandler != h)
+				w = w.nextCmdHandler;
+			if (w != null)
+				w.nextCmdHandler = h.nextCmdHandler;
+		}
+	}
+
+	bool serviceRequest(TcpHandler h, byte[] buf, int pos)
+	{
+		for (TcpCommandHandler w = cmdHandlers; w != null; w = w.nextCmdHandler)
+			if (w.serviceRequest(h, buf, pos))
+				return true;
+		return false;
+	}
+
+}
+
+
+
+**
+** Handler is used to service a single reusable TcpSocket.
+**
+internal class TcpHandler extends sys::Virtual
+{
+
+////////////////////////////////////////////////////////////////
+// Methods
+////////////////////////////////////////////////////////////////
+
+	**
+	** Is this handler free to service a request.
+	**
+	bool isFree()
+	{
+		return socket.isClosed();
+	}
+
+	**
+	** Initialize this handler.
+	**
+	void start(TcpService service)
+	{
+		this.service     = service;
+
+		if (!inited) {
+			registerHandlers();
+			inited = true;
+		}
+	}
+
+	**
+	** Shutdown this handler.
+	**
+	void stop()
+	{
+		socket.close();
+	}
+
+////////////////////////////////////////////////////////////////
+// Service
+////////////////////////////////////////////////////////////////
+
+	**
+	** Callback when this handler is used to accept
+	** a new incoming socket connection.
+	**
+	void accepted()
+	{
+		pos = cur = 0;
+	}
+
+
+	virtual void registerHandlers()
+	{
+	}
+
+	virtual void badRequest()
+	{
+	}
+
+
+	virtual bool serviceRequest()
+	{
+		return service.tcpCmdHandlers.serviceRequest(this, buf, pos);
+	}
+
+
+	virtual bool packetIsReady()
+	{
+		return true;
+	}
+
+  /**
+  * Service this request.  Return true if we do
+  * any work or false if no work is pending.  We return
+  * true if we can't process a complete HTTP request so
+  * that on the next pass we read more into our buffer.
+  **/
+  	bool work()
+  	{
+        	// if closed, then no work pending
+        	if (socket.isClosed()) {
+			Sys.out.print("closed\n");
+			return false;
+		}
+
+		// if we've run out of buffer then bail
+		int left = bufLen - pos;
+		if (left < 5) { socket.close(); return true }
+
+		// read request bytes
+		int read = socket.read(buf, pos, bufLen);
+		if (read < 0)
+		{
+			badRequest();
+			socket.close();
+			return true;
+		}
+
+		// update read offset
+		pos += read;
+
+		// start parsing from the beginning of the buffer
+		cur = 0;
+
+		// parse request-line
+		if (!packetIsReady()) {
+			return true;
+		}
+
+		serviceRequest();
+
+		// close request
+		socket.close();
+		return true;
+	}
+
+	void writeByte(int b)
+	{
+		ch[0] = b;
+		socket.write(ch, 0, 1);
+	}
+
+	int readInt(int p, int size)
+	{
+		convert.clearData();
+		for(int i=0; i<size; i++)
+			convert.setByte(i,buf[p+i]);
+		return convert.bytesToInt(size);
+	}
+
+	float readFloat(int p)
+	{
+		convert.clearData();
+		for(int i=0; i<TypesToBytesConvertEx.floatSize; i++)
+			convert.setByte(i,buf[p+i]);
+		return convert.bytesToFloat();
+	}
+
+	void writeInt(int d, int size)
+	{
+		convert.clearData();
+		convert.intToBytes(d, size);
+		for(int i=0; i<size; i++)
+			writeByte(convert.getByte(i));
+	}
+
+	void writeFloat(float d)
+	{
+		convert.clearData();
+		convert.floatToBytes(d);
+		for(int i=0; i<TypesToBytesConvertEx.floatSize; i++)
+			writeByte(convert.getByte(i));
+	}
+
+
+	static bool inited;
+	static inline TypesToBytesConvertEx convert;
+
+	define int bufLen = 2048;
+
+
+	TcpService service;       // parent tcp service
+	inline TcpSocket socket;  // reusable socket
+	int pos;                  // offset for next read
+	inline byte[bufLen] buf;  // reusable buffer
+	int cur;                  // tokenizing cur offset
+
+	static inline byte[1] ch; // single byte buffer to writeByte function
+}
+
+
+class UIHandler extends TcpHandler
+{
+	//
+	// Protocol description
+	//
+	// Request structure:
+	//
+	// Start, Len, Description
+	// 0      4    header
+	// 4      1    protocol version
+	// 5      1    request type
+	// 6      4    request data length
+	// 10     X    data
+
+	define int headerLen = 4;
+	define byte[headerLen] header = { 'B', 'C', 'U', 'S' }; 	// Buisness Climate Ui Service
+
+	static int headerOffset         = 0;
+	static int protocolOffset       = headerOffset + headerLen;
+	static int requestTypeOffset    = protocolOffset + 1;
+	static int requestDatatLenOffset= requestTypeOffset + 1;
+	static int requestDataOffset    = requestDatatLenOffset + 4;
+	static int minRequestLen        = requestDataOffset;
+
+	// supported protocol version
+	define int protocolVersion = 1;
+
+	// supported requests
+	define int requestTypeRead  = 1;
+	define int requestTypeWrite = 2;
+
+	define int requestAnswer    = 0x80;
+
+
+	// command handlers
+	static internal inline UICmdHandlerRead  handlerRead;
+	static internal inline UICmdHandlerWrite handlerWrite;
+
+
+
+	virtual override void registerHandlers()
+	{
+		service.tcpCmdHandlers.register(UIHandler.handlerRead);
+		service.tcpCmdHandlers.register(UIHandler.handlerWrite);
+	}
+
+
+
+	virtual override void badRequest()
+	{
+	}
+
+
+
+	int getRequestDataLen()
+	{
+		return readInt(requestDatatLenOffset, 4);
+	}
+
+	bool checkHeader()
+	{
+		// Sys.out.print("checkHeader\n");
+		cur = 0;
+		for(int i=0; i<headerLen; i++) {
+			if (buf[i] != header[i])
+				return false;
+		}
+		int len =  getRequestDataLen() + minRequestLen;
+		if (pos > len)
+			return false;
+
+		return true;
+	}
+
+
+	virtual override bool serviceRequest()
+	{
+		if (!checkHeader())
+			return false;
+
+		return super.serviceRequest();
+	}
+
+	virtual override bool packetIsReady()
+	{
+		if (pos < minRequestLen)
+			return false;
+
+		// service request with bad header and close socket
+		if (!checkHeader())
+			return true;
+
+		int len =  getRequestDataLen() + minRequestLen;
+		if (pos < len)
+			return false;
+
+		return true;
+	}
+
+	static void writeHeader(TcpHandler h, int cmd, int dataLen)
+	{
+		// write prefix
+		foreach (int b : header)
+			h.writeByte(b);
+		h.writeByte(protocolVersion);
+		h.writeByte(cmd + requestAnswer);
+		h.writeInt(dataLen, 4);
+	}
+}

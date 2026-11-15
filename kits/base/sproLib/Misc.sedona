@@ -1,0 +1,188 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+class Exchange
+{
+	static int swapBytes(int word)
+	{
+		int shift = 8;
+		int byte0 = word & 0xFF;
+		int byte1 = (word >> shift) & 0xFF;
+
+		return (byte0 << shift) + byte1;
+	}
+
+	static int swapWords(int dword)
+	{
+		int shift = 16;
+		int word0 = dword & 0xFFFF;
+		int word1 = (dword >> shift) & 0xFFFF;
+
+		return (word0 << shift) + word1;
+	}
+
+	static int swapBytesWords(int data, int len, bool swapBytesFlag, bool swapWordsFlag)
+	{
+		if (swapBytesFlag) {
+			int word0 = data & 0xFFFF;
+			int word1 = (data >> 16) & 0xFFFF;
+			word0 = swapBytes(word0);
+			word1 = swapBytes(word1);
+
+			data = (word1 << 16) + word0;
+		}
+		if ((len > 1) && swapWordsFlag)
+			data = swapWords(data);
+		return data;
+	}
+}
+
+class Variant
+{
+	define int intType = 0;
+	define int boolType = 1;
+
+	int  intVal;
+	bool boolVal;
+
+	int  type;
+	void setType(int val)
+	{
+		type = val;
+	}
+
+	int getType()
+	{
+		return type;
+	}
+
+	void setBool(bool val)
+	{
+		boolVal = val;
+	}
+
+	bool getBool()
+	{
+		return boolVal;
+	}
+
+	void setInt(int  val)
+	{
+		intVal = val;
+	}
+
+	int  getInt()
+	{
+		return intVal;
+	}
+}
+
+
+@palette=false
+class CompUtils
+{
+	static inline Variant var;
+
+	static void propogateTypeToChildren(int  children,
+					    Type filterType,
+					    Str slotName,
+					    Variant value)
+	{
+		Component c = Sys.app.lookup(children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			if (c.type.is(filterType)) {
+				Slot slot = c.type.findSlot(slotName);
+
+				// there is no slot in this type
+				if (slot == null)
+					return;
+
+				switch(value.getType()) {
+					case Variant.intType:
+						Sys.out.print("set int").nl();
+						c.setInt(slot, value.getInt());
+						break;
+					case Variant.boolType:
+						Sys.out.print("set bool").nl();
+						c.setBool(slot, value.getBool());
+						break;
+				}
+			}
+		}
+	}
+
+	static void propogateIntToChildren(int children, Type filterType, Str slotName, int value)
+	{
+		var.setType(Variant.intType);
+		var.setInt(value);
+		propogateTypeToChildren(children, filterType, slotName, var);
+	}
+
+	static void propogateBoolToChildren(int children, Type filterType, Str slotName, bool value)
+	{
+		var.setType(Variant.boolType);
+		var.setBool(value);
+		propogateTypeToChildren(children, filterType, slotName, var);
+	}
+}
+
+
+class TypesToBytesConvert {
+	define int maxIndx=4
+	inline int[maxIndx] data;
+
+	void intToBytes(int in, int sizeInBytes)
+	{
+		int i;
+		for(i=0; i<sizeInBytes; i++) {
+			data[i] = (in>>(8*i)) & 0xFF;
+		}
+		for(; i<maxIndx; i++)
+			data[i] = 0;
+	}
+
+	int bytesToInt(int sizeInBytes)
+	{
+		int tmp = 0;
+		for(int i=0; i<sizeInBytes; i++) {
+			tmp = tmp | (data[i]<<(8*i))
+		}
+		return tmp;
+	}
+
+	int getByte(int indx) {
+	    int ret;
+	    if ((indx>=maxIndx) || (indx<0))
+	        ret = -1;
+	    else
+		ret = data[indx];
+	    return ret;
+	}
+
+	void setByte(int indx, int b) {
+	    if ((indx<maxIndx) && (indx>=0))
+		data[indx] = b;
+	}
+
+	void clearData() {
+	     int i;
+	     for(i=0; i<maxIndx; i++) {
+	     	      data[i] = 0;
+	     }
+	}
+}
+

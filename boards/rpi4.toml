@@ -1,0 +1,25 @@
+# Raspberry Pi 4/5 (Raspberry Pi OS, kernel GPIO character device).
+# pin = BCM line of gpiochip0 (Pi 5: gpiochip4 -> set dev).  The Pi has no ADC:
+# AI channels need an IIO ADC, e.g. dtoverlay=ads1115 -> iio:device0/in_voltage0_raw.
+# AO uses the hardware PWM: dtoverlay=pwm,pin=18,func=2 -> pwmchip0/pwm0.
+name    = "rpi4"
+title   = "Raspberry Pi 4"
+hal     = "linux-gpiod"
+targets = ["linux"]
+# serial ports: port 1, 2 = USB adapters, 3 = the GPIO UART (enable_uart=1)
+serial  = ["/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/serial0"]
+
+[defaults]
+dev = "gpiochip0"
+
+[channels]
+DI1 = { kind = "di", pin = 17, pull = "up", invert = true }
+DI2 = { kind = "di", pin = 27, pull = "up", invert = true }
+DI3 = { kind = "di", pin = 22, pull = "up", invert = true }
+DI4 = { kind = "di", pin = 23, pull = "up", invert = true }
+DO1 = { kind = "do", pin = 5 }
+DO2 = { kind = "do", pin = 6 }
+DO3 = { kind = "do", pin = 13 }
+DO4 = { kind = "do", pin = 19 }
+AI1 = { kind = "ai", dev = "iio:device0/in_voltage0_raw", raw_max = 32767, range = [0.0, 4.096], unit = "V" }
+AO1 = { kind = "ao", dev = "pwmchip0", pin = 0, pwm_hz = 1000 }

@@ -1,0 +1,115 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+class SessionTest extends Test
+{
+  static SimSession setup()
+  {
+    Sys.app.cleanupApp()
+    Sys.app.initApp(64)
+    SimSession s=(SimSession)Sys.app.add(Sys.app,"session",SimSession.type)
+    for (int i=0;i<2;i++)
+    {
+      SimClock c=(SimClock)Sys.app.add(Sys.app,i == 0 ? "a" : "b",SimClock.type)
+      c.sessionId := 1
+      c.dt := 0.25f
+      FirstOrder p=(FirstOrder)Sys.app.add(c,"plant",FirstOrder.type)
+      p.initial := 4.0f
+      p.in := 12.0f
+    }
+    s.advance(0.0d)
+    return s
+  }
+  static SimClock a() { return (SimClock)Sys.app.lookup(2) }
+  static SimClock b() { return (SimClock)Sys.app.lookup(4) }
+  static void testSharedSchedule()
+  {
+    SimSession s=setup()
+    assert(s.fault == 0)
+    assert(s.members == 2)
+    assert(s.generation == 1L)
+    s.resume(); s.advance(20.0d)
+    assert(s.time == 0.0d)
+    s.advance(1.0d)
+    assert(s.steps == 40L)
+    assert(a().steps == s.steps && b().steps == s.steps)
+    assert(a().time == s.time && b().time == s.time)
+    assert(a().run && b().run)
+    a().execute(); b().execute()
+    assert(a().steps == s.steps && b().steps == s.steps)
+    s.pause(); s.advance(100.0d)
+    assert(s.state == 0 && !a().run && !b().run)
+    s.step(); s.advance(100.0d)
+    assert(s.steps == 41L && a().steps == 41L && b().steps == 41L)
+    s.reset(); s.advance(100.0d)
+    assert(s.time == 0.0d && s.steps == 0L && s.state == 0)
+    assert(s.generation == 2L && a().generation == 2L && b().generation == 2L)
+    FirstOrder p=(FirstOrder)Sys.app.lookup(3)
+    assert(p.out == 4.0f && p.in == 12.0f)
+    s.restart(); s.advance(100.0d)
+    assert(s.state == 1 && s.time == 0.0d && s.generation == 3L)
+    s.advance(0.25d)
+    assert(s.steps == 10L && a().steps == 10L && b().steps == 10L)
+    Sys.app.cleanupApp()
+  }
+  static void testPreflightAndRecovery()
+  {
+    SimSession s=setup()
+    s.restart(); s.advance(0.0d); s.advance(1.0d)
+    long before=s.generation
+    FirstOrder p=(FirstOrder)Sys.app.lookup(5)
+    p.tau := -1.0f
+    s.restart(); s.advance(0.0d)
+    assert(s.state == 2 && s.fault == 3 && s.generation == before)
+    assert(a().time == 10.0d && b().time == 10.0d)
+    assert(!a().run && !b().run)
+    s.advance(1.0d)
+    assert(s.fault == 3 && s.state == 2)
+    p.tau := 10.0f
+    s.restart(); s.advance(0.0d)
+    assert(s.state == 1 && s.fault == 0 && s.generation == before+1L)
+    a().dt := 0.5f
+    s.advance(1.0d)
+    assert(s.fault == 3 && s.state == 2)
+    a().dt := 0.25f
+    s.reset(); s.advance(0.0d)
+    assert(s.fault == 0 && s.state == 0)
+    Sys.app.cleanupApp()
+  }
+  static void testDuplicateOwnerAndBusy()
+  {
+    SimSession s=setup()
+    s.restart(); s.pause()
+    assert(s.busy)
+    assert(s.rejected == 1)
+    s.advance(0.0d)
+    assert(s.state == 1 && !s.busy)
+    SimSession other=(SimSession)Sys.app.add(Sys.app,"duplicate",SimSession.type)
+    s.advance(1.0d)
+    assert(s.fault == 2 && s.state == 2 && !a().run && !b().run)
+    other.sessionId := 2
+    s.reset(); s.advance(0.0d)
+    assert(s.fault == 0 && s.state == 0)
+    other.reset(); other.advance(0.0d)
+    assert(other.fault == 2)
+    Sys.app.cleanupApp()
+  }
+  static void testDebtAndStateMismatch()
+  {
+    SimSession s=setup()
+    s.maxSteps := 2
+    s.restart(); s.advance(0.0d)
+    s.advance(1.0d)
+    assert(s.steps == 2L && a().steps == 2L && b().steps == 2L)
+    assert(s.overloaded && s.backlog == 9.5d)
+    s.pause(); s.advance(100.0d)
+    s.resume(); s.advance(100.0d)
+    s.advance(0.0d)
+    assert(s.steps == 4L)
+    a().reset()
+    s.advance(0.0d)
+    assert(s.fault == 4 && s.state == 2)
+    s.restart(); s.advance(0.0d)
+    assert(s.fault == 0 && s.backlog == 0.0d && s.steps == 0L)
+    Sys.app.cleanupApp()
+  }
+}

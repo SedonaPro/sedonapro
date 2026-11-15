@@ -1,0 +1,168 @@
+<sedonaApp>
+  <schema>
+    <kit name="sys" />
+    <kit name="sproSim" />
+  </schema>
+  <app>
+    <prop name="appName" val="thermal" />
+    <prop name="scanPeriod" val="20" />
+    <comp name="plat" type="sys::PlatformService" />
+    <comp name="plain" type="sproSim::SimClock">
+      <prop name="autoRun" val="true" />
+      <prop name="dt" val="0.25" />
+      <prop name="rate" val="300" />
+      <prop name="maxSteps" val="100" />
+      <comp name="water" type="sproSim::StepSignal">
+        <prop name="phase" val="0" />
+        <prop name="before" val="60" />
+        <prop name="after" val="45" />
+        <prop name="at" val="300" />
+      </comp>
+      <comp name="target" type="sproSim::StepSignal">
+        <prop name="phase" val="0" />
+        <prop name="before" val="25" />
+        <prop name="after" val="32" />
+        <prop name="at" val="900" />
+      </comp>
+      <comp name="limits" type="sproSim::BoolStep">
+        <prop name="phase" val="0" />
+        <prop name="before" val="true" />
+        <prop name="after" val="true" />
+        <prop name="at" val="0" />
+      </comp>
+      <comp name="cap" type="sproSim::Lookup5">
+        <prop name="phase" val="1" />
+        <prop name="x0" val="40" />
+        <prop name="x1" val="45" />
+        <prop name="x2" val="60" />
+        <prop name="x3" val="70" />
+        <prop name="x4" val="80" />
+        <prop name="y0" val="1" />
+        <prop name="y1" val="0.6" />
+        <prop name="y2" val="0.3" />
+        <prop name="y3" val="0.25" />
+        <prop name="y4" val="0.2" />
+      </comp>
+      <comp name="ff" type="sproSim::CoilFeedforward">
+        <prop name="phase" val="1" />
+      </comp>
+      <comp name="pid" type="sproSim::SimPid">
+        <prop name="phase" val="2" />
+        <prop name="kp" val="0.02" />
+        <prop name="ti" val="60" />
+        <prop name="tt" val="5" />
+        <prop name="initial" val="0.2007585" />
+      </comp>
+      <comp name="valve" type="sproSim::Valve">
+        <prop name="phase" val="3" />
+        <prop name="travel" val="10" />
+        <prop name="initial" val="0.2007585" />
+      </comp>
+      <comp name="coil" type="sproSim::WaterCoil">
+        <prop name="phase" val="4" />
+        <prop name="initialWater" val="30.03" />
+        <prop name="initialAir" val="25" />
+      </comp>
+      <comp name="sensor" type="sproSim::Sensor">
+        <prop name="phase" val="5" />
+        <prop name="initial" val="25" />
+      </comp>
+      <comp name="pTemp" type="sproSim::Trace">
+        <prop name="phase" val="7" />
+        <prop name="every" val="40" />
+      </comp>
+    </comp>
+    <comp name="assist" type="sproSim::SimClock">
+      <prop name="autoRun" val="true" />
+      <prop name="dt" val="0.25" />
+      <prop name="rate" val="300" />
+      <prop name="maxSteps" val="100" />
+      <comp name="water" type="sproSim::StepSignal">
+        <prop name="phase" val="0" />
+        <prop name="before" val="60" />
+        <prop name="after" val="45" />
+        <prop name="at" val="300" />
+      </comp>
+      <comp name="target" type="sproSim::StepSignal">
+        <prop name="phase" val="0" />
+        <prop name="before" val="25" />
+        <prop name="after" val="32" />
+        <prop name="at" val="900" />
+      </comp>
+      <comp name="limits" type="sproSim::BoolStep">
+        <prop name="phase" val="0" />
+        <prop name="before" val="true" />
+        <prop name="after" val="true" />
+        <prop name="at" val="0" />
+      </comp>
+      <comp name="cap" type="sproSim::Lookup5">
+        <prop name="phase" val="1" />
+        <prop name="x0" val="40" />
+        <prop name="x1" val="45" />
+        <prop name="x2" val="60" />
+        <prop name="x3" val="70" />
+        <prop name="x4" val="80" />
+        <prop name="y0" val="1" />
+        <prop name="y1" val="0.6" />
+        <prop name="y2" val="0.3" />
+        <prop name="y3" val="0.25" />
+        <prop name="y4" val="0.2" />
+      </comp>
+      <comp name="ff" type="sproSim::CoilFeedforward">
+        <prop name="phase" val="1" />
+      </comp>
+      <comp name="pid" type="sproSim::SimPid">
+        <prop name="phase" val="2" />
+        <prop name="kp" val="0.02" />
+        <prop name="ti" val="60" />
+        <prop name="tt" val="5" />
+        <prop name="initial" val="0" />
+      </comp>
+      <comp name="valve" type="sproSim::Valve">
+        <prop name="phase" val="3" />
+        <prop name="travel" val="10" />
+        <prop name="initial" val="0.2007585" />
+      </comp>
+      <comp name="coil" type="sproSim::WaterCoil">
+        <prop name="phase" val="4" />
+        <prop name="initialWater" val="30.03" />
+        <prop name="initialAir" val="25" />
+      </comp>
+      <comp name="sensor" type="sproSim::Sensor">
+        <prop name="phase" val="5" />
+        <prop name="initial" val="25" />
+      </comp>
+      <comp name="aTemp" type="sproSim::Trace">
+        <prop name="phase" val="7" />
+        <prop name="every" val="40" />
+      </comp>
+    </comp>
+  </app>
+  <links>
+    <link from="plain/water.out" to="plain/coil.waterIn" />
+    <link from="plain/water.out" to="plain/ff.waterIn" />
+    <link from="plain/water.out" to="plain/cap.in" />
+    <link from="plain/target.out" to="plain/pid.sp" />
+    <link from="plain/target.out" to="plain/ff.target" />
+    <link from="plain/limits.out" to="plain/pid.useLimits" />
+    <link from="plain/cap.out" to="plain/pid.limitHi" />
+    <link from="plain/pid.out" to="plain/valve.command" />
+    <link from="plain/valve.out" to="plain/coil.opening" />
+    <link from="plain/coil.airOut" to="plain/sensor.in" />
+    <link from="plain/sensor.out" to="plain/pid.pv" />
+    <link from="plain/sensor.out" to="plain/pTemp.in" />
+    <link from="assist/water.out" to="assist/coil.waterIn" />
+    <link from="assist/water.out" to="assist/ff.waterIn" />
+    <link from="assist/water.out" to="assist/cap.in" />
+    <link from="assist/target.out" to="assist/pid.sp" />
+    <link from="assist/target.out" to="assist/ff.target" />
+    <link from="assist/limits.out" to="assist/pid.useLimits" />
+    <link from="assist/cap.out" to="assist/pid.limitHi" />
+    <link from="assist/pid.out" to="assist/valve.command" />
+    <link from="assist/valve.out" to="assist/coil.opening" />
+    <link from="assist/coil.airOut" to="assist/sensor.in" />
+    <link from="assist/sensor.out" to="assist/pid.pv" />
+    <link from="assist/sensor.out" to="assist/aTemp.in" />
+    <link from="assist/ff.out" to="assist/pid.feedforward" />
+  </links>
+</sedonaApp>

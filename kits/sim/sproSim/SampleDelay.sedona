@@ -1,0 +1,36 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Bounded exact delay in samples: duration = samples * context dt.
+class SampleDelay extends SimBlock
+{
+  property float in
+  @config property int samples = 1
+  @config property float initial
+  @readonly property float out
+  @readonly property bool good = true
+  private inline float[256] history
+  private int index = 0
+  virtual override bool acceptsInput(Slot slot)
+  { return slot == SampleDelay.in }
+  virtual override bool valid()
+  {
+    return super.valid() && samples >= 1 && samples <= 256 && finite(initial)
+  }
+  virtual override void resetState()
+  {
+    for (int i = 0; i < 256; ++i) history[i] = initial
+    index = 0
+    out := initial
+    good := true
+  }
+  override void tick(float dt, double time)
+  {
+    good := finite(in)
+    if (!good) return
+    if (index >= samples) index = 0
+    out := history[index]
+    history[index] = in
+    index++
+    if (index == samples) index = 0
+  }
+}

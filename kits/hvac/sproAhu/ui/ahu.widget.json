@@ -1,0 +1,636 @@
+{
+ "format": "sedonapro-widget/1",
+ "id": "ahu",
+ "type": "sproAhu::Ahu",
+ "title": "Air handling unit",
+ "size": [
+  1000,
+  560
+ ],
+ "parts": {
+  "season": [
+   "sproHvac::Season"
+  ],
+  "ctl": [
+   "sproHvac::AhuControl"
+  ],
+  "temp": [
+   "sproHvac::SupplyTemp"
+  ],
+  "heater": [
+   "sproHvac::WaterHeater",
+   "sproHvac::ElectricHeater"
+  ],
+  "rec": [
+   "sproHvac::Recuperator"
+  ],
+  "fanS": [
+   "sproHvac::FanSpeed"
+  ],
+  "fanE": [
+   "sproHvac::FanSpeed"
+  ],
+  "tOut": [
+   "sproHal::AnalogInput"
+  ],
+  "tSup": [
+   "sproHal::AnalogInput"
+  ],
+  "tRet": [
+   "sproHal::AnalogInput"
+  ],
+  "tRoom": [
+   "sproHal::AnalogInput"
+  ],
+  "tExt": [
+   "sproHal::AnalogInput"
+  ],
+  "tExh": [
+   "sproHal::AnalogInput"
+  ],
+  "pDuct": [
+   "sproHal::AnalogInput"
+  ],
+  "doDamp": [
+   "sproHal::DigitalOutput"
+  ],
+  "doFanS": [
+   "sproHal::DigitalOutput"
+  ],
+  "doFanE": [
+   "sproHal::DigitalOutput"
+  ],
+  "doPump": [
+   "sproHal::DigitalOutput"
+  ],
+  "alFbS": [
+   "sproAlarm::MismatchAlarm"
+  ],
+  "alFbE": [
+   "sproAlarm::MismatchAlarm"
+  ],
+  "alFltS": [
+   "sproAlarm::BoolAlarm"
+  ],
+  "alFltE": [
+   "sproAlarm::BoolAlarm"
+  ]
+ },
+ "symbols": {
+  "duct": {
+   "off": "svg/duct.svg"
+  },
+  "damper": {
+   "off": "svg/damper-off.svg",
+   "on": "svg/damper-on.svg"
+  },
+  "filter": {
+   "off": "svg/filter-off.svg",
+   "fault": "svg/filter-fault.svg"
+  },
+  "recovery": {
+   "off": "svg/recovery-off.svg",
+   "on": "svg/recovery-on.svg"
+  },
+  "coil": {
+   "off": "svg/coil-off.svg",
+   "on": "svg/coil-on.svg",
+   "fault": "svg/coil-fault.svg"
+  },
+  "electric": {
+   "off": "svg/electric-off.svg",
+   "on": "svg/electric-on.svg",
+   "fault": "svg/electric-fault.svg"
+  },
+  "cooler": {
+   "off": "svg/cooler-off.svg",
+   "on": "svg/cooler-on.svg"
+  },
+  "fan": {
+   "off": "svg/fan-off.svg",
+   "on": "svg/fan-on.svg",
+   "fault": "svg/fan-fault.svg"
+  },
+  "pump": {
+   "off": "svg/pump-off.svg",
+   "on": "svg/pump-on.svg",
+   "fault": "svg/pump-fault.svg"
+  },
+  "valve": {
+   "off": "svg/valve-off.svg",
+   "on": "svg/valve-on.svg"
+  },
+  "sensor": {
+   "off": "svg/sensor-off.svg",
+   "fault": "svg/sensor-fault.svg"
+  },
+  "pressure": {
+   "off": "svg/pressure-off.svg"
+  }
+ },
+ "options": [
+  {
+   "slot": "layout",
+   "label": "Unit"
+  },
+  {
+   "slot": "heater",
+   "label": "Heater"
+  },
+  {
+   "slot": "valve",
+   "label": "Heater valve",
+   "when": "heater == 'water'"
+  },
+  {
+   "slot": "elStages",
+   "label": "Electric stages",
+   "when": "heater == 'electric'"
+  },
+  {
+   "slot": "recovery",
+   "label": "Heat recovery",
+   "when": "layout == 'supplyExhaust'"
+  },
+  {
+   "slot": "cooler",
+   "label": "Cooler"
+  },
+  {
+   "slot": "fans",
+   "label": "Fans"
+  },
+  {
+   "slot": "control",
+   "label": "Control"
+  },
+  {
+   "slot": "waterSensor",
+   "label": "Network temperature sensor",
+   "when": "heater == 'water'"
+  },
+  {
+   "slot": "frostThermostat",
+   "label": "Frost thermostat",
+   "when": "heater == 'water'"
+  },
+  {
+   "slot": "fireInput",
+   "label": "Fire alarm input"
+  },
+  {
+   "slot": "filterSwitches",
+   "label": "Filter switches"
+  },
+  {
+   "slot": "fanSwitches",
+   "label": "Fan proving switches"
+  },
+  {
+   "slot": "startSwitch",
+   "label": "Start switch"
+  },
+  {
+   "slot": "autoChannels",
+   "label": "Take board channels"
+  }
+ ],
+ "elements": [
+  {
+   "id": "ductS",
+   "symbol": "duct",
+   "x": 40,
+   "y": 150,
+   "w": 860,
+   "h": 110
+  },
+  {
+   "id": "ductE",
+   "symbol": "duct",
+   "x": 40,
+   "y": 320,
+   "w": 860,
+   "h": 110,
+   "when": "layout == 'supplyExhaust'"
+  },
+  {
+   "id": "tOut",
+   "symbol": "sensor",
+   "x": 50,
+   "y": 112,
+   "w": 30,
+   "h": 30,
+   "label": "Outdoor",
+   "values": [
+    {
+     "bind": "tOut.out",
+     "unit": "°C",
+     "decimals": 1,
+     "dx": 0,
+     "dy": -24
+    }
+   ]
+  },
+  {
+   "id": "damper",
+   "symbol": "damper",
+   "x": 95,
+   "y": 150,
+   "w": 60,
+   "h": 110,
+   "state": "doDamp.in",
+   "label": "Dampers"
+  },
+  {
+   "id": "filterS",
+   "symbol": "filter",
+   "x": 175,
+   "y": 150,
+   "w": 50,
+   "h": 110,
+   "fault": "alFltS.alarm",
+   "label": "Filter",
+   "configure": [
+    "filterSwitches"
+   ]
+  },
+  {
+   "id": "rec",
+   "symbol": "recovery",
+   "x": 250,
+   "y": 150,
+   "w": 100,
+   "h": 280,
+   "when": "layout == 'supplyExhaust' && recovery != 'none'",
+   "ghost": true,
+   "state": "rec.out",
+   "label": "Heat recovery",
+   "configure": [
+    "recovery",
+    "layout"
+   ],
+   "values": [
+    {
+     "bind": "rec.out",
+     "unit": "%",
+     "decimals": 0,
+     "dx": 0,
+     "dy": 290
+    }
+   ]
+  },
+  {
+   "id": "heaterW",
+   "symbol": "coil",
+   "x": 380,
+   "y": 150,
+   "w": 80,
+   "h": 110,
+   "when": "heater == 'water'",
+   "ghost": true,
+   "state": "heater.valve",
+   "fault": "heater.frost",
+   "label": "Water heater",
+   "configure": [
+    "heater",
+    "valve",
+    "waterSensor",
+    "frostThermostat"
+   ],
+   "values": [
+    {
+     "bind": "heater.valve",
+     "unit": "%",
+     "decimals": 0,
+     "dx": 0,
+     "dy": 120,
+     "label": "valve"
+    },
+    {
+     "bind": "tRet.out",
+     "unit": "°C",
+     "decimals": 1,
+     "dx": 0,
+     "dy": 140,
+     "label": "return"
+    }
+   ]
+  },
+  {
+   "id": "heaterE",
+   "symbol": "electric",
+   "x": 380,
+   "y": 150,
+   "w": 80,
+   "h": 110,
+   "when": "heater == 'electric'",
+   "state": "heater.s1",
+   "fault": "heater.alarm",
+   "label": "Electric heater",
+   "configure": [
+    "heater",
+    "elStages"
+   ]
+  },
+  {
+   "id": "pump",
+   "symbol": "pump",
+   "x": 382,
+   "y": 84,
+   "w": 34,
+   "h": 34,
+   "when": "heater == 'water'",
+   "state": "doPump.in",
+   "label": "Pump"
+  },
+  {
+   "id": "valve",
+   "symbol": "valve",
+   "x": 424,
+   "y": 84,
+   "w": 34,
+   "h": 34,
+   "when": "heater == 'water'",
+   "state": "heater.valve",
+   "configure": [
+    "valve"
+   ]
+  },
+  {
+   "id": "cooler",
+   "symbol": "cooler",
+   "x": 490,
+   "y": 150,
+   "w": 80,
+   "h": 110,
+   "when": "cooler != 'none'",
+   "ghost": true,
+   "state": "temp.cooling",
+   "label": "Cooler",
+   "configure": [
+    "cooler"
+   ],
+   "values": [
+    {
+     "bind": "temp.cooling",
+     "unit": "%",
+     "decimals": 0,
+     "dx": 0,
+     "dy": 120
+    }
+   ]
+  },
+  {
+   "id": "fanS",
+   "symbol": "fan",
+   "x": 610,
+   "y": 155,
+   "w": 100,
+   "h": 100,
+   "state": "doFanS.in",
+   "fault": "alFbS.alarm",
+   "label": "Supply fan",
+   "configure": [
+    "fans",
+    "fanSwitches"
+   ],
+   "values": [
+    {
+     "bind": "fanS.out",
+     "unit": "%",
+     "decimals": 0,
+     "dx": 0,
+     "dy": 110,
+     "when": "fans != 'onOff'"
+    }
+   ]
+  },
+  {
+   "id": "tSup",
+   "symbol": "sensor",
+   "x": 750,
+   "y": 112,
+   "w": 30,
+   "h": 30,
+   "label": "Supply",
+   "values": [
+    {
+     "bind": "tSup.out",
+     "unit": "°C",
+     "decimals": 1,
+     "dx": 0,
+     "dy": -24
+    }
+   ]
+  },
+  {
+   "id": "pDuct",
+   "symbol": "pressure",
+   "x": 800,
+   "y": 112,
+   "w": 30,
+   "h": 30,
+   "when": "fans == 'vfdPressure'",
+   "label": "Duct pressure",
+   "values": [
+    {
+     "bind": "pDuct.out",
+     "unit": "Pa",
+     "decimals": 0,
+     "dx": 0,
+     "dy": -24
+    }
+   ]
+  },
+  {
+   "id": "tRoom",
+   "symbol": "sensor",
+   "x": 860,
+   "y": 112,
+   "w": 30,
+   "h": 30,
+   "when": "layout == 'supply' && control == 'room'",
+   "ghost": true,
+   "label": "Room",
+   "configure": [
+    "control"
+   ],
+   "values": [
+    {
+     "bind": "tRoom.out",
+     "unit": "°C",
+     "decimals": 1,
+     "dx": 0,
+     "dy": -24
+    }
+   ]
+  },
+  {
+   "id": "fanE",
+   "symbol": "fan",
+   "x": 610,
+   "y": 325,
+   "w": 100,
+   "h": 100,
+   "when": "layout == 'supplyExhaust'",
+   "ghost": true,
+   "state": "doFanE.in",
+   "fault": "alFbE.alarm",
+   "label": "Exhaust fan",
+   "configure": [
+    "layout"
+   ]
+  },
+  {
+   "id": "filterE",
+   "symbol": "filter",
+   "x": 175,
+   "y": 320,
+   "w": 50,
+   "h": 110,
+   "when": "layout == 'supplyExhaust'",
+   "fault": "alFltE.alarm",
+   "label": "Filter"
+  },
+  {
+   "id": "tExt",
+   "symbol": "sensor",
+   "x": 860,
+   "y": 440,
+   "w": 30,
+   "h": 30,
+   "when": "layout == 'supplyExhaust'",
+   "label": "Extract",
+   "configure": [
+    "control"
+   ],
+   "values": [
+    {
+     "bind": "tExt.out",
+     "unit": "°C",
+     "decimals": 1,
+     "dx": 0,
+     "dy": 44
+    }
+   ]
+  },
+  {
+   "id": "tExh",
+   "symbol": "sensor",
+   "x": 60,
+   "y": 440,
+   "w": 30,
+   "h": 30,
+   "when": "layout == 'supplyExhaust' && recovery != 'none'",
+   "label": "Exhaust",
+   "values": [
+    {
+     "bind": "tExh.out",
+     "unit": "°C",
+     "decimals": 1,
+     "dx": 0,
+     "dy": 44
+    }
+   ]
+  }
+ ],
+ "texts": [
+  {
+   "text": "Outdoor air",
+   "x": 40,
+   "y": 268
+  },
+  {
+   "text": "Supply",
+   "x": 905,
+   "y": 196
+  },
+  {
+   "text": "Exhaust",
+   "x": 100,
+   "y": 446,
+   "when": "layout == 'supplyExhaust'"
+  },
+  {
+   "text": "Extract",
+   "x": 905,
+   "y": 366,
+   "when": "layout == 'supplyExhaust'"
+  }
+ ],
+ "controls": [
+  {
+   "kind": "mode",
+   "bind": "ctl.mode",
+   "label": "Mode",
+   "x": 40,
+   "y": 500
+  },
+  {
+   "kind": "status",
+   "bind": "ctl.state",
+   "label": "State",
+   "x": 200,
+   "y": 500
+  },
+  {
+   "kind": "status",
+   "bind": "season.season",
+   "label": "Season",
+   "x": 380,
+   "y": 500
+  },
+  {
+   "kind": "setpoint",
+   "bind": "temp.spSupply",
+   "label": "Supply setpoint",
+   "x": 540,
+   "y": 500,
+   "when": "control == 'supply'",
+   "unit": "°C"
+  },
+  {
+   "kind": "setpoint",
+   "bind": "temp.spRoom",
+   "label": "Room setpoint",
+   "x": 540,
+   "y": 500,
+   "when": "control == 'room'",
+   "unit": "°C"
+  },
+  {
+   "kind": "status",
+   "bind": "heater.state",
+   "label": "Heater",
+   "x": 740,
+   "y": 500,
+   "when": "heater == 'water'"
+  }
+ ],
+ "info": [
+  {
+   "bind": "ioList",
+   "label": "I/O"
+  },
+  {
+   "bind": "missing",
+   "label": "Points without a channel"
+  },
+  {
+   "bind": "parts",
+   "label": "Parts"
+  },
+  {
+   "bind": "status",
+   "label": "Configuration"
+  }
+ ],
+ "actions": [
+  {
+   "id": "build",
+   "invoke": "build",
+   "label": "Build",
+   "confirm": "Rebuild the unit from these options? Blocks of the same type keep their settings; parts that are no longer needed are removed."
+  }
+ ]
+}

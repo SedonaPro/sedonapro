@@ -1,0 +1,24 @@
+<module>
+  <!-- I/O demo by channel name: button DI1 -> lamp DO1, analog AI1 -> AO1.
+       Board sim: click and move sliders at http://127.0.0.1:8090 -->
+  <kit name="sproHal"/>
+  <into path="">
+    <comp name="io" type="sys::Folder">
+      <comp name="board" type="sproHal::HalBoard"/>
+      <comp name="button" type="sproHal::DigitalInput">
+        <prop name="channel" val="DI1"/>
+      </comp>
+      <comp name="lamp" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO1"/>
+      </comp>
+      <comp name="level" type="sproHal::AnalogInput">
+        <prop name="channel" val="AI1"/>
+      </comp>
+      <comp name="output" type="sproHal::AnalogOutput">
+        <prop name="channel" val="AO1"/>
+      </comp>
+    </comp>
+  </into>
+  <link from="/io/button.out" to="/io/lamp.in"/>
+  <link from="/io/level.out" to="/io/output.in"/>
+</module>

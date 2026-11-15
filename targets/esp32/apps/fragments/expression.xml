@@ -1,0 +1,10 @@
+<module>
+  <kit name="sproExpr"/>
+  <into path="play">
+    <comp name="formula" type="sproExpr::ExpressionFloat">
+      <prop name="expr" val="in1*2+sqrt(in2)"/>
+    </comp>
+  </into>
+  <link from="/play/rampA.out" to="/play/formula.in1"/>
+  <link from="/play/rampB.out" to="/play/formula.in2"/>
+</module>

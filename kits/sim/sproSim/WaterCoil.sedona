@@ -1,0 +1,83 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Two mixed thermal volumes, implicit simultaneous energy balance.
+** Temperatures degC, flows kg/s, capacities J/K, ua W/K, cp J/(kg.K).
+class WaterCoil extends SimBlock
+{
+  property float waterIn = 60.0f
+  property float airIn = 15.0f
+  property float opening = 0.0f
+  property float waterScale = 1.0f
+  property float airScale = 1.0f
+  @config property float waterFlow = 0.2f
+  @config property float airFlow = 0.5f
+  @config property float cpWater = 4180.0f
+  @config property float cpAir = 1006.0f
+  @config property float ua = 1000.0f
+  @config property float waterCapacity = 50000.0f
+  @config property float airCapacity = 10000.0f
+  @config property float initialWater = 20.0f
+  @config property float initialAir = 20.0f
+  @readonly property float waterOut
+  @readonly property float airOut
+  @readonly property float heat
+  @readonly property float waterPower
+  @readonly property float airPower
+  @readonly property float storagePower
+  @readonly property float balanceError
+  @readonly property bool good = true
+  virtual override bool acceptsInput(Slot s)
+  { return s == WaterCoil.waterIn || s == WaterCoil.airIn || s == WaterCoil.opening || s == WaterCoil.waterScale || s == WaterCoil.airScale }
+  virtual override bool valid()
+  {
+    return super.valid() && finite(waterFlow) && waterFlow >= 0.0f && waterFlow <= 1000.0f &&
+      finite(airFlow) && airFlow >= 0.0f && airFlow <= 1000.0f &&
+      finite(cpWater) && cpWater > 0.0f && cpWater <= 100000.0f &&
+      finite(cpAir) && cpAir > 0.0f && cpAir <= 100000.0f &&
+      finite(ua) && ua >= 0.0f && ua <= 1.0e9f &&
+      finite(waterCapacity) && waterCapacity > 0.0f && waterCapacity <= 1.0e12f &&
+      finite(airCapacity) && airCapacity > 0.0f && airCapacity <= 1.0e12f &&
+      finite(initialWater) && finite(initialAir)
+  }
+  virtual override void resetState()
+  {
+    waterOut := initialWater
+    airOut := initialAir
+    heat := 0.0f
+    waterPower := 0.0f
+    airPower := 0.0f
+    storagePower := 0.0f
+    balanceError := 0.0f
+    good := true
+  }
+  override void tick(float dt, double time)
+  {
+    good := finite(waterIn) && finite(airIn) && finite(opening) && finite(waterScale) && finite(airScale) &&
+      waterScale >= 0.0f && waterScale <= 100.0f && airScale >= 0.0f && airScale <= 100.0f
+    if (!good) return
+    double gw = (double)waterFlow*(double)cpWater*(double)waterScale*(double)clamp(opening,0.0f,1.0f)
+    double ga = (double)airFlow*(double)cpAir*(double)airScale
+    double cw = (double)waterCapacity/(double)dt
+    double ca = (double)airCapacity/(double)dt
+    double a = cw+gw+(double)ua
+    double d = ca+ga+(double)ua
+    double rw = cw*(double)waterOut+gw*(double)waterIn
+    double ra = ca*(double)airOut+ga*(double)airIn
+    double det = (cw+gw)*(ca+ga)+(double)ua*(cw+gw+ca+ga)
+    double tw = (rw*d+(double)ua*ra)/det
+    double ta = (ra*a+(double)ua*rw)/det
+    double transfer = (double)ua*(tw-ta)
+    double qw = gw*((double)waterIn-tw)
+    double qa = ga*(ta-(double)airIn)
+    double qs = cw*(tw-(double)waterOut)+ca*(ta-(double)airOut)
+    if (!finite((float)tw) || !finite((float)ta) || !finite((float)transfer) || !finite((float)qw) || !finite((float)qa) || !finite((float)qs))
+    { good := false; return }
+    waterOut := (float)tw
+    airOut := (float)ta
+    heat := (float)transfer
+    waterPower := (float)qw
+    airPower := (float)qa
+    storagePower := (float)qs
+    balanceError := (float)(qw-qa-qs)
+  }
+}

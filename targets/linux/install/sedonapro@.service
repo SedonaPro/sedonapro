@@ -1,0 +1,47 @@
+# SedonaPro VM, one instance per directory /opt/sedonapro/instances/<instance>/
+#   {svm, kits.scode, app.sab, svm.conf, manifests/}
+# Installed by install.sh; example: systemctl enable --now sedonapro@main
+# Each instance needs its own SOX/web ports in its app.sab.
+#
+# Type=notify: active when the first scan cycle runs (svm sends READY=1).
+# WatchdogSec: svm pings from the scan loop; a hung loop is restarted.
+# Devices: only GPIO, serial and SPI (DevicePolicy=closed); install.sh adds the
+# groups that own them (gpio, dialout, spi) in groups.conf.
+
+[Unit]
+Description=SedonaPro VM (%i)
+After=network.target
+StartLimitIntervalSec=600
+StartLimitBurst=20
+
+[Service]
+Type=notify
+NotifyAccess=main
+WatchdogSec=30
+TimeoutStartSec=120
+User=sedona
+Group=sedona
+WorkingDirectory=/opt/sedonapro/instances/%i
+ExecStart=/usr/bin/stdbuf -oL -eL /opt/sedonapro/instances/%i/svm --plat
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+DevicePolicy=closed
+DeviceAllow=char-gpiochip rw
+DeviceAllow=char-ttyS rw
+DeviceAllow=char-ttyUSB rw
+DeviceAllow=char-ttyACM rw
+DeviceAllow=char-spidev rw
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/sedonapro/instances/%i
+# legacy sysfs GPIO and PWM (boards with hal linux-sysfs, AO channels)
+ReadWritePaths=-/sys/class/gpio -/sys/class/pwm
+MemoryMax=128M
+LimitCORE=256M
+TasksMax=32
+UMask=0027
+
+[Install]
+WantedBy=multi-user.target

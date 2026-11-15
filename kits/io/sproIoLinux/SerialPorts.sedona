@@ -1,0 +1,53 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+// 2026 SedonaPro: ports come from the board file (boards/<board>.toml,
+// serial = [...]); the list below is used when the board has none.
+
+**
+** Serial ports of the controller for Modbus and serial protocols: port number
+** 1..n = the board's serial list (boards/<board>.toml), else the defaults.
+**
+@palette=false
+class SerialPorts {
+	define int maxDefault = 5;
+
+	define Str[maxDefault] defaultNames = { "",
+				     "/dev/ttyUSB0",
+				     "/dev/ttyUSB1",
+				     "/dev/ttyS0",
+				     "/dev/ttyS1"
+	};
+
+	static void _sInit()
+	{
+		int n = Hal.serialCount();
+		if (n > 0)
+		{
+			SerialInfoPlatform.setMaxPortNum(n);
+			SerialInfoPlatform.setPortName(0, "");
+			for (int i = 0; i < n; i++)
+				SerialInfoPlatform.setPortName(i + 1, Hal.serialName(i));
+			return;
+		}
+		SerialInfoPlatform.setMaxPortNum(maxDefault - 1);
+		for (int i = 0; i < maxDefault; i++)
+			SerialInfoPlatform.setPortName(i, defaultNames[i]);
+	}
+
+	static internal inline SerialPorts singlet;
+}

@@ -1,0 +1,229 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+class EnergyTest extends Test
+{
+  static inline EnergyMeter em
+  static inline HeatMeter hm
+  static inline PeakDemand pd
+  static inline Ats ats
+
+  static bool near(float a, float b, float tol) { return a - b <= tol && b - a <= tol }
+
+  static void testMeter()
+  {
+    EnergyMeter m = em
+    m.peak.copyFromStr("07:00-10:00, 17:00-21:00")
+    int d = SchedTime.dayNumber(2026, 11, 30)
+    m.power := 36.0f
+    // 06:00, night: 100 s at 36 kW = 1 kWh
+    m.updateAt(100.0f, d, 6 * 60)
+    assert(m.zone == 1 && near(m.nightTotal, 1.0f, 0.001f) && near(m.total, 1.0f, 0.001f))
+    m.updateAt(100.0f, d, 8 * 60)
+    assert(m.zone == 2 && near(m.peakTotal, 1.0f, 0.001f))
+    m.updateAt(200.0f, d, 12 * 60)
+    assert(m.zone == 0 && near(m.dayTotal, 2.0f, 0.001f))
+    assert(near(m.today, 4.0f, 0.001f) && near(m.thisMonth, 4.0f, 0.001f) && m.status == Pro.ok)
+    // next day, next month
+    m.updateAt(100.0f, d + 1, 0)
+    assert(near(m.yesterday, 4.0f, 0.001f) && near(m.today, 1.0f, 0.001f))
+    assert(near(m.lastMonth, 4.0f, 0.001f) && near(m.thisMonth, 1.0f, 0.001f) && near(m.total, 5.0f, 0.001f))
+    // small steps on a big total are not lost
+    m.setTotal(100000.0f)
+    for (int i = 0; i < 3600; i++) m.updateAt(1.0f, d + 1, 12 * 60)
+    assert(near(m.total, 100036.0f, 0.05f))
+    // a gap of several days: yesterday is 0
+    m.updateAt(0.0f, d + 5, 12 * 60)
+    assert(m.yesterday == 0.0f && m.today == 0.0f)
+    // from a meter's reading
+    m.resetAll()
+    m.source := 1
+    m.reading := 500.0f
+    m.updateAt(1.0f, d + 5, 12 * 60)
+    assert(m.total == 0.0f)
+    m.reading := 502.5f
+    m.updateAt(1.0f, d + 5, 23 * 60)
+    assert(near(m.nightTotal, 2.5f, 0.001f) && near(m.total, 2.5f, 0.001f))
+    // meter replaced: no jump
+    m.reading := 3.0f
+    m.updateAt(1.0f, d + 5, 23 * 60)
+    assert(near(m.total, 2.5f, 0.001f) && m.status == Pro.inputBad)
+    m.reading := 4.0f
+    m.updateAt(1.0f, d + 5, 23 * 60)
+    assert(near(m.total, 3.5f, 0.001f) && m.status == Pro.ok)
+    // no clock: day zone, inputBad
+    m.reading := 5.0f
+    m.updateAt(1.0f, -1, 0)
+    assert(m.zone == 0 && near(m.dayTotal, 1.0f, 0.001f) && m.status == Pro.inputBad)
+    // a wrong period
+    m.night.copyFromStr("23:00-7")
+    m.updateAt(1.0f, d + 5, 12 * 60)
+    assert(m.status == Pro.config)
+  }
+
+  static void testHeat()
+  {
+    HeatMeter h = hm
+    h.flow := 10.0f
+    h.supply := 70.0f
+    h.returnTemp := 50.0f
+    h.update(3600.0f)
+    // 10 m3/h * 977.8 kg/m3 / 3600 * (h70 - h50) = about 227 kW
+    assert(near(h.power, 227.4f, 1.0f) && near(h.delta, 20.0f, 0.001f))
+    assert(near(h.energy, h.power, 0.1f) && near(h.gcal, h.energy * 0.000859845f, 0.001f))
+    assert(near(h.volume, 10.0f, 0.01f) && h.status == Pro.ok)
+    // reverse heat is not counted
+    h.returnTemp := 75.0f
+    float e = h.energy
+    h.update(60.0f)
+    assert(h.power == 0.0f && h.energy == e)
+    h.flow := null
+    h.update(60.0f)
+    assert(h.status == Pro.inputBad && h.power == null && h.energy == e)
+    assert(near(HeatMeter.density(20.0f), 998.0f, 1.0f) && near(HeatMeter.density(100.0f), 958.4f, 1.0f))
+  }
+
+  static void testDemand()
+  {
+    PeakDemand p = pd
+    int d = SchedTime.dayNumber(2026, 11, 30)
+    p.limit := 100.0f
+    p.loads := 2
+    p.stepDelay := 60.0f
+    p.minOff := 300.0f
+    p.power := 80.0f
+    // 12:00:00 .. 12:10:00 at 80 kW
+    int t = 12 * 3600
+    for (int i = 0; i < 600; i++) { p.updateAt(1.0f, d, t); t++ }
+    assert(near(p.demand, 80.0f * 600.0f / 1800.0f, 0.1f) && near(p.predicted, 80.0f, 0.1f))
+    assert(p.shedCount == 0 && p.status == Pro.ok)
+    // 150 kW: the prediction crosses 95 kW, one load per minute
+    p.power := 150.0f
+    p.updateAt(1.0f, d, t); t++
+    assert(p.shedCount == 1 && p.shed1 && !p.shed2 && p.status == Pro.limited)
+    for (int i = 0; i < 59; i++) { p.updateAt(1.0f, d, t); t++ }
+    assert(p.shedCount == 1)
+    p.updateAt(1.0f, d, t); t++
+    assert(p.shedCount == 2 && p.shed2)
+    // the power drops: loads come back after minOff, last shed first
+    p.power := 20.0f
+    for (int i = 0; i < 200; i++) { p.updateAt(1.0f, d, t); t++ }
+    assert(p.shedCount == 2)
+    for (int i = 0; i < 100; i++) { p.updateAt(1.0f, d, t); t++ }
+    assert(p.shedCount == 1 && p.shed1 && !p.shed2)
+    for (int i = 0; i < 60; i++) { p.updateAt(1.0f, d, t); t++ }
+    assert(p.shedCount == 0 && p.status == Pro.ok)
+    // to the end of the block: lastDemand and the month's maximum
+    while (t < 12 * 3600 + 1800) { p.updateAt(1.0f, d, t); t++ }
+    p.updateAt(1.0f, d, t)
+    assert(near(p.lastDemand, 44.4f, 0.5f) && p.maxDemand == p.lastDemand && p.demand < 1.0f)
+    // a new month clears the maximum
+    p.updateAt(1.0f, d + 1, 0)
+    assert(p.maxDemand == 0.0f)
+    // no clock: blocks by the run time
+    p.limit := 0.0f
+    p.power := 60.0f
+    for (int i = 0; i < 1801; i++) p.updateAt(1.0f, -1, 0)
+    assert(near(p.lastDemand, 60.0f, 0.1f) && p.status == Pro.inputBad && p.shedCount == 0)
+  }
+
+  ** n steps of dt; the breakers follow their commands one step later
+  static void run(Ats a, float dt, int n)
+  {
+    for (int i = 0; i < n; i++)
+    {
+      a.update(dt)
+      a.fb1 := a.close1
+      a.fb2 := a.close2
+      a.fbG := a.closeG
+    }
+  }
+
+  static bool never2(Ats a, float dt, int n)
+  {
+    for (int i = 0; i < n; i++)
+    {
+      run(a, dt, 1)
+      int c = (a.close1 ? 1 : 0) + (a.close2 ? 1 : 0) + (a.closeG ? 1 : 0)
+      if (c > 1) return false
+    }
+    return true
+  }
+
+  static void testAts()
+  {
+    Ats a = ats
+    a.sources := 2
+    a.genWarmup := 5.0f
+    a.genCooldown := 60.0f
+    a.ok1 := true
+    a.ok2 := true
+    run(a, 0.5f, 4)
+    assert(!a.close1 && a.status == Pro.alarm)
+    run(a, 0.5f, 4)
+    assert(a.close1 && a.source == 1 && !a.onReserve && a.status == Pro.ok)
+    // input 1 lost: a dip shorter than lossDelay is ignored
+    a.ok1 := false
+    run(a, 0.5f, 4)
+    assert(a.close1 && a.source == 1)
+    assert(never2(a, 0.5f, 8))
+    assert(a.close2 && a.source == 2 && a.onReserve && !a.close1)
+    // input 1 back: return after returnDelay
+    a.ok1 := true
+    run(a, 1.0f, 50)
+    assert(a.source == 2)
+    assert(never2(a, 1.0f, 15))
+    assert(a.source == 1 && a.close1 && !a.close2)
+    // both inputs lost: generator start, warm-up, load
+    a.ok1 := false
+    a.ok2 := false
+    run(a, 1.0f, 4)
+    assert(a.blackout && !a.genStart)
+    run(a, 1.0f, 5)
+    assert(a.genStart && !a.closeG)
+    a.okG := true
+    run(a, 1.0f, 4)
+    assert(!a.closeG)
+    run(a, 1.0f, 3)
+    assert(a.closeG && a.source == 3 && !a.blackout)
+    // input 2 back: return to it, the generator runs on, then stops
+    a.ok2 := true
+    run(a, 1.0f, 62)
+    assert(a.source == 2 && a.genStart)
+    run(a, 1.0f, 60)
+    assert(!a.genStart)
+    // a breaker that does not close: the next source
+    a.ok1 := true
+    a.returnDelay := 5.0f
+    for (int i = 0; i < 20; i++) { a.update(1.0f); a.fb2 := a.close2; a.fbG := a.closeG; a.fb1 := false }
+    assert(a.breakerFault && a.alarm && a.source == 2 && a.close2)
+    a.reset()
+    run(a, 1.0f, 10)
+    assert(!a.breakerFault && a.source == 1)
+    // block: no transfer
+    a.block := true
+    a.ok1 := false
+    run(a, 1.0f, 10)
+    assert(a.source == 1 && a.status == Pro.locked)
+    a.block := false
+    run(a, 1.0f, 3)
+    assert(a.source == 2)
+    // generator gives no voltage
+    a.ok2 := false
+    a.okG := false
+    run(a, 1.0f, 40)
+    assert(a.genFault && !a.genStart && a.blackout)
+    // hand and off
+    a.reset()
+    a.ok1 := true
+    a.mode := Pro.modeHand
+    a.handSource := 1
+    run(a, 1.0f, 3)
+    assert(a.source == 1 && a.status == Pro.hand)
+    a.mode := Pro.modeOff
+    run(a, 1.0f, 3)
+    assert(!a.close1 && !a.close2 && !a.closeG && a.status == Pro.off && !a.blackout)
+  }
+}

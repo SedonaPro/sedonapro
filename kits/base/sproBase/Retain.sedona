@@ -1,0 +1,253 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Base of components whose state must survive a restart or a power loss
+** (run hours, energy totals, counters).  A RetainService in the app saves
+** the state of every Retained component to a file and loads it at start.
+**
+** saveRetain must write exactly retainSize() bytes (at most 255); a record
+** whose size or type no longer matches is skipped at load.
+**
+@palette=false
+abstract class Retained extends Component
+{
+  ** bytes written by saveRetain
+  abstract int retainSize()
+
+  ** write the state
+  abstract void saveRetain(OutStream out)
+
+  ** read the state written by saveRetain (called before the first execute)
+  abstract void loadRetain(InStream in)
+
+  ** ask the RetainService to save soon (after a reset or a set by hand)
+  static void retainChanged() { pending = true }
+
+  static bool pending
+}
+
+**
+** Saves the state of all Retained components (run hours, totals) to a file
+** every 'interval' minutes, when the app stops and soon after a manual
+** change, and loads it at start.  One per app, under Services.
+**
+** The file is written to a temporary name and then renamed, so a power
+** loss during a save keeps the previous file; a checksum rejects a
+** damaged one.  At most 'interval' minutes of counting is lost on a
+** power loss: 10 minutes is about 50 000 writes a year, well within
+** what LittleFS on an ESP32 flash spreads over its blocks.
+**
+@niagaraIcon="module://icons/x16/database.png"
+class RetainService extends Service
+{
+  @defaultOnClone @asStr
+  @config property Buf(32) filename = "retain.dat"
+
+  ** minutes between saves (0 = only when the app stops or after a manual change)
+  @config @unit=Units.minute @min=0
+  property int interval = 10
+
+  define Str statusRange = "ok, noFile, badFile, writeError"
+  define int ok = 0
+  define int noFile = 1
+  define int badFile = 2
+  define int writeError = 3
+
+  ** noFile: nothing loaded (first start); badFile: damaged file ignored
+  @readonly @range=statusRange property byte status
+
+  ** components in the last load or save
+  @readonly property int records
+
+  ** saves since start
+  @readonly property int saves
+
+  ** save now
+  action void saveNow() { save() }
+
+  override void start()
+  {
+    load()
+    lastSave = Sys.ticks()
+  }
+
+  override void stop()
+  {
+    save()
+  }
+
+  override void execute()
+  {
+    long now = Sys.ticks()
+    if (now - lastCheck >= 1sec)
+    {
+      // a component removed (and its id reused) must not inherit a record
+      lastCheck = now
+      if (signature() != savedSignature) Retained.pending = true
+    }
+    long since = now - lastSave
+    if ((Retained.pending && since >= 5sec) ||
+        (interval > 0 && since >= (long)interval * 60sec))
+      save()
+  }
+
+  ** write every Retained component; false on a write error
+  bool save()
+  {
+    Retained.pending = false
+    lastSave = Sys.ticks()
+    int count = 0
+    for (int i = 0; i <= Sys.app.maxId(); i++)
+      if (retained(i) != null) count++
+    if (count == 0 && status != ok)
+      return true
+
+    tmpName.copyFromStr(filename.toStr())
+    int n = tmpName.size - 1
+    if (n < 0 || n + 4 >= tmpName.bytesLen) { status := writeError; return false }
+    tmpName.bytes[n] = '.'
+    tmpName.bytes[n+1] = 'n'
+    tmpName.bytes[n+2] = 'e'
+    tmpName.bytes[n+3] = 'w'
+    tmpName.bytes[n+4] = 0
+    tmpName.size = n + 5
+
+    file.name = tmpName.toStr()
+    if (!file.open("w")) { status := writeError; return false }
+    sum.begin()
+    sum.out = file.out
+    sum.writeI4(magic)
+    sum.writeI2(count)
+    for (int i = 0; i <= Sys.app.maxId(); i++)
+    {
+      Retained r = retained(i)
+      if (r == null) continue
+      sum.writeI2(r.id)
+      sum.writeStr(r.type.name)
+      sum.write(r.retainSize())
+      r.saveRetain(sum)
+    }
+    bool wrote = file.out.writeI4(sum.value())
+    file.out.flush()
+    file.fsync()
+    file.close()
+    if (!wrote || !FileStore.rename(tmpName.toStr(), filename.toStr()))
+    {
+      status := writeError
+      return false
+    }
+    status := RetainService.ok
+    records := count
+    savedSignature = signature()
+    saves := saves + 1
+    return true
+  }
+
+  ** read the file into the Retained components; false if none was loaded
+  bool load()
+  {
+    file.name = filename.toStr()
+    int size = file.size()
+    if (size < 0) { status := noFile; return false }
+    if (size < 10 || !file.open("r")) { status := badFile; return false }
+
+    // pass 1: checksum of everything but the last 4 bytes
+    sum.begin()
+    for (int i = 0; i < size - 4; i++)
+      sum.add(file.in.read())
+    bool good = file.in.readS4() == sum.value()
+    file.seek(0)
+    if (!good || file.in.readS4() != magic)
+    {
+      file.close()
+      status := badFile
+      return false
+    }
+
+    // pass 2: records
+    int count = file.in.readU2()
+    int loaded = 0
+    for (int k = 0; k < count; k++)
+    {
+      int id = file.in.readU2()
+      if (!file.in.readStr(typeName.toStr(), typeName.bytesLen)) break
+      int len = file.in.read()
+      if (id < 0 || len < 0) break
+      Retained r = retained(id)
+      if (r != null && r.type.name.equals(typeName.toStr()) && r.retainSize() == len)
+      {
+        r.loadRetain(file.in)
+        loaded++
+      }
+      else
+        file.in.skip(len)
+    }
+    file.close()
+    status := ok
+    records := loaded
+    savedSignature = signature()
+    return true
+  }
+
+  ** ids of the Retained components mixed into one number
+  int signature()
+  {
+    int h = 17
+    for (int i = 0; i <= Sys.app.maxId(); i++)
+      if (retained(i) != null) h = h * 31 + i
+    return h
+  }
+
+  static Retained retained(int id)
+  {
+    Component c = Sys.app.lookup(id)
+    if (c == null || !c.type.is(Retained.type)) return null
+    return (Retained)c
+  }
+
+  define int magic = 0x53505231  // "SPR1"
+
+  long lastSave
+  long lastCheck
+  int savedSignature
+  inline File file
+  inline SumOut sum
+  inline Buf(40) tmpName
+  inline Buf(40) typeName
+}
+
+**
+** Output stream that adds an Adler-32 checksum of what passes through.
+**
+internal class SumOut extends OutStream
+{
+  void begin() { a = 1; b = 0 }
+
+  void add(int x)
+  {
+    a = (a + (x & 0xff)) % 65521
+    b = (b + a) % 65521
+  }
+
+  int value() { return (b << 16) | a }
+
+  override bool write(int x)
+  {
+    add(x)
+    return out.write(x)
+  }
+
+  override bool writeBytes(byte[] buf, int off, int len)
+  {
+    for (int i = 0; i < len; i++)
+      if (!write(buf[off + i])) return false
+    return true
+  }
+
+  OutStream out
+  int a = 1
+  int b = 0
+}

@@ -1,0 +1,2 @@
+summary = "Air handling: season, AHU sequencer, supply temperature, water heater with frost protection, electric heater, heat recovery, fans"
+portable_tests = true

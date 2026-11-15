@@ -1,0 +1,67 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+@palette=false
+class SerialInfo {
+	define Str rtsModeVals = "None, RTS_High, RTS_Low";
+	define Str parityVals = "None, Odd, Even";
+	define Str baudrateVals = "BR2400, BR4800, BR9600, BR19200, BR38400, BR57600, BR115200, BR230400";
+
+	define int rtsModeNone    = 0;
+	define int rtsModeRtsHigh = 1;
+	define int rtsModeRtsLow  = 2;
+
+	define int maxIndx = 8;
+	define int[maxIndx] baudrates = { 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400 };
+
+	static int maxPortNum = 0;
+
+	static int getBaudrateInt(int indx)
+	{
+		if (indx >= maxIndx)
+			return 0;
+		return baudrates[indx];
+	}
+
+        static int getMaxPortNum()
+	{
+		return maxPortNum;
+	}
+
+	static void setMaxPortNum(int maxPort)
+	{
+		maxPortNum = maxPort;
+	}
+}
+
+@palette=false
+class SerialInfoPlatform {
+	static native void setMaxPortNumNative(int maxPort);
+	static native void setPortNameNative(int indx, Str portName);
+
+
+	static void setMaxPortNum(int maxPort)
+	{
+		SerialInfo.setMaxPortNum(maxPort);
+		setMaxPortNumNative(maxPort);
+	}
+
+	static void setPortName(int indx, Str portName)
+	{
+		setPortNameNative(indx, portName);
+	}
+}

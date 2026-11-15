@@ -1,0 +1,251 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+class MuxB82I extends Component
+{
+	property int in;
+
+	@config
+	property int startsAt;
+
+	@allowNull=false
+	property bool b0;
+
+	@allowNull=false
+	property bool b1;
+
+	@allowNull=false
+	property bool b2;
+
+	@allowNull=false
+	property bool b3;
+
+	@allowNull=false
+	property bool b4;
+
+	@allowNull=false
+	property bool b5;
+
+	@allowNull=false
+	property bool b6;
+
+	@allowNull=false
+	property bool b7;
+
+	@readonly
+	property int out;
+
+	virtual override void execute()
+	{
+		int data_byte = 0;
+		if (b0) data_byte |= (1<<0);
+		if (b1) data_byte |= (1<<1);
+		if (b2) data_byte |= (1<<2);
+		if (b3) data_byte |= (1<<3);
+		if (b4) data_byte |= (1<<4);
+		if (b5) data_byte |= (1<<5);
+		if (b6) data_byte |= (1<<6);
+		if (b7) data_byte |= (1<<7);
+
+	        int tmp = in;
+		int mask = 0xFF;
+		tmp &=~(mask      << startsAt);
+		tmp |=(data_byte << startsAt);
+		out := tmp;
+	}
+}
+
+
+class BitwiseAnd4 extends Component
+{
+	property int in1;
+
+	property int in2;
+
+	property int in3;
+
+	property int in4;
+
+	@readonly
+	property int out;
+
+	virtual override void execute()
+	{
+	        int def = -1;
+	        int tmp = def;
+	        tmp = tmp & in1;
+	        tmp = tmp & in2;
+	        tmp = tmp & in3;
+	        tmp = tmp & in4;
+		out := tmp;
+	}
+}
+
+class BitwiseOr4 extends Component
+{
+	property int in1;
+
+	property int in2;
+
+	property int in3;
+
+	property int in4;
+
+	@readonly
+	property int out;
+
+	virtual override void execute()
+	{
+	        int tmp = 0;
+	        tmp = tmp | in1;
+	        tmp = tmp | in2;
+        	tmp = tmp | in3;
+		tmp = tmp | in4;
+		out := tmp;
+	}
+
+}
+
+class BitwiseXor4 extends Component
+{
+	property int in1;
+
+	property int in2;
+
+	property int in3;
+
+	property int in4;
+
+	@readonly
+	property int out;
+
+	virtual override void execute()
+	{
+	        int tmp = 0 
+	        tmp = tmp ^ in1;
+	        tmp = tmp ^ in2;
+	        tmp = tmp ^ in3;
+	        tmp = tmp ^ in4;
+		out := tmp;
+	}
+
+}
+
+
+class BitwiseNot extends Component
+{
+	property int in;
+
+	@readonly
+	property int out;
+
+	virtual override void execute()
+	{
+    		out := ~in;
+	}
+
+}
+
+@palette=false
+class BitShiftCommon extends Component
+{
+	property int in;
+
+	property int shift;
+
+	property bool carry_in;
+
+	@readonly
+	property int out;
+
+	@readonly
+	property bool carry_out;
+}
+
+class LeftBitShift extends BitShiftCommon 
+{
+	virtual override void execute()
+	{
+		int left_bit_mask = 1 << (int.sizeof*8 - 1);
+	        carry_out := (in & left_bit_mask) != 0;
+        	out := in << shift;
+	        if (carry_in)
+	            out := out + 1;
+	}
+}
+
+
+class RightBitShift extends BitShiftCommon 
+{
+	virtual override void execute()
+	{
+		int left_bit_mask = 1 << (int.sizeof*8 - 1);
+	        carry_out := (in & 1) != 0;
+	        out := in << shift;
+	        if (carry_in) 
+	            out := out + left_bit_mask;
+	}
+}
+
+
+
+
+
+@palette=false
+abstract class IntDivCommon extends Component
+{
+	property int in1;
+
+	property int in2;
+
+	@readonly
+	property int out;
+
+	@readonly
+	property bool div0;
+
+    abstract int calc();
+
+	virtual override void execute()
+	{
+        	div0 := (in2 == 0);
+
+	        if (!div0) 
+			out := calc();
+	        else 
+			out := 0;
+	}
+
+}
+
+
+class IntMod extends IntDivCommon 
+{
+
+    virtual override int calc() {
+            return in1 % in2;
+    }
+}
+
+class IntDiv extends IntDivCommon 
+{
+    virtual override int calc() {
+            return in1 / in2;
+    }
+}
+
+

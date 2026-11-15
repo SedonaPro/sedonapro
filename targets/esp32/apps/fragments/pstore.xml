@@ -1,0 +1,4 @@
+<module>
+  <kit name="pstore"/>
+  <into path="service"><comp name="pstore" type="pstore::PstoreService"/></into>
+</module>

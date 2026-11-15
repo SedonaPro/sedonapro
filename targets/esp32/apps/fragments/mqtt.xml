@@ -1,0 +1,37 @@
+<module>
+  <!-- MQTT: /play/adder.out goes to <baseTopic>/sum and, with the setpoint
+       received on <baseTopic>/cmd/sp, to <baseTopic>/state as JSON.
+       Set host (and port, username, password) and enabled=true. -->
+  <kit name="sproMqtt"/>
+  <into path="service">
+    <comp name="mqtt" type="sproMqtt::MqttClient">
+      <prop name="enabled" val="false"/>
+      <prop name="host" val="127.0.0.1"/>
+      <prop name="baseTopic" val="sedonapro/esp32"/>
+      <comp name="sum" type="sproMqtt::MqttPubFloat">
+        <prop name="topic" val="~/sum"/>
+        <prop name="decimals" val="2"/>
+        <prop name="retain" val="true"/>
+      </comp>
+      <comp name="state" type="sproMqtt::MqttPubJson">
+        <prop name="topic" val="~/state"/>
+        <prop name="keys" val="sum,sp"/>
+        <prop name="decimals" val="1"/>
+        <prop name="minInterval" val="500"/>
+      </comp>
+      <comp name="sp" type="sproMqtt::MqttSubFloat">
+        <prop name="topic" val="~/cmd/sp"/>
+      </comp>
+      <comp name="room" type="sproMqtt::MqttSubFloat">
+        <prop name="topic" val="~/cmd/json"/>
+        <prop name="jsonPath" val="room.t"/>
+      </comp>
+      <comp name="mode" type="sproMqtt::MqttSubBool">
+        <prop name="topic" val="~/cmd/mode"/>
+      </comp>
+    </comp>
+  </into>
+  <link from="/play/adder.out" to="/service/mqtt/sum.in"/>
+  <link from="/play/adder.out" to="/service/mqtt/state.in1"/>
+  <link from="/service/mqtt/sp.out" to="/service/mqtt/state.in2"/>
+</module>

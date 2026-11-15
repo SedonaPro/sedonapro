@@ -1,0 +1,17 @@
+<!--
+  -  sproControl: controllers and sequencing.
+  -  Licensed under the Apache License, Version 2.0
+  -->
+<sedonaKit
+ name = "sproControl"
+ vendor = "SPro"
+ description = "Control: PID with bumpless transfer and anti-windup, override selection, sequences, stages, 3-point actuators, PWM, setpoint ramp"
+ includeSource = "false"
+ doc = "true"
+>
+  <depend on="sys 1.2+" />
+  <depend on="sproBase 1.2+" />
+
+  <source dir="." />
+  <source dir="test" testonly="true" />
+</sedonaKit>

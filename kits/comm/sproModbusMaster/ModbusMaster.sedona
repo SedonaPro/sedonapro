@@ -1,0 +1,1421 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+
+@palette=false
+class ModbusStatistic extends DebugComponent
+{
+	@summary=false
+	@readonly
+	property int totalRequests;
+
+	@summary=false
+	@readonly
+	property int totalErrors;
+
+	action void resetStats()
+	{
+		totalRequests := 0;
+		totalErrors := 0;
+
+		Component c = Sys.app.lookup(children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			if (c.type.is(ModbusStatistic.type)) {
+				ModbusStatistic dev;
+				dev = (ModbusStatistic)c;
+				dev.resetStats();
+			}
+		}
+	}
+
+	define int updateStatPeriodS = 3;
+
+	long lastStatUpdate;
+
+	void updateStatisticChildren()
+	{
+		int sum = 0;
+		int sumErr = 0;
+		Component c = Sys.app.lookup(children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			if (c.type.findSlot("totalRequests") != null) {
+				sum    += c.getInt(c.type.findSlot("totalRequests"));
+				sumErr += c.getInt(c.type.findSlot("totalErrors"));
+			}
+		}
+		totalRequests := sum;
+		totalErrors := sumErr;
+	}
+
+
+	void updateStatistic()
+	{
+		long curNs = Sys.ticks();
+		long periodNs = (long)updateStatPeriodS * (long)(1000 * 1000 * 1000);
+		if ((curNs - lastStatUpdate) > periodNs)
+			updateStatisticChildren();
+	}
+}
+
+@palette=false
+class ModbusPoint extends ModbusStatistic
+{
+	define Str statusVals="Down, Failed, Ok";
+
+	define int statusDown = 0;
+	define int statusFailed = 1;
+	define int statusOk = 2;
+
+
+	define int modbusReadCoils = 1;
+	define int modbusReadDiscreteInputs = 2;
+	define int modbusWriteSingleCoil = 5;
+	define int modbusWriteMultipleCoils = 15;
+	define int modbusReadHoldingRegisters = 3;
+	define int modbusReadInputRegisters = 4;
+	define int modbusWriteSingleHoldingRegister = 6;
+	define int modbusWriteMultipleHoldingRegisters = 16;
+
+
+	define int errStatusCntMax = 3;
+
+
+	@readonly
+	property bool fault;
+
+	@readonly
+	@range = statusVals
+	property int  status = statusDown;
+
+	@config
+	property int address = -1;
+
+	@summary=false
+	@readonly
+	property int  actualUpdatePeriodMs;
+
+	int  data;
+
+	int  dataLen = 1;
+
+	long lastUpdate;
+
+	int  lastStatus;
+
+	int  failStatusCnt;
+	int  downStatusCnt;
+
+	Obj  modbusRegHandle = null;
+
+	ModbusSlaveNetwork net = null;
+	ModbusSlaveDevice  dev = null;
+	bool started = false;
+
+	int  func = modbusReadCoils;
+
+	static inline int[1] tmp_data;
+	static inline int[1] tmp_status;
+
+	/*************************** native functions ***********************************/
+
+	native void removeRegister(Obj modbusHandle, Obj modbusRegHandle);
+	native  Obj addRegister(Obj modbusHandle,
+		  	        int devAddress,
+				int func,
+				int regAddress,
+				int len);
+
+	native void updateRegisterInfo(Obj modbusRegHandle,
+			       int devAddress,
+			       int func,
+			       int regAddress,
+			       int len);
+
+	native bool requestInProgress(Obj modbusRegHande);
+
+	native bool getDone(Obj modbusRegHande,
+			  int [] status,
+			  int [] data
+		);
+
+	native void setRequest(Obj modbusRegHandle, bool request, int data);
+
+	native void printInternalStateNative(Obj modbusRegHandle);
+
+	/*****************************************************************************/
+
+
+	action void printInternalStateBackend()
+	{
+		if (modbusRegHandle != null)
+			printInternalStateNative(modbusRegHandle);
+	}
+
+	action void printInternalState()
+	{
+		printInternalStateBase();
+	}
+
+	action void forceRequestOnce()
+	{
+		forceRequest();
+	}
+
+
+	/************************* functions to process requests *********************************/
+	bool swapBytesFlag()
+	{
+		Component comp = Sys.app.lookup(parent);
+		Slot slot = comp?.type?.findSlot("swapBytes");
+		return slot != null ? comp?.getBool(slot) : false;
+	}
+
+	bool swapWordsFlag()
+	{
+		Component comp = Sys.app.lookup(parent);
+		Slot slot = comp?.type?.findSlot("swapWords");
+		return slot != null ? comp?.getBool(slot) : false;
+	}
+
+	bool needUpdatePeriodically(int pollPeriodMs)
+	{
+		long curTime = Sys.ticks();
+		long  elapsedMs = (curTime - lastUpdate)/(long)(1000*1000);
+		return elapsedMs > (long)pollPeriodMs;
+	}
+
+	virtual bool needUpdate(int pollPeriodMs)
+	{
+		return false;
+	}
+
+	virtual void prepareDataBeforeWrite()
+	{
+	}
+
+	virtual void processDataAfterRead()
+	{
+	}
+
+
+	void updateRegRequest(int pollPeriodMs, bool force)
+	{
+		if (modbusRegHandle == null)
+			return;
+
+		if (requestInProgress(modbusRegHandle))
+			return;
+
+
+		bool need = needUpdate(getPollPeriodMs()) || force;
+		if (need) {
+			prepareDataBeforeWrite();
+
+			if ((func == modbusWriteSingleHoldingRegister) ||
+			    (func == modbusWriteMultipleHoldingRegisters)) {
+				data = Exchange.swapBytesWords(data,
+							       dataLen,
+							       swapBytesFlag(),
+							       swapWordsFlag());
+			}
+			setRequest(modbusRegHandle, true, data);
+		}
+	}
+
+	void swapBytesWords()
+	{
+		data = Exchange.swapBytesWords(data,
+						dataLen,
+						swapBytesFlag(),
+						swapWordsFlag())
+	}
+
+	void processDoneRequest()
+	{
+		long cur = Sys.ticks();
+		actualUpdatePeriodMs := (int)((cur - lastUpdate)/(long)(1000*1000));
+		lastUpdate = cur;
+
+		totalRequests := totalRequests + 1;
+
+		switch(lastStatus) {
+			case statusOk:
+				// last request was successful
+				fault  := false
+				status := statusOk;
+				failStatusCnt = 0;
+				downStatusCnt = 0;
+
+				if ((func == modbusReadHoldingRegisters) ||
+				    (func == modbusReadInputRegisters))
+					swapBytesWords();
+
+				processDataAfterRead();
+				break;
+			case statusFailed:
+				failStatusCnt = failStatusCnt + 1;
+				if (failStatusCnt > errStatusCntMax) {
+					failStatusCnt = errStatusCntMax;
+					fault := true;
+					status := statusFailed;
+				}
+				break;
+			case statusDown:
+				downStatusCnt = downStatusCnt + 1;
+				if (downStatusCnt > errStatusCntMax) {
+					downStatusCnt = errStatusCntMax;
+					fault  := true;
+					status := statusDown;
+				}
+		}
+
+		if (fault)
+			totalErrors := totalErrors + 1;
+	}
+
+	void checkRequestResults()
+	{
+		if (modbusRegHandle == null)
+			return;
+
+
+		if (getDone(modbusRegHandle, tmp_status, tmp_data)) {
+			// printMessage("done"); Sys.out.nl();
+			data       = tmp_data[0];
+			lastStatus = tmp_status[0];
+
+			processDoneRequest();
+		}
+	}
+
+	/************************* external accessors ***************************************/
+	virtual void printInternalStateBase()
+	{
+		printMessage(""); Sys.out.print("lastUpdate        ${lastUpdate}").nl();
+		printMessage(""); Sys.out.print("lastStatus        ${lastStatus}").nl();
+		printMessage(""); Sys.out.print("failStatusCnt     ${failStatusCnt}").nl();
+		printMessage(""); Sys.out.print("downStatusCnt     ${downStatusCnt}").nl();
+		printMessage(""); Sys.out.print("modbusRegHandle   0x").print((modbusRegHandle != null ? "allocated" : "null")).nl();
+		printMessage(""); Sys.out.print("data              0x").print(Sys.hexStr(data)).nl();
+		printMessage(""); Sys.out.print("dataLen           ${dataLen}").nl();
+		printMessage(""); Sys.out.print("func              ${func}").nl();
+		printMessage(""); Sys.out.print("started           ${started}").nl();
+		printMessage(""); Sys.out.print("tmp_data          ${tmp_data[0]}").nl();
+		printMessage(""); Sys.out.print("tmp_status        ${tmp_status[0]}").nl();
+		printMessage(""); Sys.out.print("net               ").printBool(net != null).nl();
+		printMessage(""); Sys.out.print("dev               ").printBool(dev != null).nl();
+	}
+
+	bool checkModbusHandle()
+	{
+		return ((net != null) && (net.modbusHandle != null));
+	}
+
+	void startBackend()
+	{
+		getModbusNet();
+		if (checkModbusHandle()) {
+			modbusRegHandle = addRegister(net.modbusHandle,
+						      getDevAddress(),
+						      func,
+						      address,
+						      dataLen);
+			lastUpdate = Sys.ticks();
+		}
+		started = true;
+	}
+
+
+	int   getPollPeriodMs()
+	{
+		return (net != null) ? net.pollPeriodMs: 0;
+	}
+
+	bool getParentEnable()
+	{
+		return (net != null) ? dev.enable && net.enable : false;
+	}
+
+	void getModbusNet()
+	{
+		if (dev != null)
+			net = dev.getModbusNet();
+		else
+			net = null;
+	}
+
+
+	int getDevAddress()
+	{
+		return dev != null ? dev.address : -1;
+	}
+
+	void forceRequest()
+	{
+		updateRegRequest(getPollPeriodMs(), true);
+	}
+	/************************************************************************************/
+	void updateBackendInfo()
+	{
+		if (modbusRegHandle != null)
+			updateRegisterInfo(modbusRegHandle, getDevAddress(), func, address, dataLen);
+	}
+
+
+	void updateStatus() {
+		if (!getParentEnable()) {
+			fault := false;
+			status := statusDown;
+			return;
+		}
+
+		if (!checkModbusHandle() || (modbusRegHandle == null)) {
+			fault := true;
+			status := statusFailed;
+			return;
+		}
+
+		if (net.status == statusFailed) {
+			fault := true;
+			status := statusFailed;
+			return;
+		}
+	}
+
+	virtual void enumToModbusFunc()
+	{
+	}
+
+
+
+	/************************** standard component callbacks ************************/
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		Component comp = Sys.app.lookup(parent);
+		if (comp?.type?.is(ModbusSlaveDevice.type) == true) {
+			dev = (ModbusSlaveDevice)comp;
+			if (dev.started)
+				startBackend();
+		}
+		updateStatus();
+	}
+
+
+	virtual override void execute()
+	{
+		super.execute();
+		updateStatus();
+
+		if (started) {
+			updateRegRequest(getPollPeriodMs(), false);
+			checkRequestResults();
+		}
+
+	}
+
+	virtual override void remove()
+	{
+		super.remove();
+
+		if ((modbusRegHandle != null) && checkModbusHandle()) {
+			removeRegister(net.modbusHandle, modbusRegHandle);
+			modbusRegHandle = null;
+			net = null;
+			dev = null;
+		}
+	}
+
+	virtual override void changed(Slot slot)
+	{
+                super.changed(slot);
+		if (slot == type.findSlot("modbusFunc"))
+			enumToModbusFunc();
+
+		if (modbusRegHandle == null)
+			return;
+
+
+		if ((slot == type.findSlot("modbusFunc")) ||
+		    (slot == ModbusPoint.address))
+			updateBackendInfo();
+	}
+}
+
+@palette=false
+class ModbusReadPoint extends ModbusPoint
+{
+	virtual override bool needUpdate(int pollPeriodMs)
+	{
+		return needUpdatePeriodically(pollPeriodMs);
+	}
+
+}
+
+@palette=false
+class ModbusWritePoint extends ModbusPoint
+{
+	define Str updateModeVals = "Periodically, OnChange, Both";
+
+	define int updatePeriodically = 0;
+	define int updateOnChange = 1;
+	define int updateBoth = 2;
+
+	@summary=false
+	@config
+	@range = updateModeVals
+	property int updateMode = updatePeriodically;
+
+	virtual bool needUpdateOnChange()
+	{
+		return false;
+	}
+
+	virtual override bool needUpdate(int pollPeriodMs)
+	{
+		bool ret = false;
+		if ((updateMode == updatePeriodically) || (updateMode == updateBoth))
+			ret = ret || needUpdatePeriodically(pollPeriodMs);
+
+		if ((updateMode == updateOnChange) || (updateMode == updateBoth))
+			ret = ret || needUpdateOnChange();
+
+		return ret;
+	}
+}
+
+
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class ModbusReadPointBoolean extends ModbusReadPoint
+{
+	define Str modbusBoolReadFuncs = "readCoils, readDiscreteInputs";
+
+	@summary=false
+	@config
+	@range = modbusBoolReadFuncs
+	@min = 0
+	property int modbusFunc = 1;
+
+	@falseText="Off"
+	@trueText="On"
+	@readonly
+	@allowNull=false
+	property bool out;
+
+	virtual override void enumToModbusFunc()
+	{
+		switch(modbusFunc) {
+			case 0:
+				func = modbusReadCoils;
+				break;
+			case 1:
+				func = modbusReadDiscreteInputs;
+				break;
+			default:
+				/* reset to correct value */
+				func = modbusReadCoils;
+				modbusFunc := 0;
+				break;
+		}
+	}
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		dataLen = 1;
+		enumToModbusFunc();
+	}
+
+
+	virtual override void processDataAfterRead()
+	{
+		out :=(data & 1) != 0;
+	}
+
+
+}
+
+
+@niagaraIcon="module://icons/x16/control/booleanPointWr.png"
+class ModbusWritePointBoolean extends ModbusWritePoint
+{
+	define Str modbusBoolWriteFuncs = "writeSingleCoil, writeMultipleCoils";
+
+	@summary=false
+  	@config
+	@range = modbusBoolWriteFuncs
+	@min = 0
+	property int modbusFunc = 0;
+
+
+	@summary=true
+	@config
+	@falseText="Off"
+	@trueText="On"
+	@allowNull=false
+	property bool in;
+
+	bool lastValueIn;
+
+	virtual override void printInternalStateBase()
+	{
+		super.printInternalStateBase();
+		printMessage(""); Sys.out.print("lastValueIn       ${lastValueIn}").nl();
+	}
+
+	virtual override void enumToModbusFunc()
+	{
+		switch(modbusFunc) {
+			case 0:
+				func = modbusWriteSingleCoil;
+				break;
+			case 1:
+				func = modbusWriteMultipleCoils;
+				break;
+			default:
+				/* reset to correct value */
+				func = modbusWriteSingleCoil;
+				modbusFunc := 0;
+				break;
+		}
+	}
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		dataLen = 1;
+		enumToModbusFunc();
+	}
+
+	virtual override void prepareDataBeforeWrite()
+	{
+		data = in ? 1 : 0;
+	}
+
+	virtual override bool needUpdateOnChange()
+	{
+		bool ret = (lastValueIn != in);
+		lastValueIn = in;
+		return ret;
+	}
+}
+
+
+@palette=false
+class ModbusReadPointNumeric extends ModbusReadPoint
+{
+	define Str modbusRegsReadFuncs = "readHoldingRegisters, readInputRegisters";
+
+	@summary=false
+	@config
+	@range = modbusRegsReadFuncs
+	@min = 0
+	property int modbusFunc = 0;
+
+	virtual override void enumToModbusFunc()
+	{
+		switch(modbusFunc) {
+			case 0:
+				func = modbusReadHoldingRegisters;
+				break;
+			case 1:
+				func = modbusReadInputRegisters;
+				break;
+			default:
+				/* reset to correct value */
+				func = modbusReadHoldingRegisters;
+				modbusFunc := 0;
+				break;
+		}
+	}
+
+	virtual override void loaded() {
+		super.loaded();
+		enumToModbusFunc();
+	}
+}
+
+@palette=false
+class ModbusWritePointNumeric extends ModbusWritePoint
+{
+	define Str modbusRegsWriteFuncs = "writeSingleHoldingRegister, writeMultipleHoldingRegisters";
+
+	@summary=false
+	@config
+	@range = modbusRegsWriteFuncs
+	@min = 0
+	property int modbusFunc = 1;
+
+	@summary=false
+	@config
+	@min = 0
+	property float updateThreshold = 0.0;
+
+	virtual override void enumToModbusFunc()
+	{
+		switch(modbusFunc) {
+			case 0:
+				func = modbusWriteSingleHoldingRegister;
+				break;
+			case 1:
+				func = modbusWriteMultipleHoldingRegisters;
+				break;
+			default:
+				/* reset to correct value */
+				func = modbusWriteMultipleHoldingRegisters;
+				modbusFunc := 1;
+				break;
+		}
+	}
+
+	virtual override void loaded() {
+		super.loaded();
+		enumToModbusFunc();
+	}
+}
+
+@palette=false
+class ModbusReadPointInteger extends ModbusReadPointNumeric
+{
+	@config
+	property float k = 1.0;
+
+	@config
+	property float b = 0.0;
+
+	@summary=true
+	@readonly
+	property float fout;
+
+	virtual float getOutData() {
+		return 0.0;
+	}
+
+	virtual override void processDataAfterRead() {
+		fout := getOutData()*k + b;
+	}
+}
+
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class ModbusReadPointDWord extends ModbusReadPointInteger
+{
+	@summary=true
+	@readonly
+	property long out;
+
+	virtual override void loaded() {
+		super.loaded();
+		dataLen = 2;
+	}
+
+	virtual override float getOutData()
+	{
+		return (float)out;
+	}
+
+	virtual override void processDataAfterRead()
+	{
+		out := ((long)data) & (0xFFFFFFFFL);
+		super.processDataAfterRead();
+	}
+}
+
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class ModbusReadPointWord extends ModbusReadPointInteger
+{
+	@readonly
+	property int out;
+
+	virtual override void loaded() {
+		super.loaded();
+		dataLen = 1;
+	}
+
+	virtual override float getOutData()
+	{
+		return (float)out;
+	}
+
+	virtual override void processDataAfterRead()
+	{
+		out := data & (0xFFFF);
+		super.processDataAfterRead();
+	}
+}
+
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class ModbusReadPointInt extends ModbusReadPointInteger
+{
+	@readonly
+	property int out;
+
+	@config
+	@min = 1
+	@max = 2
+	property int numRegs = 1;
+
+	virtual override void loaded() {
+		super.loaded();
+		dataLen = numRegs;
+	}
+
+	virtual override float getOutData()
+	{
+		return (float)out;
+	}
+
+	virtual override void processDataAfterRead()
+	{
+		if (dataLen == 1) {
+			out := UWord2SWord.uWord2SWord(data & 0xFFFF);
+		} else {
+			out := data;
+		}
+		super.processDataAfterRead();
+	}
+
+	virtual override void changed(Slot slot)
+	{
+		super.changed(slot);
+
+		if (slot == ModbusReadPointInt.numRegs) {
+			dataLen = numRegs;
+			updateBackendInfo();
+		}
+	}
+}
+
+
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class ModbusReadPointFloat extends ModbusReadPointNumeric
+{
+	@readonly
+	property float out;
+
+	virtual override void loaded() {
+		super.loaded();
+		dataLen = 2;
+	}
+
+	virtual override void processDataAfterRead()
+	{
+		out := Sys.bitsToFloat(data);
+	}
+}
+
+
+@niagaraIcon="module://icons/x16/control/numericPointWr.png"
+class ModbusWritePointDWord extends ModbusWritePointNumeric
+{
+	property int in;
+
+	int lastValue;
+
+	virtual override void printInternalStateBase()
+	{
+		super.printInternalStateBase();
+		printMessage(""); Sys.out.print("lastValue         ${lastValue}").nl();
+	}
+
+	virtual override void loaded() {
+		super.loaded();
+		dataLen = 2;
+	}
+
+	virtual override void prepareDataBeforeWrite()
+	{
+		data = in;
+	}
+
+	virtual override bool needUpdateOnChange()
+	{
+		bool ret = false;
+		if (Math.abs(lastValue - in) > (int)updateThreshold) {
+			lastValue = in;
+			ret = true;
+		}
+		return ret;
+	}
+}
+
+
+@niagaraIcon="module://icons/x16/control/numericPointWr.png"
+class ModbusWritePointWord extends ModbusWritePointDWord
+{
+	virtual override void loaded() {
+		super.loaded();
+		dataLen = 1;
+	}
+
+	virtual override void prepareDataBeforeWrite()
+	{
+		data = in & 0xFFFF;
+	}
+
+}
+
+
+@niagaraIcon="module://icons/x16/control/numericPointWr.png"
+class ModbusWritePointFloat extends ModbusWritePointNumeric
+{
+	property float in;
+
+	float lastValue;
+
+	virtual override void printInternalStateBase()
+	{
+		super.printInternalStateBase();
+		printMessage(""); Sys.out.print("lastValue         ${lastValue}").nl();
+	}
+
+	virtual override void loaded() {
+		super.loaded();
+		dataLen = 2;
+	}
+
+	virtual override void prepareDataBeforeWrite()
+	{
+		data = Sys.floatToBits(in);
+	}
+
+	virtual override bool needUpdateOnChange()
+	{
+		bool ret = false;
+		if (Math.fabs(lastValue - in) > updateThreshold) {
+			lastValue = in;
+			ret = true;
+		}
+		return ret;
+	}
+}
+
+
+
+@niagaraIcon="module://icons/x16/device.png"
+class ModbusSlaveDevice extends ModbusStatistic
+{
+	define Str statusVals="Down, Failed, Ok";
+
+	define int statusDown = 0;
+	define int statusFailed = 1;
+	define int statusOk = 2;
+
+	@summary=true
+	@readonly
+	@allowNull=false
+	property bool fault = true;
+
+	@summary=true
+	@readonly
+	@range=statusVals
+	property int status = statusDown;
+
+	@summary=false
+	@config
+	@allowNull=false
+	@defaultOnClone
+	property bool enable = false;
+
+	@summary=true
+	@config
+	@min = 0
+	@max = 247
+	property int address = -1;
+
+	@summary=false
+	@config
+	@allowNull=false
+	property bool swapWords = true;
+
+	@summary=false
+	@config
+	@allowNull=false
+	property bool swapBytes = false;
+
+
+	ModbusSlaveNetwork net = null;
+
+	bool started = false;
+
+	/*********************************** actions  ***************************************/
+
+	action void printInternalState()
+	{
+		printMessage(""); Sys.out.print("started           ${started}").nl();
+		printMessage(""); Sys.out.print("net               ").printBool(net != null).nl();
+	}
+
+	action void forceRequestsOnce()
+	{
+		forceRequests();
+	}
+
+
+	/************************* external accessors ***************************************/
+
+	ModbusSlaveNetwork getModbusNet()
+	{
+		return net;
+	}
+
+	int getAddress()
+	{
+		return address;
+	}
+
+
+
+	void setDevAddress(int devAddress)
+	{
+		// printMessage("");
+		// Sys.out.print(" ${devAddress}"); Sys.out.nl();
+
+		Component c = Sys.app.lookup(children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			if (c.type.is(ModbusPoint.type)) {
+				ModbusPoint pnt = (ModbusPoint)c;
+				pnt.updateBackendInfo();
+			}
+		}
+	}
+
+	void setParentEnable()
+	{
+		updateStatus();
+
+		Component c = Sys.app.lookup(children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			if (c.type.is(ModbusPoint.type)) {
+				ModbusPoint pnt = (ModbusPoint)c;
+				pnt.updateStatus();
+			}
+		}
+	}
+
+	void forceRequests()
+	{
+		Component c = Sys.app.lookup(children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			if (c.type.is(ModbusPoint.type)) {
+				ModbusPoint pnt = (ModbusPoint)c;
+				pnt.forceRequest();
+			}
+		}
+	}
+
+
+	void startBackend()
+	{
+		Component c = Sys.app.lookup(children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			if (c.type.is(ModbusPoint.type)) {
+				ModbusPoint pnt = (ModbusPoint)c;
+				pnt.startBackend();
+			}
+		}
+		started = true;
+	}
+
+
+	/************************************************************************************/
+	bool getParentEnable()
+	{
+		return net != null ? net.enable : false;
+	}
+
+	void updateStatus()
+	{
+
+		int st = statusDown;
+
+		if (!getParentEnable() || !enable) {
+			status := statusDown;
+			return;
+		}
+
+		if (net == null) {
+			status := statusFailed;
+		}
+		else {
+			bool failed = false;
+			Component c = Sys.app.lookup(children);
+			for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+				if (c.type.is(ModbusPoint.type)) {
+					ModbusPoint pnt = (ModbusPoint)c;
+					if (pnt.status == statusOk) {
+						st = statusOk;
+						break;
+					}
+
+					if (pnt.status == statusFailed)
+						st = statusFailed;
+				}
+			}
+		}
+
+		fault := (st == statusFailed);
+		status := st;
+	}
+
+
+
+	virtual override bool allowChildExecute()
+	{
+		return enable;
+	}
+
+
+	virtual override void loaded()
+	{
+		super.loaded();
+		Component comp = Sys.app.lookup(parent);
+		if (comp?.type?.is(ModbusSlaveNetwork.type) == true) {
+			net = (ModbusSlaveNetwork)comp;
+			if (net.started)
+				startBackend();
+		}
+		updateStatus();
+	}
+
+	virtual override void execute()
+	{
+		super.execute();
+		updateStatus();
+		updateStatistic();
+	}
+
+	virtual override void changed(Slot slot)
+	{
+		super.changed(slot);
+
+		if (slot == ModbusSlaveDevice.address)
+			setDevAddress(address);
+
+		if (slot == ModbusSlaveDevice.enable)
+			setParentEnable();
+	}
+}
+
+@palette=false
+@niagaraIcon="module://icons/x16/deviceNetwork.png"
+class ModbusSlaveNetwork extends ModbusStatistic
+{
+	define  int defaultPollPeriodMs = 1000;
+
+	@summary=true
+	@readonly
+	@range=ModbusSlaveDevice.statusVals
+        property int status = ModbusSlaveDevice.statusDown;
+
+
+	@summary=false
+	@config
+        @min=100
+        @unit=Units.millisecond
+        property short timeOut = 500;
+
+
+	@config
+	@allowNull=false
+	@defaultOnClone
+        property bool enable = false;
+
+	@summary=false
+	@config
+        @allowNull=false
+        property bool writeOnUp = false;
+
+	@summary=false
+	@config
+	@unit=Units.millisecond
+	property int pollPeriodMs = defaultPollPeriodMs;
+
+	Obj  modbusHandle = null;
+	bool started = false;
+
+	virtual override bool allowChildExecute()
+	{
+		return enable;
+	}
+
+	/************************************** native ****************************************/
+
+	native void setQuit(Obj modbusHandle);
+	native int  getStatus(Obj modbusHandle);
+	native void setEnable(Obj modbusHandle, bool en);
+	native void printInternalStateNative(Obj modbusHandle);
+	native void printInternalStateNativeAll();
+
+	/************************************** actions ***************************************/
+
+	action void printInternalStateBackendAll()
+	{
+		printInternalStateNativeAll();
+	}
+
+	action void printInternalStateBackend()
+	{
+		if (modbusHandle != null)
+			printInternalStateNative(modbusHandle);
+	}
+
+	action void printInternalState()
+	{
+		printMessage(""); Sys.out.print("modbusHandle    0x").print((modbusHandle != null ? "allocated" : "null")).nl();
+		printMessage(""); Sys.out.print("started         ${started}").nl();
+	}
+
+	/************************* external accessors ***************************************/
+
+	void setParentEnable()
+	{
+		// printMessage("setParentEnable"); Sys.out.nl();
+
+		Component c = Sys.app.lookup(children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			if (c.type.is(ModbusSlaveDevice.type)) {
+				ModbusSlaveDevice dev = (ModbusSlaveDevice)c;
+				dev.setParentEnable();
+			}
+		}
+	}
+
+	void forceRequests()
+	{
+		// printMessage("forceRequests"); Sys.out.nl();
+
+		Component c = Sys.app.lookup(children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			if (c.type.is(ModbusSlaveDevice.type)) {
+				ModbusSlaveDevice dev = (ModbusSlaveDevice)c;
+				dev.forceRequests();
+			}
+		}
+	}
+
+
+	/************************************************************************************/
+	void updateEnable()
+	{
+		setParentEnable();
+		if (modbusHandle != null)
+			setEnable(modbusHandle, enable);
+	}
+
+
+	void updateStatus()
+	{
+		if (modbusHandle == null) {
+			status := ModbusSlaveDevice.statusFailed;
+			return;
+		}
+
+		if (!enable) {
+			status := ModbusSlaveDevice.statusDown;
+			return
+		}
+
+		status := getStatus(modbusHandle);
+	}
+
+	virtual void startBackend()
+	{
+		Component c = Sys.app.lookup(children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			if (c.type.is(ModbusSlaveDevice.type)) {
+				ModbusSlaveDevice dev = (ModbusSlaveDevice)c;
+				dev.startBackend();
+			}
+		}
+
+		if (modbusHandle != null)
+			setEnable(modbusHandle, enable);
+
+		if (writeOnUp && enable)
+			forceRequests();
+		started = true;
+	}
+
+	virtual override void stop()
+	{
+		super.stop();
+		if (modbusHandle != null) {
+			setQuit(modbusHandle);
+			modbusHandle = null;
+		}
+	}
+
+
+	virtual override void changed(Slot slot)
+	{
+		super.changed(slot);
+		if (slot == ModbusSlaveNetwork.enable)
+			updateEnable();
+	}
+
+	virtual override void execute()
+	{
+		super.execute();
+
+		if (!started)
+			startBackend();
+
+		updateStatistic();
+		updateStatus();
+	}
+}
+
+
+@niagaraIcon="module://icons/x16/deviceNetwork.png"
+class ModbusSlaveTcpAsyncNetwork extends ModbusSlaveNetwork
+{
+	@summary=true
+	@config
+	@asStr
+	@max = 46
+	property Buf(46) ipAddress = "###.###.###.###";
+
+	@summary=false
+	@config
+	property int port = 502;
+
+	native  Obj addNetwork(Slot ip, int port);
+
+	native  int updateTcpSettings(
+		Obj modbusHandle,
+		Slot ip,
+		int port);
+
+
+	virtual override void startBackend()
+	{
+		modbusHandle = addNetwork(ModbusSlaveTcpAsyncNetwork.ipAddress, port);
+		super.startBackend();
+	}
+
+
+	virtual override void changed(Slot slot)
+	{
+                super.changed(slot);
+		if ((slot == ModbusSlaveTcpAsyncNetwork.ipAddress) ||
+		   (slot == ModbusSlaveTcpAsyncNetwork.port)){
+			if (modbusHandle != null) {
+				updateTcpSettings(modbusHandle,
+						  ModbusSlaveTcpAsyncNetwork.ipAddress,
+						  port);
+			}
+		}
+	}
+
+	virtual override void execute()
+	{
+		super.execute();
+	}
+
+}
+
+
+@niagaraIcon="module://icons/x16/deviceNetwork.png"
+class ModbusSlaveSerialAsyncNetwork extends ModbusSlaveNetwork
+{
+	@summary=false
+	@config
+	property int port = 0;
+
+	@summary=false
+	@config
+	@range=SerialInfo.baudrateVals
+        @min=0
+        @max=2
+        property int baudrate = 3;
+
+	@summary=false
+	@config
+        @min=7
+        @max=8
+        property int databits = 8;
+
+	@summary=false
+	@config
+        @min=1
+        @max=2
+        property int stopbits = 1;
+
+	@summary=false
+	@config
+        @min=0
+        @max=2
+        @range=SerialInfo.parityVals
+        property int parity = 2;
+
+	@summary=false
+	@config
+	@range=SerialInfo.rtsModeVals
+	@min=0
+	@max=2
+        property int rtsMode = SerialInfo.rtsModeNone;
+
+	native Obj addNetwork(
+		int  port,
+		int  baudrate,
+		int  databits,
+		int  parity,
+		int  stopbits,
+		int  rtsMode
+		);
+
+	native void updateSerialSettings(
+		Obj  modbusHandle,
+		int  port,
+		int  baudrate,
+		int  databits,
+		int  parity,
+		int  stopbits,
+		int  rtsMode);
+
+
+
+	virtual override void startBackend()
+	{
+	        modbusHandle = addNetwork(port, baudrate, databits, parity, stopbits, rtsMode);
+		super.startBackend();
+	}
+
+
+	virtual override void changed(Slot slot) {
+                super.changed(slot);
+		if ((
+			(slot == ModbusSlaveSerialAsyncNetwork.port)     ||
+			(slot == ModbusSlaveSerialAsyncNetwork.baudrate) ||
+			(slot == ModbusSlaveSerialAsyncNetwork.databits) ||
+			(slot == ModbusSlaveSerialAsyncNetwork.parity)   ||
+			(slot == ModbusSlaveSerialAsyncNetwork.stopbits) ||
+			(slot == ModbusSlaveSerialAsyncNetwork.rtsMode)
+			    ) && (modbusHandle != null)) {
+
+			updateSerialSettings(modbusHandle,
+					     port,
+					     baudrate,
+					     databits,
+					     parity,
+					     stopbits,
+					     rtsMode);
+
+		}
+	}
+}

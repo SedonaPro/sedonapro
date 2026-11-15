@@ -1,0 +1,112 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Calendar arithmetic and small text parsing shared by the schedule
+** components.  Dates are proleptic Gregorian; a day number counts days
+** from 1970-01-01.
+**
+class SchedTime
+{
+  ** Day number of a date (1970-01-01 is 0).
+  static int dayNumber(int y, int m, int d)
+  {
+    if (m <= 2) y = y - 1
+    int era = (y >= 0 ? y : y - 399) / 400
+    int yoe = y - era * 400
+    int mp = m > 2 ? m - 3 : m + 9
+    int doy = (153 * mp + 2) / 5 + d - 1
+    int doe = yoe * 365 + yoe / 4 - yoe / 100 + doy
+    return era * 146097 + doe - 719468
+  }
+
+  ** The date of a day number packed as yyyymmdd.
+  static int date(int n)
+  {
+    int z = n + 719468
+    int era = (z >= 0 ? z : z - 146096) / 146097
+    int doe = z - era * 146097
+    int yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365
+    int y = yoe + era * 400
+    int doy = doe - (365 * yoe + yoe / 4 - yoe / 100)
+    int mp = (5 * doy + 2) / 153
+    int d = doy - (153 * mp + 2) / 5 + 1
+    int m = mp < 10 ? mp + 3 : mp - 9
+    if (m <= 2) y = y + 1
+    return y * 10000 + m * 100 + d
+  }
+
+  ** Days in a month (leap years included).
+  static int monthDays(int y, int m)
+  {
+    if (m == 2) return (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) ? 29 : 28
+    if (m == 4 || m == 6 || m == 9 || m == 11) return 30
+    return 31
+  }
+
+  ** Day of week of a day number: 0 = Sunday ... 6 = Saturday
+  ** (as datetime::DayOfWeek).
+  static int dayOfWeek(int n)
+  {
+    int w = (n + 4) % 7
+    return w < 0 ? w + 7 : w
+  }
+
+  ** Byte i of a text Buf, 0 past its end.
+  static int at(Buf b, int i)
+  {
+    if (i < 0 || i >= b.size || i >= b.bytesLen) return 0
+    return b.bytes[i]
+  }
+
+  static bool digit(int c) { return c >= '0' && c <= '9' }
+
+  ** Is minute (of the day, 0..1439) inside one of the periods of a text
+  ** like "07:00-10:00, 17:00-21:00" (22:00-06:00 runs over midnight)?
+  ** Returns 1 inside, 0 outside, plus 2 when an entry was wrong (the
+  ** right ones still count).
+  static int inPeriods(Buf t, int minute)
+  {
+    int r = 0
+    int p = 0
+    while (true)
+    {
+      while (blank(at(t, p))) p++
+      if (at(t, p) == 0) break
+      int s = -1
+      int e = -1
+      int h = 0
+      int n = 0
+      int f = 0
+      // four numbers hh:mm-hh:mm
+      for (int k = 0; k < 4; k++)
+      {
+        h = 0
+        n = 0
+        while (digit(at(t, p)) && n < 2) { h = h * 10 + at(t, p) - '0'; p++; n++ }
+        if (n == 0) { f = 1; break }
+        int c = at(t, p)
+        if (k == 0) { s = h * 60; if (c != ':') { f = 1; break } }
+        else if (k == 1) { s += h; if (c != '-' || h > 59) { f = 1; break } }
+        else if (k == 2) { e = h * 60; if (c != ':') { f = 1; break } }
+        else { e += h; if (h > 59 || (c != 0 && !blank(c))) f = 1 }
+        if (k < 3) p++
+      }
+      if (f == 0 && (s > 1439 || e > 1440 || s == e)) f = 1
+      if (f != 0)
+      {
+        r = r | 2
+        while (at(t, p) != 0 && !blank(at(t, p))) p++
+        continue
+      }
+      if (e > s) { if (minute >= s && minute < e) r = r | 1 }
+      else if (minute >= s || minute < e) r = r | 1
+    }
+    return r
+  }
+
+  ** separator of entries in a text
+  static bool blank(int c) { return c == ',' || c == ';' || c == ' ' || c == '\n' || c == '\t' }
+}

@@ -1,0 +1,143 @@
+{
+  "format": "mcs-sedona-ui",
+  "version": 2,
+  "id": "mcs-data-dashboard-v1",
+  "title": "MCS · тренды и таблицы",
+  "views": [
+    {
+      "id": "data-view",
+      "title": "MCS · данные модели",
+      "folder": "app/sim/cascade",
+      "svg": "",
+      "widgets": [
+        {
+          "id": "temps",
+          "kind": "trend",
+          "label": "Температуры · живой тренд",
+          "path": ".",
+          "slot": "__unbound",
+          "type": "float",
+          "x": 3,
+          "y": 5,
+          "width": 520,
+          "height": 230,
+          "unit": "",
+          "decimals": 1,
+          "series": [
+            {
+              "path": "room",
+              "slot": "out",
+              "type": "sys::float",
+              "label": "Помещение",
+              "unit": "°C",
+              "color": "#237f67"
+            },
+            {
+              "path": "coil",
+              "slot": "airOut",
+              "type": "sys::float",
+              "label": "Воздух после нагрева",
+              "unit": "°C",
+              "color": "#3378bf"
+            },
+            {
+              "path": "water",
+              "slot": "out",
+              "type": "sys::float",
+              "label": "Вода",
+              "unit": "°C",
+              "color": "#bc6b32"
+            }
+          ],
+          "windowSeconds": 300,
+          "sampleSeconds": 1,
+          "autoScale": true,
+          "legend": true
+        },
+        {
+          "id": "points",
+          "kind": "table",
+          "label": "Текущие значения",
+          "path": ".",
+          "slot": "__unbound",
+          "type": "float",
+          "x": 53,
+          "y": 5,
+          "width": 480,
+          "height": 230,
+          "unit": "",
+          "decimals": 1,
+          "series": [
+            {
+              "path": "room",
+              "slot": "out",
+              "type": "sys::float",
+              "label": "Помещение",
+              "unit": "°C",
+              "color": "#237f67"
+            },
+            {
+              "path": "coil",
+              "slot": "airOut",
+              "type": "sys::float",
+              "label": "Воздух после нагрева",
+              "unit": "°C",
+              "color": "#3378bf"
+            },
+            {
+              "path": "water",
+              "slot": "out",
+              "type": "sys::float",
+              "label": "Вода",
+              "unit": "°C",
+              "color": "#bc6b32"
+            }
+          ]
+        },
+        {
+          "id": "compare",
+          "kind": "bars",
+          "label": "Сравнение температур",
+          "path": ".",
+          "slot": "__unbound",
+          "type": "float",
+          "x": 3,
+          "y": 57,
+          "width": 460,
+          "height": 180,
+          "unit": "",
+          "decimals": 1,
+          "series": [
+            {
+              "path": "room",
+              "slot": "out",
+              "type": "sys::float",
+              "label": "Помещение",
+              "unit": "°C",
+              "color": "#237f67"
+            },
+            {
+              "path": "coil",
+              "slot": "airOut",
+              "type": "sys::float",
+              "label": "Воздух после нагрева",
+              "unit": "°C",
+              "color": "#3378bf"
+            },
+            {
+              "path": "water",
+              "slot": "out",
+              "type": "sys::float",
+              "label": "Вода",
+              "unit": "°C",
+              "color": "#bc6b32"
+            }
+          ],
+          "min": 0,
+          "max": 100,
+          "legend": true
+        }
+      ]
+    }
+  ]
+}

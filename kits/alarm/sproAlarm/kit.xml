@@ -1,0 +1,18 @@
+<!--
+  -  sproAlarm: alarms, protections and the alarm journal.
+  -  Licensed under the Apache License, Version 2.0
+  -->
+<sedonaKit
+ name = "sproAlarm"
+ vendor = "SPro"
+ description = "Alarms: limit and digital alarms with delay, latch and acknowledge; protective trips with retries; common alarm; journal"
+ includeSource = "false"
+ doc = "true"
+>
+  <depend on="sys 1.2+" />
+  <depend on="datetime 1.2+" />
+  <depend on="sproBase 1.2+" />
+
+  <source dir="." />
+  <source dir="test" testonly="true" />
+</sedonaKit>

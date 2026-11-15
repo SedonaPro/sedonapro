@@ -1,0 +1,107 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+class BoolToInt extends Component
+{
+	property bool in;
+
+	@readonly
+	property int out;
+
+	static int boolToInt(bool in)
+	{
+		int tmp;
+
+		if (in != null) {
+			tmp = in ? 1 : 0;
+		}
+		else
+			tmp = 2;
+
+		return tmp;
+	}
+
+	virtual override void execute()
+	{
+		out := boolToInt(in);
+	}
+}
+
+class UWord2SWord extends Component
+{
+
+	property int in;
+
+	@readonly
+	property int out;
+
+	static int uWord2SWord(int d)
+	{
+		d = d & 0xFFFF;
+		d = (d > 0x7FFF) ? d - 0x10000  : d;
+		return d;
+	}
+
+	virtual override void execute()
+	{
+		out := uWord2SWord(in);
+	}
+}
+
+class SWord2UWord extends Component
+{
+	property int in;
+
+	@readonly
+	property int out;
+
+	virtual override void execute()
+	{
+		out := in & 0xFFFF;
+	}
+}
+
+
+
+class L2I extends Component
+{
+	property long in;
+
+	@readonly
+	property int out;
+
+
+	virtual override void execute()
+	{
+		out := (int)in;
+	}
+}
+
+
+class I2L extends Component
+{
+	property int in;
+
+	@readonly
+	property long out;
+
+
+	virtual override void execute()
+	{
+		out := (long)in;
+	}
+}

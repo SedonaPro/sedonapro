@@ -1,0 +1,466 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+@palette=false
+class Math {
+	define float Pi = 3.14159265358979323846;
+	define float E  = 2.718281828459045235360287471352;
+
+	static native float arccos(float in);
+	static native float arcsin(float in);
+	static native float arctan(float in);
+	static native float arctan2(float in1, float in2);
+	static native float ceil(float in);
+	static native float cos(float in);
+	static native float cosh(float in);
+	static native float exp(float in);
+	static native float floor(float in);
+	static native float fmod(float in1, float in2);
+	static native void  frexp(float in, float[1] mantissa, int[1] exp);
+	static native float ldexp(float in);
+	static native float log(float in);
+	static native float log10(float in);
+	static native void  modf(float in, float[1] intPart, float[] fracPart);
+	static native float pow(float base, float exponent);
+	static native float sin(float in);
+	static native float sinh(float in);
+	static native float sqrt(float in);
+	static native float tan(float in);
+	static native float tanh(float in);
+
+	static native float cbrt(float in);
+	static native float arccosh(float in);
+	static native float arcsinh(float in);
+	static native float arctanh(float in);
+
+	static float fabs(float value)
+	{
+		return (value < 0.0) ? -1.0 * value : value;
+
+	}
+
+	static int abs(int value)
+	{
+		return (value < 0) ? -1 * value : value;
+
+	}
+
+	static long labs(long value)
+	{
+		return (value < 0L) ? -1L * value : value;
+
+	}
+}
+
+class Arccos extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.arccos(in);
+	}
+}
+
+class Arcsin extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.arcsin(in);
+	}
+}
+
+
+class Arctan extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.arctan(in);
+	}
+}
+
+class Arctan2 extends Component
+{
+	property float y;
+	property float x;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.arctan2(y, x);
+	}
+}
+
+class Ceil extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.ceil(in);
+	}
+}
+
+class Cos extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.cos(in);
+	}
+}
+
+class Cosh extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.cosh(in);
+	}
+}
+
+class Exp extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.exp(in);
+	}
+}
+
+class Floor extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.floor(in);
+	}
+}
+
+class Fmod extends Component
+{
+	property float num;
+	property float denom;
+
+	@readonly
+	property float rem;
+
+	virtual override void execute()
+	{
+		rem := Math.fmod(num, denom);
+	}
+}
+
+class Frexp extends Component
+{
+	property float in;
+
+	@readonly
+	property float mantissa;
+
+	@readonly
+	property int exp;
+
+	static inline float[1] tmp_mantissa;
+	static inline int[1] tmp_exp;
+
+	virtual override void execute()
+	{
+		Math.frexp(in, tmp_mantissa, tmp_exp);
+		mantissa := tmp_mantissa[0];
+		exp := tmp_exp[0];
+	}
+}
+
+class Ldexp extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.ldexp(in);
+	}
+}
+
+class Log extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.log(in);
+	}
+}
+
+class Log10 extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.log10(in);
+	}
+}
+
+class Modf extends Component
+{
+	property float in;
+
+	@readonly
+	property float intPart;
+
+	@readonly
+	property float fracPart;
+
+	static inline float[1] tmp_intPart;
+	static inline float[1] tmp_fracPart;
+
+	virtual override void execute()
+	{
+		Math.modf(in, tmp_intPart, tmp_fracPart);
+		intPart := tmp_intPart[0];
+		fracPart := tmp_fracPart[0];
+	}
+}
+
+class Pow extends Component
+{
+	property float base;
+
+	property float exp;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.pow(base, exp);
+	}
+}
+
+class Sin extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.sin(in);
+	}
+}
+
+class Sinh extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.sinh(in);
+	}
+}
+
+class Sqrt extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.sqrt(in);
+	}
+}
+
+class Tan extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.tan(in);
+	}
+}
+
+class Tanh extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.tanh(in);
+	}
+}
+
+
+class Arccosh extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.arccosh(in);
+	}
+}
+
+class Arcsinh extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.arcsinh(in);
+	}
+}
+
+class Arctanh extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.arctanh(in);
+	}
+}
+
+
+class Cbrt extends Component
+{
+	property float in;
+
+	@readonly
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.cbrt(in);
+	}
+}
+
+class Fabs extends Component
+{
+
+	property float in;
+	property float out;
+
+	virtual override void execute()
+	{
+		out := Math.fabs(in);
+	}
+}
+
+
+class Abs extends Component
+{
+
+	property int in;
+	property int out;
+
+	virtual override void execute()
+	{
+		out := Math.abs(in);
+	}
+}
+
+
+class MathConstants extends Component
+{
+	@readonly
+	property float Pi;
+
+	@readonly
+	property float E;
+
+
+	@readonly
+	property float Sqrt2;
+
+	@readonly
+	property float Sqrt3;
+
+
+	virtual override void loaded()
+	{
+		Pi := Math.Pi;
+		E := Math.E;
+		Sqrt2 := Math.sqrt(2.0);
+		Sqrt3 := Math.sqrt(3.0);
+	}
+}

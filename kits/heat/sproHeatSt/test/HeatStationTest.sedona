@@ -1,0 +1,152 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+class HeatStationTest extends Test
+{
+  static HeatStation setup()
+  {
+    Sys.app.cleanupApp()
+    Sys.app.initApp(120)
+    HeatStation s = (HeatStation)Sys.app.add(Sys.app, "itp", HeatStation.type)
+    s.buildOnStart := false
+    return s
+  }
+
+  static Component kid(HeatStation s, Str name) { return s.child(name) }
+
+  static bool linked(HeatStation s, Str from, Slot fs, Str to, Slot ts)
+  {
+    Component f = s
+    if (from != null) f = s.child(from)
+    Component t = s.child(to)
+    if (f == null || t == null) return false
+    return Sys.app.lookupLink(f.id, fs.id, t.id, ts.id) != null
+  }
+
+  static bool into(HeatStation s, Str to, Slot ts)
+  {
+    Component t = s.child(to)
+    return t != null && t.linksTo != null && countInto(t, ts) > 0
+  }
+
+  static int countInto(Component t, Slot ts)
+  {
+    int n = 0
+    for (Link x = t.linksTo; x != null; x = x.nextTo) if (x.toSlot == ts.id) n++
+    return n
+  }
+
+  static void testDefault()
+  {
+    HeatStation s = setup()
+    s.build()
+    // one circuit, twin pumps, hot water, make-up
+    assert(kid(s, "curve1").type == HeatCurve.type && kid(s, "circ1").type == HeatingCircuit.type)
+    assert(kid(s, "lead1").type == LeadLag.type && ((LeadLag)kid(s, "lead1")).units == 2)
+    assert(kid(s, "p1a").type == Motor.type && kid(s, "p1b").type == Motor.type)
+    assert(kid(s, "curve2") == null && kid(s, "p2a") == null && kid(s, "roomT") == null && kid(s, "dp1") == null)
+    assert(kid(s, "ret1") != null && kid(s, "sup1") != null && kid(s, "valve1") != null)
+    assert(kid(s, "flt1a") != null && kid(s, "flt1b") != null && kid(s, "do1a") != null && kid(s, "do1b") != null)
+    assert(kid(s, "dhw").type == DhwCircuit.type && kid(s, "dhwT") != null && kid(s, "dhwV") != null && kid(s, "dhwP") != null)
+    assert(kid(s, "makeup").type == MakeUp.type && kid(s, "press") != null && kid(s, "fill") != null)
+    assert(kid(s, "alarms").type == AlarmSum.type && kid(s, "alarm") != null)
+    assert(((Motor)kid(s, "p1a")).exerciseHours == 168.0f)
+    // links
+    assert(linked(s, "outT", AnalogInput.out, "curve1", HeatCurve.outdoor))
+    assert(linked(s, "outT", AnalogInput.out, "circ1", HeatingCircuit.outdoor))
+    assert(linked(s, null, HeatStation.setback, "curve1", HeatCurve.setback))
+    assert(linked(s, null, HeatStation.request, "circ1", HeatingCircuit.enable))
+    assert(linked(s, "curve1", HeatCurve.supplySp, "circ1", HeatingCircuit.supplySp))
+    assert(linked(s, "curve1", HeatCurve.heating, "circ1", HeatingCircuit.heating))
+    assert(linked(s, "curve1", HeatCurve.returnSp, "circ1", HeatingCircuit.returnMax))
+    assert(linked(s, "sup1", AnalogInput.out, "circ1", HeatingCircuit.supply))
+    assert(linked(s, "ret1", AnalogInput.out, "circ1", HeatingCircuit.returnTemp))
+    assert(linked(s, "circ1", HeatingCircuit.valve, "valve1", AnalogOutput.in))
+    assert(linked(s, "circ1", HeatingCircuit.pump, "lead1", LeadLag.request))
+    assert(linked(s, "lead1", LeadLag.req2, "p1b", Motor.request))
+    assert(linked(s, "p1b", Motor.available, "lead1", LeadLag.avail2))
+    assert(linked(s, "p1a", Motor.cmd, "do1a", DigitalOutput.in))
+    assert(linked(s, "flt1b", DigitalInput.out, "p1b", Motor.fault))
+    assert(linked(s, "p1a", Motor.running, "circ1", HeatingCircuit.flow))
+    assert(linked(s, "p1b", Motor.running, "circ1", HeatingCircuit.flow2))
+    assert(linked(s, "dhw", DhwCircuit.heatingLimit, "circ1", HeatingCircuit.limit))
+    assert(linked(s, null, HeatStation.disinfect, "dhw", DhwCircuit.disinfect))
+    assert(linked(s, "dhw", DhwCircuit.circPump, "dhwP", DigitalOutput.in))
+    assert(linked(s, "press", AnalogInput.out, "makeup", MakeUp.pressure))
+    assert(linked(s, "makeup", MakeUp.out, "fill", DigitalOutput.in))
+    assert(linked(s, "circ1", HeatingCircuit.alarm, "alarms", AlarmSum.in1))
+    assert(linked(s, "dhw", DhwCircuit.alarm, "alarms", AlarmSum.in3))
+    assert(linked(s, "makeup", MakeUp.alarm, "alarms", AlarmSum.in4))
+    assert(linked(s, "p1b", Motor.alarm, "alarms", AlarmSum.in6))
+    assert(linked(s, "alarms", AlarmSum.any, "alarm", DigitalOutput.in))
+    assert(!((DhwCircuit)kid(s, "dhw")).usePriority)
+    // board channels in the order of the points: outdoor, return, supply
+    assert(((HalPoint)kid(s, "outT")).channel.toStr().equals("AI1"))
+    assert(((HalPoint)kid(s, "ret1")).channel.toStr().equals("AI2"))
+    assert(((HalPoint)kid(s, "valve1")).channel.toStr().equals("AO1"))
+    assert(((HalPoint)kid(s, "do1a")).channel.toStr().equals("DO1"))
+    assert(s.ioList.toStr().startsWith("AI1 outT, AI2 ret1"))
+    assert(s.status == (s.missing > 0 ? Pro.config : Pro.ok))
+    // a rebuild with the same options changes nothing
+    int p = s.parts
+    int id = kid(s, "circ1").id
+    s.build()
+    assert(s.parts == p && kid(s, "circ1").id == id)
+    assert(countInto(kid(s, "circ1"), HeatingCircuit.flow) == 1)
+    Sys.app.cleanupApp()
+  }
+
+  static void testRebuild()
+  {
+    HeatStation s = setup()
+    s.build()
+    Motor p1a = (Motor)kid(s, "p1a")
+    int id = p1a.id
+    p1a.minRun := 60.0f
+    ((HeatCurve)kid(s, "curve1")).shift := 3.0f
+    // two circuits, flow switches, room sensor, priority
+    s.circuits := 2
+    s.flowSwitch := true
+    s.roomSensor := true
+    s.dhwPriority := true
+    s.build()
+    p1a = (Motor)kid(s, "p1a")
+    assert(p1a.id == id && p1a.minRun == 60.0f)
+    assert(((HeatCurve)kid(s, "curve1")).shift == 3.0f)
+    assert(kid(s, "curve2") != null && kid(s, "circ2") != null && kid(s, "p2b") != null && kid(s, "valve2") != null)
+    assert(((DhwCircuit)kid(s, "dhw")).usePriority)
+    assert(linked(s, "roomT", AnalogInput.out, "curve1", HeatCurve.room))
+    assert(!into(s, "curve2", HeatCurve.room))
+    assert(linked(s, "dp1", DigitalInput.out, "circ1", HeatingCircuit.flow))
+    assert(!into(s, "circ1", HeatingCircuit.flow2))
+    assert(linked(s, "dp2", DigitalInput.out, "circ2", HeatingCircuit.flow))
+    assert(linked(s, "dhw", DhwCircuit.heatingLimit, "circ2", HeatingCircuit.limit))
+    assert(linked(s, "circ2", HeatingCircuit.alarm, "alarms", AlarmSum.in2))
+    assert(linked(s, "p2b", Motor.alarm, "alarms", AlarmSum.in8))
+    // single pumps, no hot water, no return sensors, no switches
+    s.pumps := 0
+    s.dhw := false
+    s.returnSensor := false
+    s.flowSwitch := false
+    s.makeUp := false
+    s.build()
+    assert(kid(s, "lead1") == null && kid(s, "p1b") == null && kid(s, "do2b") == null && kid(s, "flt1b") == null)
+    assert(kid(s, "dhw") == null && kid(s, "dhwT") == null && kid(s, "ret2") == null && kid(s, "makeup") == null)
+    assert(linked(s, "circ1", HeatingCircuit.pump, "p1a", Motor.request))
+    assert(linked(s, "p2a", Motor.running, "circ2", HeatingCircuit.flow))
+    assert(!into(s, "circ1", HeatingCircuit.limit) && ((HeatingCircuit)kid(s, "circ1")).limit == 100.0f)
+    assert(!into(s, "circ1", HeatingCircuit.returnTemp) && ((HeatingCircuit)kid(s, "circ1")).returnTemp == null)
+    assert(!into(s, "alarms", AlarmSum.in6) && !into(s, "alarms", AlarmSum.in3))
+    assert(p1a.id == kid(s, "p1a").id)
+    // no circuits: hot water only
+    s.circuits := 0
+    s.dhw := true
+    s.build()
+    assert(kid(s, "curve1") == null && kid(s, "circ2") == null && kid(s, "p1a") == null && kid(s, "roomT") == null)
+    assert(kid(s, "dhw") != null && kid(s, "outT") != null)
+    assert(!into(s, "alarms", AlarmSum.in1) && !into(s, "alarms", AlarmSum.in5))
+    Sys.app.cleanupApp()
+  }
+}

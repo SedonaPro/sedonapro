@@ -1,0 +1,105 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Base of publish points: sends the value when it changes, at most every
+** minInterval, and again every maxInterval (0 = only on change).  After a
+** reconnect the current value is sent again.
+**
+@palette=false
+abstract class MqttPub extends MqttPoint
+{
+  ** broker keeps the last message for new subscribers
+  @config property bool retain = false
+
+  ** at most one message per this time
+  @config @unit=Units.millisecond @min=0
+  property int minInterval = 0
+
+  ** send again after this time even without a change (0 = off)
+  @config @unit=Units.second @min=0
+  property int maxInterval = 0
+
+  ** publish now
+  action void send()
+  {
+    force = true
+  }
+
+  ** value differs from the last sent one
+  abstract bool differs()
+
+  ** payload into buf, length or -1
+  abstract int format(Buf buf)
+
+  ** buffer for the payload
+  virtual Buf out() { return payload }
+
+  ** remember the value just sent
+  abstract void sent()
+
+  override virtual void changed(Slot slot)
+  {
+    super.changed(slot)
+    if (slot.isConfig())
+      force = true
+  }
+
+  override virtual void execute()
+  {
+    MqttClient c = client()
+    if (c == null)
+    {
+      status := noClient
+      return
+    }
+    if (!c.isConnected())
+    {
+      status := offline
+      return
+    }
+    if (c.connects != connects)
+    {
+      connects = c.connects
+      force = true
+    }
+    long now = Sys.ticks()
+    long since = now - lastSent
+    if (!force && !differs() && (maxInterval <= 0 || since < (long)maxInterval * 1sec))
+      return
+    if (lastSent != 0L && since < (long)minInterval * 1ms)
+      return
+    if (!expand(c))
+    {
+      status := badTopic
+      return
+    }
+    Buf b = out()
+    int n = format(b)
+    if (n < 0)
+    {
+      status := tooBig
+      return
+    }
+    int r = Mqtt.publish(c.handle, fullTopic.toStr(), b.bytes, n, qos, retain)
+    if (r == Mqtt.pubOk)
+    {
+      sent()
+      force = false
+      lastSent = now
+      count := count + 1
+      status := ok
+    }
+    else if (r == Mqtt.pubTooBig)
+      status := tooBig
+    else
+      status := busy
+  }
+
+  bool force = true
+  long lastSent = 0L
+  int connects = -1
+  inline Buf(64) payload
+}

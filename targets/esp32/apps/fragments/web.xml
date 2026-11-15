@@ -1,0 +1,6 @@
+<module>
+  <kit name="web"/>
+  <into path="service">
+    <comp name="web" type="web::WebService"><prop name="port" val="8080"/></comp>
+  </into>
+</module>

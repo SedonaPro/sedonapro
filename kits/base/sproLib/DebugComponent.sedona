@@ -1,0 +1,113 @@
+// Hey, emacs! -*- c++ -*-
+
+@palette=false
+public class NoDebugComponent extends InvOrderDestructor
+{
+	void printMessage(Str str) {
+		Sys.out.print("-- MESSAGE [");
+		ShowInternals.printComponentName(this);
+		Sys.out.print("] $str");
+	}	
+}
+
+
+@palette=false
+public class DebugComponent extends NoDebugComponent
+{
+	@summary=false
+	@config
+	property bool debugEnable := true;
+
+	@config
+	@summary=false
+	property bool debugExecuteEnable := false;
+
+	@summary=false
+	@config
+	property bool debugChangedEnable := false;
+
+
+	virtual override void execute() {
+		super.execute();
+		if (debugExecuteEnable && debugEnable)
+			printMessage("execute\n");
+	}
+
+	virtual override void loaded() {
+		super.loaded();
+		if (debugEnable)
+			printMessage("loaded\n");
+		ShowInternals.printRelations(this);
+	}
+
+	virtual override void start() {
+		super.start();
+		if (debugEnable)
+			printMessage("start\n");
+		ShowInternals.printRelations(this);
+	}
+
+	virtual override void stop() {
+		super.stop();
+		if (debugEnable)
+			printMessage("stop\n");
+	}
+
+	virtual override void changed(Slot slot) {
+                super.changed(slot);
+		if (debugEnable && debugChangedEnable) {
+			printMessage("changed slot ");
+			ShowInternals.printSlotName(slot);
+			Sys.out.nl();
+		}
+	}
+
+	virtual override void setToDefault(Slot slot) {
+                super.setToDefault(slot);
+		if (debugEnable) {
+			printMessage("setToDefault slot ");
+			ShowInternals.printSlotName(slot);
+			Sys.out.nl();
+		}
+	}
+
+
+	virtual override int childEvent(int eType, Component child) {
+		super.childEvent(eType, child);
+		if (debugEnable) {
+			printMessage("childEvent ");
+			ShowInternals.printEventComponent(eType, child);
+		}
+		return 0;
+	}
+
+	virtual override int parentEvent(int eType, Component parent) {
+		super.parentEvent(eType, parent);
+		if (debugEnable) {
+			printMessage("parentEvent ");
+			ShowInternals.printEventComponent(eType, parent);
+		}
+		return 0;
+	}
+
+	virtual override int linkEvent(int eType, Link link) {
+		super.linkEvent(eType, link);
+		if (debugEnable) {
+			printMessage("linkEvent ");
+			ShowInternals.printEvent(eType);
+			Sys.out.print(" ");
+			ShowInternals.printLink(link);
+			Sys.out.nl();
+		}
+		return 0;
+	}
+
+
+	virtual override void remove()
+	{
+		super.remove();
+		if (debugEnable)
+			printMessage("remove\n");
+	}
+
+}

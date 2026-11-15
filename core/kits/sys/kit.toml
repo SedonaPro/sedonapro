@@ -1,0 +1,5 @@
+targets = ["linux", "sim", "esp32"]
+[native]
+all = ["native", "native/std"]
+linux = ["native/unix"]
+# sim/esp32: platforms/esp32/sys_esp32 replaces native/unix

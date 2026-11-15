@@ -1,0 +1,74 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Properties of humid air (psychrometrics) for the components of this
+** kit and for your own.  Temperatures in C, pressures in kPa, absolute
+** humidity (humidity ratio) in g of water per kg of dry air, enthalpy in
+** kJ per kg of dry air.  Saturation pressure by the Magnus formula (over
+** water from 0 C, over ice below): within 0.5 % from -40 to +60 C.
+**
+@palette=false
+class Air
+{
+  ** standard atmospheric pressure, kPa
+  define float standard = 101.325f
+
+  ** saturation vapour pressure at t, kPa
+  static float saturation(float t)
+  {
+    if (t >= 0.0f) return 0.61094f * Math.exp(17.625f * t / (t + 243.04f))
+    return 0.61115f * Math.exp(22.452f * t / (t + 272.55f))
+  }
+
+  ** humidity ratio, g/kg, from t and relative humidity rh %
+  static float ratio(float t, float rh, float p)
+  {
+    float pv = Pro.clamp(rh, 0.0f, 100.0f) / 100.0f * saturation(t)
+    if (pv >= p) return null
+    return 622.0f * pv / (p - pv)
+  }
+
+  ** relative humidity %, from t and humidity ratio x g/kg (above 100 = condensing)
+  static float relative(float t, float x, float p)
+  {
+    float pv = p * x / (622.0f + x)
+    return 100.0f * pv / saturation(t)
+  }
+
+  ** enthalpy, kJ/kg, from t and humidity ratio x g/kg
+  static float enthalpy(float t, float x)
+  {
+    return 1.006f * t + x / 1000.0f * (2501.0f + 1.86f * t)
+  }
+
+  ** dew point, C, from t and relative humidity rh %
+  static float dewPoint(float t, float rh)
+  {
+    if (!(rh > 0.0f)) return null
+    float pv = Pro.min(rh, 100.0f) / 100.0f * saturation(t)
+    float g = Math.log(pv / 0.61094f)
+    return 243.04f * g / (17.625f - g)
+  }
+
+  ** wet bulb temperature, C (adiabatic saturation), from t, rh % and p
+  static float wetBulb(float t, float rh, float p)
+  {
+    float x = ratio(t, rh, p)
+    if (!Pro.valid(x)) return null
+    float h = enthalpy(t, x)
+    float lo = dewPoint(t, rh)
+    if (!Pro.valid(lo)) lo = t - 40.0f
+    float hi = t
+    for (int i = 0; i < 30; i++)
+    {
+      float m = (lo + hi) * 0.5f
+      float xs = ratio(m, 100.0f, p)
+      if (!Pro.valid(xs) || enthalpy(m, xs) > h) hi = m
+      else lo = m
+    }
+    return (lo + hi) * 0.5f
+  }
+}

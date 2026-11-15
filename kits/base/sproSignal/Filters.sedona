@@ -1,0 +1,179 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** First-order lag filter (PT1): smooths a noisy measurement.  After
+** 'time' seconds a step has gone 63 %, after 3*time 95 %.  A null input
+** is skipped: out holds and status is inputBad.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Lag extends Component
+{
+  @summary property float in
+
+  ** time constant, s (0 = no filtering)
+  @config @unit=Units.second @min=0 property float time = 10.0f
+
+  @readonly @summary property float out
+
+  ** ok, inputBad
+  @readonly @range=Pro.statusRange property byte status
+
+  ** out jumps to in
+  action void reset() { primed = false }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    if (!Pro.valid(in))
+    {
+      status := Pro.inputBad
+      return
+    }
+    status := Pro.ok
+    if (!primed || time <= 0.0f || !Pro.valid(out))
+    {
+      primed = true
+      out := in
+      return
+    }
+    out := out + (in - out) * dt / (time + dt)
+  }
+
+  bool primed
+  inline Ticker ticker
+}
+
+**
+** Moving average over a time window (15-minute power, hourly mean of a
+** temperature).  The window is kept as 16 slices, so the average is
+** exact to 1/16 of the window; null inputs are left out.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class MovingAvg extends Component
+{
+  @summary property float in
+
+  ** averaging window, s
+  @config @unit=Units.second @min=1 property float window = 900.0f
+
+  ** average over the window (null until the first valid input)
+  @readonly @summary property float out
+
+  ** share of the window that is filled, 0..1
+  @readonly property float filled
+
+  ** ok, inputBad (no valid input in the window)
+  @readonly @range=Pro.statusRange property byte status
+
+  ** start over
+  action void reset()
+  {
+    for (int i = 0; i < slices; i++) { sums[i] = 0.0f; times[i] = 0.0f }
+    age = 0.0f
+    out := null
+    filled := 0.0f
+  }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    float slice = window / (float)slices
+    if (!(slice > 0.0f)) return
+    if (Pro.valid(in) && dt > 0.0f)
+    {
+      sums[cur] = sums[cur] + in * dt
+      times[cur] = times[cur] + dt
+    }
+    age += dt
+    while (age >= slice)
+    {
+      age -= slice
+      cur = (cur + 1) % slices
+      sums[cur] = 0.0f
+      times[cur] = 0.0f
+    }
+    float s = 0.0f
+    float t = 0.0f
+    for (int i = 0; i < slices; i++) { s += sums[i]; t += times[i] }
+    filled := Pro.min(1.0f, t / window)
+    if (t > 0.0f)
+    {
+      out := s / t
+      status := Pro.ok
+    }
+    else
+    {
+      out := null
+      status := Pro.inputBad
+    }
+  }
+
+  define int slices = 16
+  inline float[slices] sums
+  inline float[slices] times
+  int cur
+  float age
+  inline Ticker ticker
+}
+
+**
+** Median of the last 5 samples taken every 'period' seconds: removes
+** single spikes (a contact bounce on a flow meter, a radio sensor's
+** glitch) without the delay of a strong lag filter.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Median extends Component
+{
+  @summary property float in
+
+  ** sampling period, s (0 = every scan)
+  @config @unit=Units.second @min=0 property float period = 1.0f
+
+  @readonly @summary property float out
+
+  ** ok, inputBad (no valid sample yet)
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    acc += dt
+    if (acc < period && count > 0) return
+    acc = 0.0f
+    if (Pro.valid(in))
+    {
+      buf[pos] = in
+      pos = (pos + 1) % 5
+      if (count < 5) count++
+    }
+    if (count == 0)
+    {
+      status := Pro.inputBad
+      return
+    }
+    // sort a copy of the samples (at most 5)
+    for (int i = 0; i < count; i++) tmp[i] = buf[i]
+    for (int i = 1; i < count; i++)
+    {
+      float v = tmp[i]
+      int j = i - 1
+      while (j >= 0 && tmp[j] > v) { tmp[j + 1] = tmp[j]; j-- }
+      tmp[j + 1] = v
+    }
+    out := (count % 2 == 1) ? tmp[count / 2] : (tmp[count / 2 - 1] + tmp[count / 2]) / 2.0f
+    status := Pro.valid(in) ? Pro.ok : Pro.inputBad
+  }
+
+  inline float[5] buf
+  inline float[5] tmp
+  int pos
+  int count
+  float acc
+  inline Ticker ticker
+}

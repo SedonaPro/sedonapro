@@ -1,0 +1,161 @@
+<?xml version='1.0'?>
+<sedonaApp>
+<schema>
+  <kit name="sys"  />
+  <kit name="basicSchedule"  />
+  <kit name="sproLib"  />
+  <kit name="sproUtil"  />
+  <kit name="sproModbusMaster"  />
+  <kit name="sproModbusSlave"  />
+  <kit name="sproPlatformLinux"  />
+  <kit name="datetime"  />
+  <kit name="datetimeStd"  />
+  <kit name="func"  />
+  <kit name="hvac"  />
+  <kit name="inet"  />
+  <kit name="logic"  />
+  <kit name="math"  />
+  <kit name="pstore"  />
+  <kit name="sox"  />
+  <kit name="timing"  />
+  <kit name="types"  />
+  <kit name="web"  />
+  <kit name="sproMqtt" />
+</schema>
+<app>
+  <prop name="appName" val="demo"/>
+  <!-- /service -->
+  <comp name="service" id="1" type="sys::Folder">
+    <prop name="meta" val="33685505"/>
+    <!-- /service/plat -->
+    <comp name="plat" id="9" type="sproPlatformLinux::UnixPlatformService"/>
+    <!-- /service/users -->
+    <comp name="users" id="3" type="sys::UserService">
+      <prop name="meta" val="17367041"/>
+      <!-- /service/users/admin -->
+      <comp name="admin" id="4" type="sys::User">
+        <prop name="cred" val="@ADMIN_CRED@"/>
+        <prop name="perm" val="2147483647"/>
+        <prop name="prov" val="255"/>
+      </comp>
+    </comp>
+    <!-- /service/sox -->
+    <comp name="sox" id="5" type="sox::SoxService">
+      <prop name="meta" val="17104897"/>
+    </comp>
+    <!-- /service/web -->
+    <comp name="web" id="6" type="web::WebService">
+      <prop name="meta" val="16842753"/>
+      <prop name="port" val="8080"/>
+    </comp>
+    <!-- /service/pstore -->
+    <comp name="pstore" id="13" type="pstore::PstoreService"/>
+    <!-- /service/time -->
+    <comp name="time" id="17" type="datetimeStd::DateTimeServiceStd">
+      <prop name="utcOffset" val="10800"/>
+      <prop name="osUtcOffset" val="true"/>
+    </comp>
+  </comp>
+  <!-- /play -->
+  <comp name="play" id="10" type="sys::Folder">
+    <prop name="meta" val="34013185"/>
+    <!-- /play/rampA -->
+    <comp name="rampA" id="7" type="func::Ramp">
+      <prop name="meta" val="67371009"/>
+      <prop name="min" val="20.0"/>
+      <prop name="max" val="80.0"/>
+      <prop name="period" val="50.0"/>
+    </comp>
+    <!-- /play/rampB -->
+    <comp name="rampB" id="8" type="func::Ramp">
+      <prop name="meta" val="68288513"/>
+    </comp>
+    <!-- /play/adder -->
+    <comp name="adder" id="2" type="math::Add2">
+      <prop name="meta" val="386662401"/>
+    </comp>
+  </comp>
+  <!-- /modbus -->
+  <comp name="modbus" id="11" type="sproModbusMaster::ModbusSlaveTcpAsyncNetwork">
+    <prop name="meta" val="386465793"/>
+    <prop name="timeOut" val="100"/>
+    <prop name="enable" val="true"/>
+    <prop name="pollPeriodMs" val="500"/>
+    <prop name="ipAddress" val="127.0.0.2"/>
+    <prop name="port" val="1502"/>
+    <!-- /modbus/modbus -->
+    <comp name="modbus" id="12" type="sproModbusMaster::ModbusSlaveDevice">
+      <prop name="enable" val="true"/>
+      <prop name="address" val="1"/>
+      <!-- /modbus/modbus/ModbusR -->
+      <comp name="ModbusR" id="14" type="sproModbusMaster::ModbusReadPointFloat">
+        <prop name="meta" val="100794369"/>
+        <prop name="address" val="0"/>
+      </comp>
+      <!-- /modbus/modbus/Modbus1 -->
+      <comp name="Modbus1" id="20" type="sproModbusMaster::ModbusReadPointDWord">
+        <prop name="meta" val="101777409"/>
+        <prop name="address" val="2"/>
+      </comp>
+      <!-- /modbus/modbus/Neg -->
+      <comp name="Neg" id="21" type="math::Neg">
+        <prop name="meta" val="320667649"/>
+      </comp>
+      <!-- /modbus/modbus/ModbusW -->
+      <comp name="ModbusW" id="22" type="sproModbusMaster::ModbusWritePointWord">
+        <prop name="meta" val="706543617"/>
+        <prop name="address" val="4"/>
+      </comp>
+      <!-- /modbus/modbus/F2I -->
+      <comp name="F2I" id="23" type="types::F2I">
+        <prop name="meta" val="521994241"/>
+      </comp>
+      <!-- /modbus/modbus/I2F -->
+      <comp name="I2F" id="26" type="types::I2F">
+        <prop name="meta" val="707264513"/>
+      </comp>
+    </comp>
+  </comp>
+  <!-- /modSlav -->
+  <comp name="modSlav" id="15" type="sproModbusSlave::ModbusSlaveTcpService">
+    <prop name="meta" val="67960833"/>
+    <prop name="enable" val="true"/>
+    <prop name="slaveAddr" val="1"/>
+    <prop name="port" val="1502"/>
+    <!-- /modSlav/slavReg -->
+    <comp name="slavReg" id="16" type="sproModbusSlave::ModbusSlavePointFloat">
+      <prop name="meta" val="319291393"/>
+    </comp>
+    <!-- /modSlav/F2I -->
+    <comp name="F2I" id="18" type="types::F2I">
+      <prop name="meta" val="537395201"/>
+    </comp>
+    <!-- /modSlav/ModbusS -->
+    <comp name="ModbusS" id="19" type="sproModbusSlave::ModbusSlavePointDWord">
+      <prop name="meta" val="722141185"/>
+      <prop name="address" val="2"/>
+    </comp>
+    <!-- /modSlav/Modbus1 -->
+    <comp name="Modbus1" id="24" type="sproModbusSlave::ModbusSlavePointWord">
+      <prop name="meta" val="521404417"/>
+      <prop name="address" val="4"/>
+    </comp>
+    <!-- /modSlav/UWord2S -->
+    <comp name="UWord2S" id="25" type="sproLib::UWord2SWord">
+      <prop name="meta" val="722796545"/>
+    </comp>
+  </comp>
+</app>
+<links>
+  <link from="/play/rampB.out" to="/play/adder.in2"/>
+  <link from="/play/rampA.out" to="/play/adder.in1"/>
+  <link from="/play/rampB.out" to="/modSlav/slavReg.in"/>
+  <link from="/modSlav/slavReg.out" to="/modSlav/F2I.in"/>
+  <link from="/modSlav/F2I.out" to="/modSlav/ModbusS.in"/>
+  <link from="/modbus/modbus/ModbusR.out" to="/modbus/modbus/Neg.in"/>
+  <link from="/modbus/modbus/F2I.out" to="/modbus/modbus/ModbusW.in"/>
+  <link from="/modbus/modbus/Neg.out" to="/modbus/modbus/F2I.in"/>
+  <link from="/modSlav/Modbus1.out" to="/modSlav/UWord2S.in"/>
+  <link from="/modSlav/UWord2S.out" to="/modbus/modbus/I2F.in"/>
+</links>
+</sedonaApp>

@@ -1,0 +1,59 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  sim:
+    name: ESP32 simulator
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '8'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: sudo apt-get update && sudo apt-get install -y libmodbus-dev libsqlite3-dev
+      - run: ./spro build sim --example blink,thermostat,mqtt
+      - run: ./spro build sim --pack pumps --example booster
+      - run: ./spro build sim --pack hvac --board sim-large --example ahu
+      - run: ./spro build sim --pack hvac --board sim-large --example ahu-schedule
+      - run: ./spro build sim --pack pumps --example pump-station
+      - run: ./spro build sim --pack heat --board sim-large --example heating
+      - run: ./spro build sim --pack heat --board sim-large --example heat-station
+      - run: ./spro build sim --pack energy --board sim-large --example energy
+      - run: ./spro build sim --add serial,sproModbusMaster,sproModbusSlave,sproMqtt --pack pumps,heat,energy
+      - run: ./spro test sim
+
+  linux:
+    name: Linux VM
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '8'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: sudo apt-get update && sudo apt-get install -y libmodbus-dev libsqlite3-dev
+      - run: ./spro build linux
+      - run: ./spro catalog --check
+      - run: ./spro ui check && python3 tools/tests/ui_check_test.py
+      - run: node --test editor/tests/*.test.mjs
+      - run: ./spro test linux
+      - run: ./spro build linux --profile full && ./spro test linux --profile full --quick
+      - run: ./spro build linux --board rpi4 --manifests none
+      - run: ./spro build linux --board beaglebone-black --manifests none
+      - run: ./spro package linux
+      - uses: actions/upload-artifact@v4
+        with: {name: packages, path: build/packages/*.*}
+
+  esp32:
+    name: ESP32-S3 firmware
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '8'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: ./spro build esp32
+      - run: ./spro fw esp32 --fw qemu --docker
+      - run: ./spro test esp32

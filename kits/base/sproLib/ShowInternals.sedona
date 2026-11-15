@@ -1,0 +1,138 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2016 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+@palette=false
+public class  ShowInternals {
+        static void printLinksTo(Component comp) {
+		printComponentName(comp);
+		Sys.out.print(" links to\n");
+		for (Link x = comp.linksTo; x != null; x = x.nextTo) {
+			printLink(x);
+			Sys.out.nl();
+		}
+		/* Sys.out.nl(); */
+        }
+
+        static void printLinksFrom(Component comp) {
+		printComponentName(comp);
+		Sys.out.print(" links from\n");
+		for (Link x = comp.linksFrom; x != null; x = x.nextFrom) {
+			printLink(x);
+			Sys.out.nl();
+		}
+		/* Sys.out.nl(); */
+        }
+
+        static void printChildren(Component comp) {
+
+		printComponentName(comp);
+		Sys.out.print(" children\n");
+		Component c = Sys.app.lookup(comp.children);
+		for (; c != null; c = Sys.app.lookup(c.nextSibling)) {
+			printComponentName(c);
+			Sys.out.nl();
+		}
+		/* Sys.out.nl(); */
+	}
+
+	static void printParent(Component comp) {
+		printComponentName(comp);
+		Sys.out.print(" parent: ");
+		Component parent = Sys.app.lookup(comp.parent);
+		if (parent == null)
+			Sys.out.print("no children\n");
+		else {
+			printComponentName(parent);
+			Sys.out.nl();
+		}
+		/* Sys.out.nl();		 */
+	}
+
+        static void printSlots(Component comp) {
+		printComponentName(comp);
+		Sys.out.print(" slots\n");
+                Type type = comp?.type;
+	        if (type != null) {
+                   foreach(Slot s: type.slots, type.slotsLen) {
+                                printSlotName(s);
+                                Sys.out.nl();
+                   }
+                }
+        }
+
+
+	static void printRelations(Component comp) {
+		printParent(comp);
+		printChildren(comp);
+		printLinksTo(comp);
+		printLinksFrom(comp);
+		Sys.out.nl();
+	}
+
+	static void printSlotName(Slot slot) {
+		if (slot != null)
+			Sys.out.print("$slot.type.name::$slot.name::$slot.id");
+		else
+			Sys.out.print("null");
+	}
+
+	static void printComponentName(Component component) {
+		if (component != null) {
+			Sys.out.print("$component.type.kit.name::$component.type.name");
+			Sys.out.print("::$component.name::$component.id");
+		}
+		else
+			Sys.out.print("null");
+	}
+
+	static void printLink(Link link) {
+		if (link != null) {
+			Sys.out.print("link from $link.fromComp::$link.fromSlot ");
+			Sys.out.print("to $link.toComp::$link.toSlot");
+		}
+		else
+			Sys.out.print("null");
+	}
+
+	static internal void printEvent(int eType) {
+		Str s = null;
+		switch (eType) {
+		case Component.ADDED:
+			s = "ADDED";
+			break;
+		case Component.REMOVED:
+			s = "REMOVED";
+			break;
+		case Component.REORDERED:
+			s = "REORDERED";
+			break;
+		default:
+			s = "UNKNOWN";
+			break;
+		}
+		Sys.out.print(s);
+	}
+
+	static void printEventComponent(int eType, Component comp) {
+		printEvent(eType);
+		Sys.out.print(" ");
+		printComponentName(comp);
+		Sys.out.nl();
+	}
+
+
+}

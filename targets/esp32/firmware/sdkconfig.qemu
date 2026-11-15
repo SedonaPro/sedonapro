@@ -1,0 +1,5 @@
+# QEMU profile: Ethernet through the OpenCores MAC emulated by Espressif QEMU
+CONFIG_SEDONA_NET_OPENETH=y
+CONFIG_ETH_USE_OPENETH=y
+# no ADC in QEMU: esp_adc start-up calibration would spin forever
+CONFIG_SEDONA_HAL_ADC=n

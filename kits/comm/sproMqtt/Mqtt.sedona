@@ -1,0 +1,67 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Natives of the MQTT client (native/spro_mqtt.c) and text/JSON helpers.
+** Components use them; application code normally does not need this class.
+**
+@palette=false
+class Mqtt
+{
+  // client state (Mqtt.stat(m, statState))
+  define int disabled   = 0
+  define int waiting    = 1
+  define int connecting = 2
+  define int connected  = 3
+
+  // publish() result
+  define int pubOk      = 0
+  define int pubBusy    = 1
+  define int pubOffline = 2
+  define int pubTooBig  = 3
+
+  // stat() keys
+  define int statState    = 0
+  define int statError    = 1
+  define int statTx       = 2
+  define int statRx       = 3
+  define int statConnects = 4
+  define int statInflight = 5
+  define int statDropped  = 6
+
+  static native Obj open(int bufSize)
+  static native void close(Obj m)
+  static native void server(Obj m, Str host, int port, int keepAlive)
+  static native void auth(Obj m, Str clientId, Str user, Str password)
+  static native void will(Obj m, Str topic, Str offline, Str online)
+  static native void enable(Obj m, bool on)
+  static native void restart(Obj m)
+  static native void poll(Obj m)
+  static native int publish(Obj m, Str topic, byte[] payload, int len, int qos, bool retain)
+  static native int subscribe(Obj m, Str filter, int qos, int payloadMax)
+  static native void unsubscribe(Obj m, int slot)
+  ** sequence number of the last message (0 = none); payload or the JSON value
+  ** at path to out, its length via fetchLen() (-1 = path not in the message)
+  static native int fetch(Obj m, int slot, Str path, byte[] out, int cap)
+  static native int fetchLen()
+  static native int stat(Obj m, int which)
+
+  static native bool topicMatch(Str filter, Str topic)
+  static native int defaultClientId(byte[] out, int cap)
+  ** "~/x" -> "<base>/x"; length or -1 if it does not fit
+  static native int expandTopic(byte[] out, int cap, Str topic, Str base)
+  ** decimals -1: up to 7 significant digits; NaN -> null
+  static native int fmtFloat(byte[] out, int cap, float v, int decimals)
+  static native int fmtInt(byte[] out, int cap, int v)
+  ** adds "key":v to the JSON object in buf (len 0 starts one); new length or -1
+  static native int jsonPut(byte[] buf, int cap, int len, Str key, float v, int decimals)
+  ** value at path "a.b.0" as text; length or -1
+  static native int jsonGet(byte[] json, int len, Str path, byte[] out, int cap)
+  ** null (NaN) if not a number; true/false -> 1/0
+  static native float parseFloat(byte[] s, int len)
+  static native int parseInt(byte[] s, int len)
+  ** 1, 0 or -1: true/false, on/off, yes/no, numbers
+  static native int parseBool(byte[] s, int len)
+}

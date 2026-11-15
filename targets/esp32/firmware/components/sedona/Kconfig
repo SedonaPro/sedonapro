@@ -1,0 +1,91 @@
+menu "Sedona VM"
+
+    config SEDONA_HOME
+        string "Mount point of the Sedona file system"
+        default "/sedona"
+        help
+            LittleFS partition "storage" is mounted here; svm.conf,
+            kits.scode, app.sab and their .stage/.bak/.lkg files live in it.
+
+    choice SEDONA_BOOT
+        prompt "What the VM runs"
+        default SEDONA_BOOT_PLATFORM
+        config SEDONA_BOOT_PLATFORM
+            bool "Platform mode (kits.scode + app.sab, like svm --plat)"
+        config SEDONA_BOOT_TESTS
+            bool "Unit tests (tests.scode -test), then stop"
+    endchoice
+
+    config SEDONA_TASK_CORE
+        int "CPU core of the VM task"
+        range 0 1
+        default 1
+        help
+            Core 1 keeps the scan loop away from Wi-Fi/lwIP, which run on core 0.
+
+    config SEDONA_TASK_PRIORITY
+        int "FreeRTOS priority of the VM task"
+        range 1 24
+        default 5
+
+    config SEDONA_TASK_STACK
+        int "C stack of the VM task, bytes"
+        range 8192 65536
+        default 16384
+
+    config SEDONA_WATCHDOG_TIMEOUT
+        int "Scan-loop watchdog timeout, seconds (0 = off)"
+        range 0 300
+        default 15
+        help
+            After the first scan cycle the VM task is added to the task
+            watchdog and fed from the scan loop (svm.conf watchdog=auto|1).
+            A scan loop stalled for this long resets the chip.
+
+    config SEDONA_RESTART_DELAY_MS
+        int "Delay before restarting the chip when the VM exits, ms"
+        default 3000
+
+    config SEDONA_VM_IN_IRAM
+        bool "Place the interpreter (vm.c) in IRAM"
+        default y
+
+    config SEDONA_COMPUTED_GOTO
+        bool "Threaded dispatch (computed goto) in the interpreter"
+        default y
+
+    config SEDONA_VM_O3
+        bool "Compile the interpreter with -O3"
+        default y
+
+    choice SEDONA_NET
+        prompt "Network"
+        default SEDONA_NET_WIFI
+        config SEDONA_NET_WIFI
+            bool "Wi-Fi station"
+        config SEDONA_NET_OPENETH
+            bool "OpenCores Ethernet (Espressif QEMU)"
+            select ETH_USE_OPENETH
+        config SEDONA_NET_NONE
+            bool "None"
+    endchoice
+
+    config SEDONA_WIFI_SSID
+        string "Wi-Fi SSID"
+        depends on SEDONA_NET_WIFI
+        default ""
+
+    config SEDONA_WIFI_PASSWORD
+        string "Wi-Fi password"
+        depends on SEDONA_NET_WIFI
+        default ""
+
+    config SEDONA_HAL_ADC
+        bool "sproHal: analog inputs (ADC)"
+        default y
+        help
+            AI channels through esp_adc oneshot.  Linking esp_adc runs an ADC
+            self-calibration at start-up that never finishes in Espressif QEMU,
+            so the QEMU profile turns this off (AI channels then report ioError).
+
+endmenu

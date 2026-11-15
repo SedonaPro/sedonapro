@@ -1,0 +1,2 @@
+summary = "Equipment: motor (pump, fan, compressor) with protections, lead/lag rotation, pump cascade"
+portable_tests = true

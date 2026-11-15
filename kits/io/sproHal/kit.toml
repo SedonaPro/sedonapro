@@ -1,0 +1,3 @@
+summary = "Board-independent I/O: DigitalInput/Output, AnalogInput/Output by channel name"
+# native/ = Sedona glue; the backend (backends/<hal>) and the channel table
+# (spro_board.c) are added by ./spro from the board file, see boards/README.md

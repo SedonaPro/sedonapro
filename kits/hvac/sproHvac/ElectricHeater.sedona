@@ -1,0 +1,98 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Electric heater: stages from the heating demand (linear or binary
+** 1-2-4), an optional PWM output for a solid state relay that fills the
+** step in between, interlocked with the airflow, an overheat
+** thermostat that latches, and a purge: the fans must run on for
+** purgeTime after the heater has gone off.
+**
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class ElectricHeater extends Component
+{
+  ** heating demand, %
+  @summary property float demand
+  ** air flow is proven (fan running)
+  property bool airflow
+  ** overheat thermostat: true = overheated
+  property bool overheat
+
+  ** contactor stages, 1..4
+  @config @min=1 @max=4 property int stages = 2
+  ** stages weighted 1, 2, 4 (otherwise equal)
+  @config property bool binary = false
+  ** an SSR stage modulates between the steps (pwm output)
+  @config property bool pwmStage = false
+  @config @unit=Units.second @min=1 property float pwmPeriod = 10.0f
+  @config @unit=Units.second @min=0 property float minOn = 30.0f
+  @config @unit=Units.second @min=0 property float minOff = 30.0f
+  @config @unit=Units.second @min=0 property float stepDelay = 10.0f
+  ** fans run on after the heater went off, s
+  @config @unit=Units.second @min=0 property float purgeTime = 120.0f
+  ** an overheat stays until reset
+  @config property bool latchOverheat = true
+
+  @readonly @summary property bool s1
+  @readonly property bool s2
+  @readonly property bool s3
+  @readonly property bool s4
+  ** SSR output
+  @readonly property bool pwm
+  ** the fans must keep running
+  @readonly property bool purge
+  @readonly property bool alarm
+  ** ok, standby, waiting (no airflow), locked (overheat)
+  @readonly @range=Pro.statusRange property byte status
+
+  action void reset() { if (overheat != true) tripped = false }
+
+  override void start() { st.start() }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    if (overheat == true) tripped = true
+    else if (!latchOverheat) tripped = false
+    bool allowed = !tripped && airflow == true
+    st.stages := stages
+    st.mode := binary ? 1 : 0
+    st.onAt := pwmStage ? 100.0f : 50.0f
+    st.minOn := minOn
+    st.minOff := minOff
+    st.upDelay := stepDelay
+    st.downDelay := stepDelay
+    st.enable := allowed
+    st.in := Pro.valid(demand) ? demand : 0.0f
+    st.update(dt)
+    s1 := st.s1
+    s2 := st.s2
+    s3 := st.s3
+    s4 := st.s4
+    tp.enable := allowed && pwmStage
+    tp.in := st.vernier
+    tp.period := pwmPeriod
+    tp.minOn := 0.5f
+    tp.minOff := 0.5f
+    tp.update(dt)
+    pwm := tp.out
+
+    bool on = s1 || s2 || s3 || s4 || pwm
+    if (on) purgeLeft = purgeTime
+    else purgeLeft -= dt
+    purge := purgeLeft > 0.0f
+    alarm := tripped
+    if (tripped) status := Pro.locked
+    else if (airflow != true) status := Pro.waiting
+    else status := on ? Pro.ok : Pro.standby
+  }
+
+  bool tripped
+  float purgeLeft
+  inline Stager st
+  inline TimeProp tp
+  inline Ticker ticker
+}

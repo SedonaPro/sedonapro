@@ -1,0 +1,83 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Shared constants and helpers of the SedonaPro professional kits
+** (docs/pro-kits.md): the common status codes, the auto/hand/off mode
+** and checks of analog values.
+**
+class Pro
+{
+  ** Status of every pro component: one list, so an operator panel, MQTT
+  ** or a BMS reads the same code the same way on every component.
+  define Str statusRange = "ok, disabled, hand, off, inputBad, fault, alarm, standby, starting, stopping, limited, config, locked, waiting"
+
+  ** working normally
+  define int ok       = 0
+  ** enable is false
+  define int disabled = 1
+  ** mode is hand: the output is the operator's value
+  define int hand     = 2
+  ** mode is off: the output is forced off
+  define int off      = 3
+  ** an input is invalid (NaN, out of range, sensor broken); a substitute is used
+  define int inputBad = 4
+  ** equipment fault (no feedback, fault input, protection tripped)
+  define int fault    = 5
+  ** a process alarm is active
+  define int alarm    = 6
+  ** ready, not running (not requested, or reserve)
+  define int standby  = 7
+  ** start sequence in progress
+  define int starting = 8
+  ** stop sequence in progress (run-on, purge)
+  define int stopping = 9
+  ** output held at a limit
+  define int limited  = 10
+  ** configuration is not valid; see the component's doc
+  define int config   = 11
+  ** stopped by a latched fault: waits for reset
+  define int locked   = 12
+  ** waiting for a condition (delay, minimum off time, permission)
+  define int waiting  = 13
+
+  ** Mode of an actuator or a piece of equipment.
+  define Str modeRange = "auto, hand, off"
+  define int modeAuto = 0
+  define int modeHand = 1
+  define int modeOff  = 2
+
+  ** What an output does while its input is invalid.
+  define Str onBadRange = "hold, fallback, null"
+  ** keep the last good value
+  define int badHold = 0
+  ** go to the fallback value
+  define int badFallback = 1
+  ** pass null (NaN) on, so the next component sees the input is bad
+  define int badNull = 2
+
+  ** true if x is a usable number: not NaN (null) and not infinite
+  static bool valid(float x)
+  {
+    return x != null && x > -3.4e38f && x < 3.4e38f
+  }
+
+  ** x limited to lo..hi (lo wins if lo > hi)
+  static float clamp(float x, float lo, float hi)
+  {
+    if (x > hi) x = hi
+    if (x < lo) x = lo
+    return x
+  }
+
+  ** larger of a and b
+  static float max(float a, float b) { return a > b ? a : b }
+
+  ** smaller of a and b
+  static float min(float a, float b) { return a < b ? a : b }
+
+  ** absolute value
+  static float abs(float x) { return x < 0.0f ? -x : x }
+}

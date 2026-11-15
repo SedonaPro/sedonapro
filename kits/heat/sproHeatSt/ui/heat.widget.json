@@ -1,0 +1,961 @@
+{
+ "format": "sedonapro-widget/1",
+ "id": "heat",
+ "type": "sproHeatSt::HeatStation",
+ "title": "Heating substation",
+ "size": [
+  1000,
+  640
+ ],
+ "parts": {
+  "alarms": [
+   "sproAlarm::AlarmSum"
+  ],
+  "circ1": [
+   "sproHeat::HeatingCircuit"
+  ],
+  "circ2": [
+   "sproHeat::HeatingCircuit"
+  ],
+  "curve1": [
+   "sproHeat::HeatCurve"
+  ],
+  "curve2": [
+   "sproHeat::HeatCurve"
+  ],
+  "dhw": [
+   "sproHeat::DhwCircuit"
+  ],
+  "dhwT": [
+   "sproHal::AnalogInput"
+  ],
+  "makeup": [
+   "sproHeat::MakeUp"
+  ],
+  "outT": [
+   "sproHal::AnalogInput"
+  ],
+  "p1a": [
+   "sproEquip::Motor"
+  ],
+  "p1b": [
+   "sproEquip::Motor"
+  ],
+  "p2a": [
+   "sproEquip::Motor"
+  ],
+  "p2b": [
+   "sproEquip::Motor"
+  ],
+  "press": [
+   "sproHal::AnalogInput"
+  ],
+  "ret1": [
+   "sproHal::AnalogInput"
+  ],
+  "ret2": [
+   "sproHal::AnalogInput"
+  ],
+  "roomT": [
+   "sproHal::AnalogInput"
+  ],
+  "sup1": [
+   "sproHal::AnalogInput"
+  ],
+  "sup2": [
+   "sproHal::AnalogInput"
+  ]
+ },
+ "symbols": {
+  "pipe": {
+   "off": "svg/pipe.svg"
+  },
+  "pipeHot": {
+   "off": "svg/pipe-hot.svg"
+  },
+  "valve": {
+   "off": "svg/valve-off.svg",
+   "on": "svg/valve-on.svg"
+  },
+  "fill": {
+   "off": "svg/fill-off.svg",
+   "on": "svg/fill-on.svg"
+  },
+  "hx": {
+   "off": "svg/hx.svg"
+  },
+  "radiator": {
+   "off": "svg/radiator-off.svg",
+   "on": "svg/radiator-on.svg"
+  },
+  "pump": {
+   "off": "svg/pump-off.svg",
+   "on": "svg/pump-on.svg",
+   "fault": "svg/pump-fault.svg"
+  },
+  "sensor": {
+   "off": "svg/sensor-off.svg",
+   "fault": "svg/sensor-fault.svg"
+  },
+  "pressure": {
+   "off": "svg/pressure-off.svg",
+   "fault": "svg/pressure-fault.svg"
+  },
+  "switch": {
+   "off": "svg/switch-off.svg",
+   "fault": "svg/switch-fault.svg"
+  },
+  "tap": {
+   "off": "svg/tap.svg"
+  }
+ },
+ "options": [
+  {
+   "slot": "circuits",
+   "label": "Heating circuits"
+  },
+  {
+   "slot": "pumps",
+   "label": "Circulation pumps",
+   "when": "circuits >= 1"
+  },
+  {
+   "slot": "faultInputs",
+   "label": "Pump fault inputs",
+   "when": "circuits >= 1"
+  },
+  {
+   "slot": "flowSwitch",
+   "label": "Differential pressure switches",
+   "when": "circuits >= 1"
+  },
+  {
+   "slot": "returnSensor",
+   "label": "Return sensors",
+   "when": "circuits >= 1"
+  },
+  {
+   "slot": "roomSensor",
+   "label": "Room sensor",
+   "when": "circuits >= 1"
+  },
+  {
+   "slot": "dhw",
+   "label": "Hot water"
+  },
+  {
+   "slot": "dhwCirc",
+   "label": "Hot water circulation",
+   "when": "dhw == true"
+  },
+  {
+   "slot": "dhwPriority",
+   "label": "Hot water priority",
+   "when": "dhw == true && circuits >= 1"
+  },
+  {
+   "slot": "makeUp",
+   "label": "Make-up"
+  },
+  {
+   "slot": "alarmOutput",
+   "label": "Common alarm output"
+  },
+  {
+   "slot": "autoChannels",
+   "label": "Take board channels"
+  }
+ ],
+ "elements": [
+  {
+   "id": "supplyMain",
+   "symbol": "pipeHot",
+   "x": 20,
+   "y": 80,
+   "w": 960,
+   "h": 10
+  },
+  {
+   "id": "returnMain",
+   "symbol": "pipe",
+   "x": 20,
+   "y": 500,
+   "w": 960,
+   "h": 10
+  },
+  {
+   "id": "outT",
+   "symbol": "sensor",
+   "x": 900,
+   "y": 14,
+   "w": 34,
+   "h": 34,
+   "label": "Outdoor",
+   "values": [
+    {
+     "bind": "outT.out",
+     "unit": "°C",
+     "decimals": 1,
+     "dx": 0,
+     "dy": 38
+    }
+   ]
+  },
+  {
+   "id": "drop1",
+   "symbol": "pipeHot",
+   "x": 66,
+   "y": 90,
+   "w": 8,
+   "h": 60,
+   "when": "circuits >= 1"
+  },
+  {
+   "id": "valve1",
+   "symbol": "valve",
+   "x": 46,
+   "y": 150,
+   "w": 48,
+   "h": 48,
+   "when": "circuits >= 1",
+   "state": "circ1.valve",
+   "fault": "circ1.alarm",
+   "label": "Heating valve 1",
+   "configure": [
+    "circuits",
+    "dhwPriority"
+   ],
+   "values": [
+    {
+     "bind": "circ1.valve",
+     "unit": "%",
+     "decimals": 0,
+     "dx": 54,
+     "dy": 14
+    }
+   ]
+  },
+  {
+   "id": "drop1b",
+   "symbol": "pipeHot",
+   "x": 66,
+   "y": 198,
+   "w": 8,
+   "h": 32,
+   "when": "circuits >= 1"
+  },
+  {
+   "id": "hx1",
+   "symbol": "hx",
+   "x": 40,
+   "y": 230,
+   "w": 60,
+   "h": 110,
+   "when": "circuits >= 1",
+   "ghost": true,
+   "label": "Heat exchanger 1",
+   "configure": [
+    "circuits"
+   ]
+  },
+  {
+   "id": "back1",
+   "symbol": "pipe",
+   "x": 66,
+   "y": 340,
+   "w": 8,
+   "h": 160,
+   "when": "circuits >= 1"
+  },
+  {
+   "id": "ret1",
+   "symbol": "sensor",
+   "x": 80,
+   "y": 400,
+   "w": 34,
+   "h": 34,
+   "when": "circuits >= 1 && returnSensor == true",
+   "ghost": true,
+   "label": "Return 1",
+   "configure": [
+    "returnSensor"
+   ],
+   "values": [
+    {
+     "bind": "ret1.out",
+     "unit": "°C",
+     "decimals": 1,
+     "dx": 58,
+     "dy": 8
+    }
+   ]
+  },
+  {
+   "id": "secSup1",
+   "symbol": "pipeHot",
+   "x": 100,
+   "y": 250,
+   "w": 200,
+   "h": 8,
+   "when": "circuits >= 1"
+  },
+  {
+   "id": "secRet1",
+   "symbol": "pipe",
+   "x": 100,
+   "y": 316,
+   "w": 200,
+   "h": 8,
+   "when": "circuits >= 1"
+  },
+  {
+   "id": "sup1",
+   "symbol": "sensor",
+   "x": 130,
+   "y": 212,
+   "w": 34,
+   "h": 34,
+   "when": "circuits >= 1",
+   "label": "Supply 1",
+   "values": [
+    {
+     "bind": "sup1.out",
+     "unit": "°C",
+     "decimals": 1,
+     "dx": 52,
+     "dy": 8
+    }
+   ]
+  },
+  {
+   "id": "dp1",
+   "symbol": "switch",
+   "x": 124,
+   "y": 274,
+   "w": 30,
+   "h": 30,
+   "when": "circuits >= 1 && flowSwitch == true",
+   "ghost": true,
+   "label": "Circulation 1",
+   "configure": [
+    "flowSwitch"
+   ]
+  },
+  {
+   "id": "p1a",
+   "symbol": "pump",
+   "x": 170,
+   "y": 296,
+   "w": 48,
+   "h": 48,
+   "when": "circuits >= 1",
+   "state": "p1a.running",
+   "fault": "p1a.alarm",
+   "label": "Pump 1a",
+   "configure": [
+    "pumps",
+    "faultInputs"
+   ],
+   "values": [
+    {
+     "bind": "p1a.hours",
+     "unit": "h",
+     "decimals": 0,
+     "dx": 0,
+     "dy": 52
+    }
+   ]
+  },
+  {
+   "id": "p1b",
+   "symbol": "pump",
+   "x": 230,
+   "y": 296,
+   "w": 48,
+   "h": 48,
+   "when": "circuits >= 1 && pumps == 'twin'",
+   "ghost": true,
+   "state": "p1b.running",
+   "fault": "p1b.alarm",
+   "label": "Pump 1b",
+   "configure": [
+    "pumps",
+    "faultInputs"
+   ],
+   "values": [
+    {
+     "bind": "p1b.hours",
+     "unit": "h",
+     "decimals": 0,
+     "dx": 0,
+     "dy": 52
+    }
+   ]
+  },
+  {
+   "id": "rad1",
+   "symbol": "radiator",
+   "x": 290,
+   "y": 236,
+   "w": 50,
+   "h": 100,
+   "when": "circuits >= 1",
+   "state": "circ1.pump",
+   "label": "Heating 1",
+   "configure": [
+    "circuits",
+    "roomSensor"
+   ]
+  },
+  {
+   "id": "drop2",
+   "symbol": "pipeHot",
+   "x": 376,
+   "y": 90,
+   "w": 8,
+   "h": 60,
+   "when": "circuits >= 2"
+  },
+  {
+   "id": "valve2",
+   "symbol": "valve",
+   "x": 356,
+   "y": 150,
+   "w": 48,
+   "h": 48,
+   "when": "circuits >= 2",
+   "state": "circ2.valve",
+   "fault": "circ2.alarm",
+   "label": "Heating valve 2",
+   "configure": [
+    "circuits",
+    "dhwPriority"
+   ],
+   "values": [
+    {
+     "bind": "circ2.valve",
+     "unit": "%",
+     "decimals": 0,
+     "dx": 54,
+     "dy": 14
+    }
+   ]
+  },
+  {
+   "id": "drop2b",
+   "symbol": "pipeHot",
+   "x": 376,
+   "y": 198,
+   "w": 8,
+   "h": 32,
+   "when": "circuits >= 2"
+  },
+  {
+   "id": "hx2",
+   "symbol": "hx",
+   "x": 350,
+   "y": 230,
+   "w": 60,
+   "h": 110,
+   "when": "circuits >= 2",
+   "ghost": true,
+   "label": "Heat exchanger 2",
+   "configure": [
+    "circuits"
+   ]
+  },
+  {
+   "id": "back2",
+   "symbol": "pipe",
+   "x": 376,
+   "y": 340,
+   "w": 8,
+   "h": 160,
+   "when": "circuits >= 2"
+  },
+  {
+   "id": "ret2",
+   "symbol": "sensor",
+   "x": 390,
+   "y": 400,
+   "w": 34,
+   "h": 34,
+   "when": "circuits >= 2 && returnSensor == true",
+   "ghost": false,
+   "label": "Return 2",
+   "configure": [
+    "returnSensor"
+   ],
+   "values": [
+    {
+     "bind": "ret2.out",
+     "unit": "°C",
+     "decimals": 1,
+     "dx": 58,
+     "dy": 8
+    }
+   ]
+  },
+  {
+   "id": "secSup2",
+   "symbol": "pipeHot",
+   "x": 410,
+   "y": 250,
+   "w": 200,
+   "h": 8,
+   "when": "circuits >= 2"
+  },
+  {
+   "id": "secRet2",
+   "symbol": "pipe",
+   "x": 410,
+   "y": 316,
+   "w": 200,
+   "h": 8,
+   "when": "circuits >= 2"
+  },
+  {
+   "id": "sup2",
+   "symbol": "sensor",
+   "x": 440,
+   "y": 212,
+   "w": 34,
+   "h": 34,
+   "when": "circuits >= 2",
+   "label": "Supply 2",
+   "values": [
+    {
+     "bind": "sup2.out",
+     "unit": "°C",
+     "decimals": 1,
+     "dx": 52,
+     "dy": 8
+    }
+   ]
+  },
+  {
+   "id": "dp2",
+   "symbol": "switch",
+   "x": 434,
+   "y": 274,
+   "w": 30,
+   "h": 30,
+   "when": "circuits >= 2 && flowSwitch == true",
+   "ghost": false,
+   "label": "Circulation 2",
+   "configure": [
+    "flowSwitch"
+   ]
+  },
+  {
+   "id": "p2a",
+   "symbol": "pump",
+   "x": 480,
+   "y": 296,
+   "w": 48,
+   "h": 48,
+   "when": "circuits >= 2",
+   "state": "p2a.running",
+   "fault": "p2a.alarm",
+   "label": "Pump 2a",
+   "configure": [
+    "pumps",
+    "faultInputs"
+   ],
+   "values": [
+    {
+     "bind": "p2a.hours",
+     "unit": "h",
+     "decimals": 0,
+     "dx": 0,
+     "dy": 52
+    }
+   ]
+  },
+  {
+   "id": "p2b",
+   "symbol": "pump",
+   "x": 540,
+   "y": 296,
+   "w": 48,
+   "h": 48,
+   "when": "circuits >= 2 && pumps == 'twin'",
+   "ghost": false,
+   "state": "p2b.running",
+   "fault": "p2b.alarm",
+   "label": "Pump 2b",
+   "configure": [
+    "pumps",
+    "faultInputs"
+   ],
+   "values": [
+    {
+     "bind": "p2b.hours",
+     "unit": "h",
+     "decimals": 0,
+     "dx": 0,
+     "dy": 52
+    }
+   ]
+  },
+  {
+   "id": "rad2",
+   "symbol": "radiator",
+   "x": 600,
+   "y": 236,
+   "w": 50,
+   "h": 100,
+   "when": "circuits >= 2",
+   "state": "circ2.pump",
+   "label": "Heating 2",
+   "configure": [
+    "circuits"
+   ]
+  },
+  {
+   "id": "roomT",
+   "symbol": "sensor",
+   "x": 300,
+   "y": 150,
+   "w": 34,
+   "h": 34,
+   "when": "circuits >= 1 && roomSensor == true",
+   "ghost": true,
+   "label": "Room",
+   "configure": [
+    "roomSensor"
+   ],
+   "values": [
+    {
+     "bind": "roomT.out",
+     "unit": "°C",
+     "decimals": 1,
+     "dx": 0,
+     "dy": 36
+    }
+   ]
+  },
+  {
+   "id": "dhwDrop",
+   "symbol": "pipeHot",
+   "x": 686,
+   "y": 90,
+   "w": 8,
+   "h": 60,
+   "when": "dhw == true"
+  },
+  {
+   "id": "dhwV",
+   "symbol": "valve",
+   "x": 666,
+   "y": 150,
+   "w": 48,
+   "h": 48,
+   "when": "dhw == true",
+   "state": "dhw.valve",
+   "fault": "dhw.alarm",
+   "label": "Hot water valve",
+   "configure": [
+    "dhw",
+    "dhwPriority"
+   ],
+   "values": [
+    {
+     "bind": "dhw.valve",
+     "unit": "%",
+     "decimals": 0,
+     "dx": 54,
+     "dy": 14
+    }
+   ]
+  },
+  {
+   "id": "dhwDrop2",
+   "symbol": "pipeHot",
+   "x": 686,
+   "y": 198,
+   "w": 8,
+   "h": 32,
+   "when": "dhw == true"
+  },
+  {
+   "id": "dhwHx",
+   "symbol": "hx",
+   "x": 660,
+   "y": 230,
+   "w": 60,
+   "h": 110,
+   "when": "dhw == true",
+   "ghost": true,
+   "label": "Hot water heater",
+   "configure": [
+    "dhw",
+    "dhwCirc",
+    "dhwPriority"
+   ]
+  },
+  {
+   "id": "dhwBack",
+   "symbol": "pipe",
+   "x": 686,
+   "y": 340,
+   "w": 8,
+   "h": 160,
+   "when": "dhw == true"
+  },
+  {
+   "id": "dhwOut",
+   "symbol": "pipeHot",
+   "x": 720,
+   "y": 250,
+   "w": 230,
+   "h": 8,
+   "when": "dhw == true"
+  },
+  {
+   "id": "dhwIn",
+   "symbol": "pipe",
+   "x": 720,
+   "y": 316,
+   "w": 230,
+   "h": 8,
+   "when": "dhw == true"
+  },
+  {
+   "id": "dhwT",
+   "symbol": "sensor",
+   "x": 760,
+   "y": 212,
+   "w": 34,
+   "h": 34,
+   "when": "dhw == true",
+   "fault": "dhw.alarm",
+   "label": "Hot water",
+   "values": [
+    {
+     "bind": "dhwT.out",
+     "unit": "°C",
+     "decimals": 1,
+     "dx": 52,
+     "dy": 8
+    }
+   ]
+  },
+  {
+   "id": "dhwP",
+   "symbol": "pump",
+   "x": 830,
+   "y": 296,
+   "w": 48,
+   "h": 48,
+   "when": "dhw == true && dhwCirc == true",
+   "ghost": true,
+   "state": "dhw.circPump",
+   "label": "Circulation pump",
+   "configure": [
+    "dhwCirc"
+   ]
+  },
+  {
+   "id": "tap",
+   "symbol": "tap",
+   "x": 910,
+   "y": 206,
+   "w": 40,
+   "h": 40,
+   "when": "dhw == true",
+   "label": "Draw-off"
+  },
+  {
+   "id": "press",
+   "symbol": "pressure",
+   "x": 150,
+   "y": 440,
+   "w": 34,
+   "h": 34,
+   "when": "makeUp == true",
+   "ghost": true,
+   "fault": "makeup.alarm",
+   "label": "Circuit pressure",
+   "configure": [
+    "makeUp"
+   ],
+   "values": [
+    {
+     "bind": "press.out",
+     "unit": "bar",
+     "decimals": 2,
+     "dx": 0,
+     "dy": 38
+    }
+   ]
+  },
+  {
+   "id": "fill",
+   "symbol": "fill",
+   "x": 262,
+   "y": 436,
+   "w": 40,
+   "h": 40,
+   "when": "makeUp == true",
+   "state": "makeup.out",
+   "fault": "makeup.fillFault",
+   "label": "Make-up",
+   "configure": [
+    "makeUp"
+   ]
+  }
+ ],
+ "texts": [
+  {
+   "text": "District heating supply",
+   "x": 24,
+   "y": 60
+  },
+  {
+   "text": "District heating return",
+   "x": 24,
+   "y": 514
+  },
+  {
+   "text": "Cold water",
+   "x": 886,
+   "y": 292,
+   "when": "dhw == true"
+  }
+ ],
+ "controls": [
+  {
+   "kind": "status",
+   "bind": "circ1.state",
+   "label": "Heating 1",
+   "x": 40,
+   "y": 536,
+   "when": "circuits >= 1"
+  },
+  {
+   "kind": "setpoint",
+   "bind": "curve1.shift",
+   "label": "Curve shift 1",
+   "unit": "K",
+   "x": 190,
+   "y": 536,
+   "when": "circuits >= 1"
+  },
+  {
+   "kind": "mode",
+   "bind": "circ1.mode",
+   "label": "Heating 1 mode",
+   "x": 40,
+   "y": 586,
+   "when": "circuits >= 1"
+  },
+  {
+   "kind": "status",
+   "bind": "curve1.supplySp",
+   "label": "Curve supply 1",
+   "x": 190,
+   "y": 586,
+   "when": "circuits >= 1"
+  },
+  {
+   "kind": "status",
+   "bind": "circ2.state",
+   "label": "Heating 2",
+   "x": 350,
+   "y": 536,
+   "when": "circuits >= 2"
+  },
+  {
+   "kind": "setpoint",
+   "bind": "curve2.shift",
+   "label": "Curve shift 2",
+   "unit": "K",
+   "x": 500,
+   "y": 536,
+   "when": "circuits >= 2"
+  },
+  {
+   "kind": "mode",
+   "bind": "circ2.mode",
+   "label": "Heating 2 mode",
+   "x": 350,
+   "y": 586,
+   "when": "circuits >= 2"
+  },
+  {
+   "kind": "status",
+   "bind": "curve2.supplySp",
+   "label": "Curve supply 2",
+   "x": 500,
+   "y": 586,
+   "when": "circuits >= 2"
+  },
+  {
+   "kind": "status",
+   "bind": "dhw.state",
+   "label": "Hot water",
+   "x": 660,
+   "y": 536,
+   "when": "dhw == true"
+  },
+  {
+   "kind": "setpoint",
+   "bind": "dhw.sp",
+   "label": "Hot water setpoint",
+   "unit": "°C",
+   "x": 810,
+   "y": 536,
+   "when": "dhw == true"
+  },
+  {
+   "kind": "mode",
+   "bind": "dhw.mode",
+   "label": "Hot water mode",
+   "x": 660,
+   "y": 586,
+   "when": "dhw == true"
+  },
+  {
+   "kind": "status",
+   "bind": "makeup.status",
+   "label": "Make-up",
+   "x": 810,
+   "y": 586,
+   "when": "makeUp == true"
+  },
+  {
+   "kind": "status",
+   "bind": "alarms.any",
+   "label": "Common alarm",
+   "x": 760,
+   "y": 4
+  }
+ ],
+ "info": [
+  {
+   "bind": "ioList",
+   "label": "I/O"
+  },
+  {
+   "bind": "missing",
+   "label": "Points without a channel"
+  },
+  {
+   "bind": "parts",
+   "label": "Parts"
+  },
+  {
+   "bind": "status",
+   "label": "Configuration"
+  }
+ ],
+ "actions": [
+  {
+   "id": "build",
+   "invoke": "build",
+   "label": "Build",
+   "confirm": "Rebuild the substation from these options? Blocks of the same type keep their settings; parts that are no longer needed are removed."
+  }
+ ]
+}

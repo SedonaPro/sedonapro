@@ -1,0 +1,8 @@
+<sedonaKit
+    name="sproIo"
+    vendor="SPro"
+    description="SedonaPro digital/analog input and outputs">
+  <depend on="sys 1.2+" />
+  <depend on="sproLib 1.2+" />
+  <source dir="." />
+</sedonaKit>

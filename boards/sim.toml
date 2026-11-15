@@ -1,0 +1,23 @@
+# Virtual board for the PC: inputs are set and outputs watched in the web panel
+# http://127.0.0.1:8090 (SPRO_GPIO_PORT, 0 = off).
+name    = "sim"
+title   = "Virtual I/O board (web panel)"
+hal     = "sim"
+targets = ["linux", "sim"]
+
+# serial ports (port 1..4), the same as the default list
+serial  = ["/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyS0", "/dev/ttyS1"]
+
+[channels]
+DI1 = { kind = "di" }
+DI2 = { kind = "di" }
+DI3 = { kind = "di" }
+DI4 = { kind = "di" }
+DO1 = { kind = "do" }
+DO2 = { kind = "do" }
+DO3 = { kind = "do" }
+DO4 = { kind = "do" }
+AI1 = { kind = "ai", range = [0.0, 10.0], unit = "V", initial = 2.5 }
+AI2 = { kind = "ai", range = [-20.0, 80.0], unit = "°C", initial = 21.0 }
+AO1 = { kind = "ao" }
+AO2 = { kind = "ao", range = [0.0, 10.0], unit = "V" }

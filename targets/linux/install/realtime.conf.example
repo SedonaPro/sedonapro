@@ -1,0 +1,15 @@
+# Optional real-time mode. Copy to
+#   /etc/systemd/system/sedonapro@<instance>.service.d/realtime.conf
+# then: systemctl daemon-reload && systemctl restart sedonapro@<instance>
+#
+# I/O threads of Modbus/MQTT inherit the policy and CPU set of the VM.
+# Linux RT throttling (kernel.sched_rt_runtime_us, 95% by default) keeps
+# the system responsive if a component spins.
+
+[Service]
+LimitRTPRIO=50
+LimitMEMLOCK=infinity
+Environment=SVM_RT_SCHED=fifo:50
+Environment=SVM_RT_MLOCKALL=1
+# Environment=SVM_RT_CPUS=1
+# Environment=SVM_RT_STRICT=1

@@ -1,0 +1,83 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Runs against the virtual board (boards/sim.toml); skipped on real boards.
+**
+class HalTest extends Test
+{
+  static inline DigitalInput  di
+  static inline DigitalOutput dout
+  static inline AnalogInput   ai
+  static inline AnalogOutput  ao
+  static inline HalBoard      board
+
+  static void test()
+  {
+    if (!Hal.backend().equals("sim"))
+      return
+
+    assert(Hal.count() == 12)
+    assert(Hal.find("DI1") == 0)
+    assert(Hal.find("nope") == -1)
+    assert(Hal.kind(Hal.find("AO2")) == Hal.kindAo)
+    assert(Hal.name(4).equals("DO1"))
+    assert(Hal.serialCount() == 4)
+    assert(Hal.serialName(2).equals("/dev/ttyS0"))
+    assert(Hal.serialName(9).equals(""))
+
+    // unknown channel and wrong kind
+    di.channel.copyFromStr("XX9")
+    di.changed(HalPoint.channel)
+    di.execute()
+    assert(di.status == Hal.noChannel)
+    di.channel.copyFromStr("DO1")
+    di.changed(HalPoint.channel)
+    di.execute()
+    assert(di.status == Hal.wrongKind)
+
+    // digital input: initial state off
+    di.channel.copyFromStr("DI1")
+    di.changed(HalPoint.channel)
+    di.execute()
+    assert(di.status == Hal.ok)
+    assert(!di.out)
+
+    // digital output: value reaches the pin
+    dout.channel.copyFromStr("DO2")
+    dout.changed(HalPoint.channel)
+    dout.in := true
+    dout.execute()
+    assert(dout.status == Hal.ok)
+    assert(Hal.read(Hal.find("DO2")) == 1.0)
+    dout.in := false
+    dout.execute()
+    assert(Hal.read(Hal.find("DO2")) == 0.0)
+
+    // analog input: board range 0..10 V, initial 2.5 V
+    ai.channel.copyFromStr("AI1")
+    ai.changed(HalPoint.channel)
+    ai.execute()
+    assert(ai.status == Hal.ok)
+    assert(ai.out > 2.49 && ai.out < 2.51)
+
+    // analog output: board range 0..10 V, clamped
+    ao.channel.copyFromStr("AO2")
+    ao.changed(HalPoint.channel)
+    ao.in := 7.5
+    ao.execute()
+    float v = Hal.read(Hal.find("AO2"))
+    assert(v > 7.49 && v < 7.51)
+    ao.in := 25.0
+    ao.execute()
+    assert(Hal.read(Hal.find("AO2")) == 10.0)
+    assert(Hal.write(Hal.find("DI1"), 1.0) == Hal.wrongKind)
+
+    board.start()
+    assert(board.channels == 12)
+    assert(board.board.toStr().equals("sim"))
+    assert(board.names.toStr().startsWith("DI1 DI2"))
+  }
+}

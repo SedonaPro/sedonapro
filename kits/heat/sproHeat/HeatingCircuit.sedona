@@ -1,0 +1,235 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Heating circuit of a substation: the control valve (on the primary
+** side of the heat exchanger, or the mixing valve of a dependent
+** circuit) and the circulation pump.
+**
+**  - supply control: a PI loop keeps 'supply' at supplySp (HeatCurve);
+**  - return limit: when returnTemp rises above returnMax (the network's
+**    or the curve's return) the supply setpoint is lowered by retKp K per
+**    K over the limit plus an integral (retTi), as heating controllers of
+**    substations do; below the limit the correction runs back to zero and
+**    does nothing;
+**  - 'limit' caps the valve (hot water priority: DhwCircuit.heatingLimit);
+**  - the valve opens only with circulation proven ('flow', link
+**    Motor.running; twin pumps: the second one to 'flow2'), a loss
+**    shorter than flowLoss (a pump changeover) keeps it; a supply
+**    above supplyHigh closes it at once and raises an alarm after
+**    alarmDelay;
+**  - frost: below frostOutdoor the pump runs even with the heating off;
+**    water (supply or return) below frostWater opens the valve to hold
+**    frostSp until the water is frostSp again; this works in every mode;
+**  - after the heating stops the pump runs on for pumpRunOn;
+**  - a failed supply sensor while heating: valve at valveOnBad.
+**
+** Link pump to a Motor (sproEquip) or a LeadLag request: their
+** protections, run hours and exercising apply.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class HeatingCircuit extends Component
+{
+  ** supply setpoint, C (HeatCurve.supplySp)
+  @summary @unit=Units.celsius property float supplySp
+  ** heating is needed (HeatCurve.heating)
+  property bool heating
+  ** supply water of the circuit, C
+  @unit=Units.celsius property float supply
+  ** return water to limit, C (null: no limit)
+  @unit=Units.celsius property float returnTemp = null
+  ** highest return allowed, C (HeatCurve.returnSp or the network schedule; null: no limit)
+  @unit=Units.celsius property float returnMax = null
+  ** outdoor temperature, C (null: no outdoor frost protection)
+  @unit=Units.celsius property float outdoor = null
+  ** circulation proven (Motor.running); false keeps the valve closed
+  property bool flow = true
+  ** the other pump of a twin pair runs (its Motor.running): flow or flow2 is circulation
+  property bool flow2
+  ** highest valve opening allowed now, % (DhwCircuit.heatingLimit)
+  property float limit = 100.0f
+
+  @config property bool enable = true
+  ** auto, hand (valve at handValue, pump on), off (valve closed, pump off)
+  @config @range=Pro.modeRange property byte mode
+  @config @min=0 @max=100 property float handValue = 0.0f
+
+  ** supply loop: % per K, integral time
+  @config @min=0 property float kp = 4.0f
+  @config @unit=Units.second @min=0 property float ti = 120.0f
+  ** return limit: K of supply setpoint per K the return is over returnMax, integral time
+  @config @min=0 @max=20 property float retKp = 2.0f
+  @config @unit=Units.second @min=0 property float retTi = 240.0f
+  ** the valve moves at most this fast, % per second (0 = no limit)
+  @config @min=0 property float valveRate = 0.0f
+
+  ** supply above this closes the valve at once, C
+  @config @unit=Units.celsius property float supplyHigh = 100.0f
+  @config @unit=Units.second @min=0 property float alarmDelay = 30.0f
+  ** pump runs below this outdoor temperature even with the heating off, C
+  @config @unit=Units.celsius property float frostOutdoor = 3.0f
+  ** water below this starts the frost protection, C
+  @config @unit=Units.celsius property float frostWater = 7.0f
+  ** frost protection holds the supply at this, C
+  @config @unit=Units.celsius property float frostSp = 20.0f
+  ** pump runs on after the heating stops, s
+  @config @unit=Units.second @min=0 property float pumpRunOn = 600.0f
+  ** circulation lost this long closes the valve, s; a shorter loss (a
+  ** pump changeover) keeps it where it is
+  @config @unit=Units.second @min=0 property float flowLoss = 10.0f
+  ** valve while the supply sensor is failed in heating, %
+  @config @min=0 @max=100 property float valveOnBad = 30.0f
+
+  ** valve, %
+  @readonly @summary @precision=1 property float valve
+  ** circulation pump request
+  @readonly property bool pump
+  ** the return limit lowers the supply setpoint
+  @readonly property bool returnLimited
+  ** supply setpoint after the return limit, C
+  @readonly @unit=Units.celsius @precision=1 property float supplySpNow
+  ** frost protection active
+  @readonly property bool frost
+  ** overheat, failed supply sensor, or no circulation while the pump should run
+  @readonly property bool alarm
+
+  define Str stateRange = "off, run, runOn, frost, overheat, hand, waiting"
+  define int stOff = 0
+  define int stRun = 1
+  define int stRunOn = 2
+  define int stFrost = 3
+  define int stOverheat = 4
+  define int stHand = 5
+  define int stWaiting = 6
+  @readonly @range=stateRange property byte state
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  ** one step of dt seconds
+  void update(float dt)
+  {
+    bool supOk = Pro.valid(supply)
+    // frost: outdoor and water
+    bool coldOut = Pro.valid(outdoor) && outdoor < frostOutdoor
+    bool coldWater = (supOk && supply < frostWater) || (Pro.valid(returnTemp) && returnTemp < frostWater)
+    if (coldWater) frostOn = true
+    else if (frostOn && (!supOk || supply >= frostSp) && !(Pro.valid(returnTemp) && returnTemp < frostWater + 2.0f)) frostOn = false
+    frost := frostOn
+
+    bool hot = supOk && supply > supplyHigh
+    if (hot) hotFor += dt
+    else hotFor = 0.0f
+
+    bool want = enable == true && heating == true && mode == Pro.modeAuto
+    if (want) offFor = 0.0f
+    else offFor += dt
+
+    bool runPump = want || frostOn || coldOut || offFor < pumpRunOn
+    if (mode == Pro.modeOff) runPump = frostOn
+    if (mode == Pro.modeHand) runPump = true
+    pump := runPump
+
+    float hi = Pro.valid(limit) ? Pro.clamp(limit, 0.0f, 100.0f) : 100.0f
+    float v = 0.0f
+    int st = stOff
+    int stat = Pro.standby
+    bool lim = false
+    bool noFlow = false
+    if (hot)
+    {
+      v = 0.0f
+      st = stOverheat
+      stat = Pro.alarm
+    }
+    else if (mode == Pro.modeHand && !frostOn)
+    {
+      v = handValue
+      st = stHand
+      stat = Pro.hand
+    }
+    else if (frostOn)
+    {
+      v = supOk ? loop(dt, frostSp, 100.0f) : 100.0f
+      st = stFrost
+      stat = Pro.alarm
+    }
+    else if (want)
+    {
+      if (flow != true && flow2 != true)
+      {
+        // a short loss (a pump changeover) keeps the valve, a long one closes it
+        v = noFlowFor + dt < flowLoss ? valve : 0.0f
+        noFlow = true
+        st = stWaiting
+        stat = Pro.waiting
+      }
+      else if (!supOk || !Pro.valid(supplySp))
+      {
+        v = Pro.min(valveOnBad, hi)
+        st = stRun
+        stat = Pro.inputBad
+      }
+      else
+      {
+        float c = 0.0f
+        if (Pro.valid(returnTemp) && Pro.valid(returnMax))
+        {
+          float over = returnTemp - returnMax
+          if (retTi > 0.0f) corrI = Pro.clamp(corrI + retKp * over * dt / retTi, 0.0f, 60.0f)
+          else corrI = 0.0f
+          c = Pro.max(0.0f, retKp * over) + corrI
+        }
+        else corrI = 0.0f
+        lim = c > 0.05f
+        float sp = supplySp - c
+        supplySpNow := sp
+        v = loop(dt, sp, hi)
+        st = stRun
+        stat = lim ? Pro.limited : Pro.ok
+      }
+    }
+    else
+    {
+      st = runPump ? stRunOn : stOff
+      stat = mode == Pro.modeOff ? Pro.off : (enable == true ? Pro.standby : Pro.disabled)
+    }
+    setValve(v, dt, st == stRun || st == stFrost)
+    if (st != stRun && st != stFrost) mainLoop.hold(valve)
+    if (st != stRun) { corrI = 0.0f; supplySpNow := st == stFrost ? frostSp : supplySp }
+
+    // no circulation for long while the pump should run
+    if (noFlow) noFlowFor += dt
+    else noFlowFor = 0.0f
+    returnLimited := lim
+    state := st
+    status := stat
+    alarm := hotFor >= alarmDelay || noFlowFor >= 60.0f || (want && !supOk)
+  }
+
+  ** the supply loop towards sp, out 0..hi
+  private float loop(float dt, float sp, float hi)
+  {
+    mainLoop.kp = kp
+    mainLoop.ti = ti
+    mainLoop.direct = false
+    return mainLoop.run(dt, supply, sp, 0.0f, 0.0f, hi, null)
+  }
+
+  private void setValve(float v, float dt, bool rated)
+  {
+    v = Pro.clamp(v, 0.0f, 100.0f)
+    if (rated && valveRate > 0.0f) v = Pro.clamp(v, valve - valveRate * dt, valve + valveRate * dt)
+    valve := v
+  }
+
+  bool frostOn
+  float hotFor
+  float offFor = 1000000.0f
+  float noFlowFor
+  float corrI
+  inline PidAlgo mainLoop
+  inline Ticker ticker
+}

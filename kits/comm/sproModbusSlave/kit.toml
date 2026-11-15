@@ -1,0 +1,5 @@
+summary = "Modbus TCP/RTU slave (libmodbus)"
+targets = ["linux", "sim"]
+[build]
+cflags = ["-I/usr/include/modbus"]
+libs = ["-lmodbus"]

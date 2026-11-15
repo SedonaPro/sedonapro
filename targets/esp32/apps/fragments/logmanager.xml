@@ -1,0 +1,4 @@
+<module>
+  <kit name="logManager"/>
+  <into path="service"><comp name="logMgr" type="logManager::LogMgr"/></into>
+</module>

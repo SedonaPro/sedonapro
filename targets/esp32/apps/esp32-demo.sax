@@ -1,0 +1,41 @@
+<?xml version='1.0'?>
+<!-- Minimal ESP32 app: platform, users, SOX on 1876, two ramps and an adder.
+     build.py fills in the admin credential (SEDONA_ADMIN_PASSWORD). -->
+<sedonaApp>
+<schema>
+  <kit name="sys" />
+  <kit name="inet" />
+  <kit name="sox" />
+  <kit name="func" />
+  <kit name="math" />
+  <kit name="sproPlatformEsp32" />
+</schema>
+<app>
+  <prop name="appName" val="esp32demo"/>
+  <prop name="scanPeriod" val="100"/>
+  <comp name="service" id="1" type="sys::Folder">
+    <comp name="plat" id="2" type="sproPlatformEsp32::Esp32PlatformService"/>
+    <comp name="users" id="3" type="sys::UserService">
+      <comp name="admin" id="4" type="sys::User">
+        <prop name="cred" val="@ADMIN_CRED@"/>
+        <prop name="perm" val="2147483647"/>
+        <prop name="prov" val="255"/>
+      </comp>
+    </comp>
+    <comp name="sox" id="5" type="sox::SoxService">
+      <prop name="port" val="1876"/>
+    </comp>
+  </comp>
+  <comp name="play" id="10" type="sys::Folder">
+    <comp name="rampA" id="11" type="func::Ramp"/>
+    <comp name="rampB" id="12" type="func::Ramp">
+      <prop name="period" val="4.0"/>
+    </comp>
+    <comp name="adder" id="13" type="math::Add2"/>
+  </comp>
+</app>
+<links>
+  <link from="/play/rampA.out" to="/play/adder.in1"/>
+  <link from="/play/rampB.out" to="/play/adder.in2"/>
+</links>
+</sedonaApp>

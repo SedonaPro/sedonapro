@@ -1,0 +1,27 @@
+# SedonaPro: community distribution of a Sedona Framework compatible runtime.
+# The kit prefix and vendor identify our kits (sproIo, sproModbusMaster, ...).
+# Kits from other authors use their own prefix: registry/vendors.md.
+
+name    = "SedonaPro"
+prefix  = "spro"
+vendor  = "SPro"      # sedonac: kit names must start with the vendor name
+version = "0.1.0"
+# kit versions come from core/lib/sedona.properties (buildVersion)
+
+[targets.linux]
+summary      = "Linux controller (x86-64, ARM): svm + systemd"
+platform_kit = "sproPlatformLinux"
+default_profile = "pro"            # full: classic set, any Sedona tool
+default_board = "sim"            # real controller: --board rpi4, beaglebone-black ...
+
+[targets.sim]
+summary      = "ESP32 firmware code as a Linux program (no ESP-IDF needed)"
+platform_kit = "sproPlatformEsp32"
+default_profile = "lite"
+default_board = "sim"
+
+[targets.esp32]
+summary      = "ESP32-S3 firmware (ESP-IDF)"
+platform_kit = "sproPlatformEsp32"
+default_profile = "lite"
+default_board = "esp32-s3-devkitc"

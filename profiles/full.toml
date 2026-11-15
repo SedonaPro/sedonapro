@@ -1,0 +1,11 @@
+# full: for Linux controllers (x86-64, ARM).  Its SOX schema fits the classic
+# 512-byte packets: any Sedona tool connects.  The SedonaPro build is profiles/pro.toml.
+summary = "Everything of the classic Sedona set: lite + Modbus, MQTT, SQLite, serial, SPI, simulation"
+kits = [
+  "sys", "sox", "inet", "web", "pstore", "logManager", "serial",
+  "datetime", "datetimeStd", "basicSchedule", "control",
+  "func", "hvac", "logic", "math", "timing", "types", "pricomp",
+  "sproLib", "sproMath", "sproUtil", "sproHal", "sproIo", "sproIoLinux", "sproExpr", "sproUiConnect",
+  "sproSpi", "sproSerialProtocol", "sproModbusMaster", "sproModbusSlave", "sproMqtt",
+  "sproSqlite", "sproSim",
+]

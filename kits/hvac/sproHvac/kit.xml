@@ -1,0 +1,18 @@
+<!--
+  -  sproHvac: air handling units.
+  -  Licensed under the Apache License, Version 2.0
+  -->
+<sedonaKit
+ name = "sproHvac"
+ vendor = "SPro"
+ description = "Air handling: season, AHU sequencer, supply temperature control, water heater with frost protection, electric heater, heat recovery, fan speed"
+ includeSource = "false"
+ doc = "true"
+>
+  <depend on="sys 1.2+" />
+  <depend on="sproBase 1.2+" />
+  <depend on="sproControl 1.2+" />
+
+  <source dir="." />
+  <source dir="test" testonly="true" />
+</sedonaKit>

@@ -1,0 +1,19 @@
+<!--
+  -  sproHeat: heating substations (ИТП) - heating curve, heating circuit, hot water, make-up.
+  -  Licensed under the Apache License, Version 2.0
+  -->
+<sedonaKit
+ name = "sproHeat"
+ vendor = "SPro"
+ description = "Heating substations: outdoor-reset heating curve, heating circuit with return limit and frost protection, hot water with disinfection and priority, make-up"
+ includeSource = "false"
+ doc = "true"
+>
+  <depend on="sys 1.2+" />
+  <depend on="sproBase 1.2+" />
+  <depend on="sproMath 1.2+" />
+  <depend on="sproControl 1.2+" />
+
+  <source dir="." />
+  <source dir="test" testonly="true" />
+</sedonaKit>

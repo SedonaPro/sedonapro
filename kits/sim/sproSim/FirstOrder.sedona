@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Stable backward-Euler first order: tau*dy/dt + y = bias + gain*in.
+class FirstOrder extends SimBlock
+{
+  property float in
+  @config property float gain = 1.0f
+  @config property float bias
+  @config property float tau = 10.0f
+  @config property float initial
+  @readonly property float out
+  @readonly property bool good = true
+  virtual override bool acceptsInput(Slot slot)
+  { return slot == FirstOrder.in }
+  virtual override bool valid()
+  {
+    return super.valid() && finite(gain) && finite(bias) && finite(tau) && tau >= 0.0f && finite(initial)
+  }
+  virtual override void resetState() { out := initial; good := true }
+  override void tick(float dt, double time)
+  {
+    good := finite(in)
+    if (!good) return
+    float target = bias + gain*in
+    good := finite(target)
+    if (!good) return
+    float alpha = dt/(tau+dt)
+    out := (1.0f-alpha)*out + alpha*target
+  }
+}
+
+

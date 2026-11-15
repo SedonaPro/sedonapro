@@ -1,0 +1,148 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2018 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+@palette=false
+class SqliteAlarmPoint extends SqliteAlarmLogicPoint
+{
+	@config
+	@asStr
+	@summary=true
+	property Buf(64) alarmName = "alarm1";
+
+	@config
+	@asStr
+	@summary=true
+	property Buf(64) component = "comp1";
+
+	virtual Str getStrValue()
+	{
+		return "";
+	}
+
+	void deleteOldEntries(SqliteDb db)
+	{
+		if (newEntries > cleanAfterNewEntriesValue) {
+			doLimitRecords(db, "alarms", minimalKeptEntriesValue);
+			newEntries = 0;
+		}
+	}
+
+	virtual override Type getPointType()
+	{
+		return SqliteAlarmPoint.type;
+	}
+
+	virtual override void forceReinit() {
+		super.forceReinit();
+		inited = false;
+	}
+
+	virtual override bool createTable(SqliteDb db)
+	{
+		if (!enable)
+			return false;
+
+		if (inited) {
+			pnt_ok = initResult;
+			return pnt_ok;
+		}
+
+		int ret;
+		ret = db.execSql("CREATE TABLE IF NOT EXISTS alarms ( ID INTEGER PRIMARY KEY, comp TEXT, alarm TEXT, value STUFF, Timestamp  DATETIME DEFAULT CURRENT_TIMESTAMP , AckTimestamp DATETIME DEFAULT NULL)");
+		inited = true;
+		pnt_ok = ret == 0;
+		initResult = pnt_ok;
+		return pnt_ok;
+	}
+
+	virtual override void newAlarm()
+	{
+		super.newAlarm();
+		postAlarmNeed = true;
+	}
+
+	bool postNewAlarm(SqliteDb db)
+	{
+		strBuf.copyFromStr("INSERT INTO alarms (comp, alarm, value) values('", strLen);
+		StrUtils.appendStr(strBuf, component.toStr(), strLen);
+		StrUtils.appendStr(strBuf, "' , '", strLen);
+		StrUtils.appendStr(strBuf, alarmName.toStr(), strLen);
+		StrUtils.appendStr(strBuf, "' , ", strLen);
+		StrUtils.appendStr(strBuf, getStrValue(), strLen);
+		StrUtils.appendStr(strBuf, ")", strLen);
+
+		int ret = doExecInsertSql(db, strBuf, tmpLong);
+		if (ret == SqliteDb.SQLITE_OK) {
+			alarm_id = tmpLong[0];
+			deleteOldEntries(db);
+			newEntries = newEntries + 1;
+			alarmAckCheckTime = 0L;
+		}
+		// Sys.out.print(", ${alarm_id}, ${ret}\n");
+
+
+		return ret != SqliteDb.SQLITE_BUSY;
+	}
+
+	void updateAlarmAck(SqliteDb db)
+	{
+		if (!alarm)
+			alarm_id = -1L;
+
+		if (alarm_id == -1L)
+			return;
+
+		if (Sys.ticks() - alarmAckCheckTime < alarmAckCheckPeriodNs)
+			return;
+
+		strBuf.copyFromStr("SELECT strftime('%s', AckTimestamp) FROM alarms WHERE id = ", strLen);
+		StrUtils.appendStr(strBuf, Sys.longStr(alarm_id), strLen);
+		int res = db.execSelectSqlLong(strBuf, tmpLong);
+		if (res == SqliteDb.SQLITE_OK) {
+			long ackTime = tmpLong[0];
+			if (ackTime != 0L) {
+				resetAlarm();
+
+			}
+		}
+		if (res != SqliteDb.SQLITE_BUSY)
+			alarmAckCheckTime = Sys.ticks();
+	}
+
+	virtual override void doWork(SqliteDb db)
+	{
+		super.doWork(db);
+
+		if (postAlarmNeed) {
+			if (postNewAlarm(db))
+				postAlarmNeed = false;
+		}
+
+		updateAlarmAck(db)
+	}
+
+
+	define long  alarmAckCheckPeriodNs = 2sec;
+	private long alarmAckCheckTime = 0L;
+
+	private long alarm_id = -1L;
+	private bool postAlarmNeed = false;
+
+	static private bool inited = false;
+	static private bool initResult = false;
+	static private int newEntries = Sys.maxInt;
+}

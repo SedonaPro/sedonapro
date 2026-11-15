@@ -1,0 +1,296 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+class EquipTest extends Test
+{
+  static inline Motor m
+  static inline LeadLag ll
+  static inline PumpCascade pc
+
+  static bool near(float a, float b, float tol) { return a - b <= tol && b - a <= tol }
+
+  static void steps(Motor x, int n, float dt) { for (int k = 0; k < n; k++) x.update(dt) }
+
+  static void testMotorBasics()
+  {
+    m.start()
+    m.startDelay := 5.0f
+    m.stopDelay := 10.0f
+    m.minRun := 0.0f
+    m.minStop := 30.0f
+    m.update(1.0f)
+    assert(!m.cmd && m.status == Pro.standby && m.available)
+    m.request := true
+    steps(m, 4, 1.0f)
+    assert(!m.cmd && m.status == Pro.waiting)
+    m.update(1.0f)
+    assert(m.cmd && m.running && m.status == Pro.ok && m.starts == 1)
+    assert(m.speed == 100.0f)
+    m.speedIn := 55.0f
+    m.update(1.0f)
+    assert(m.speed == 55.0f)
+    m.request := false
+    steps(m, 9, 1.0f)
+    assert(m.cmd && m.status == Pro.stopping)        // run-on
+    m.update(1.0f)
+    assert(!m.cmd && m.speed == 0.0f)
+    m.request := true
+    steps(m, 20, 1.0f)
+    assert(!m.cmd && m.status == Pro.waiting)        // minStop 30 s
+    steps(m, 11, 1.0f)
+    assert(m.cmd)
+    m.request := false
+    m.stopDelay := 0.0f
+    m.update(1.0f)
+    assert(!m.cmd)
+    // hand and off
+    m.mode := Pro.modeHand
+    m.minStop := 0.0f
+    m.update(1.0f)
+    assert(m.cmd && m.status == Pro.hand && !m.available)
+    m.mode := Pro.modeOff
+    m.request := true
+    m.update(1.0f)
+    assert(!m.cmd && m.status == Pro.off)
+    m.mode := Pro.modeAuto
+    // permit stops at once, also in hand
+    m.startDelay := 0.0f
+    m.update(1.0f)
+    assert(m.cmd)
+    m.permit := false
+    m.update(0.1f)
+    assert(!m.cmd && m.status == Pro.disabled && !m.available)
+    m.mode := Pro.modeHand
+    m.update(0.1f)
+    assert(!m.cmd)
+    m.mode := Pro.modeAuto
+    m.permit := true
+    m.update(1.0f)
+    assert(m.cmd)
+    // run hours
+    float h = m.hours
+    steps(m, 3600, 1.0f)
+    assert(near(m.hours - h, 1.0f, 0.001f))
+  }
+
+  static void testMotorFaults()
+  {
+    m.reset()
+    m.request := true
+    m.update(1.0f)
+    assert(m.cmd)
+    // external fault, latched
+    m.fault := true
+    m.update(0.1f)
+    assert(!m.cmd && m.status == Pro.locked && m.faultCode == Motor.faultExternal && m.alarm && !m.available)
+    m.fault := false
+    m.update(1.0f)
+    assert(!m.cmd && m.status == Pro.locked)
+    m.reset()
+    m.update(1.0f)
+    assert(m.cmd && !m.alarm && m.faultCode == 0)
+    // not latched: runs again when the fault clears
+    m.latchFault := false
+    m.fault := true
+    m.update(0.1f)
+    assert(!m.cmd && m.status == Pro.fault)
+    m.fault := false
+    m.update(1.0f)
+    assert(m.cmd)
+    m.latchFault := true
+
+    // feedback: none within fbDelay -> retry, then lock
+    m.checkFeedback := true
+    m.fbDelay := 5.0f
+    m.retries := 1
+    m.retryDelay := 20.0f
+    m.request := false
+    m.update(1.0f)
+    m.reset()
+    m.request := true
+    m.fb := false
+    m.update(1.0f)
+    assert(m.cmd && !m.running && m.status == Pro.starting)
+    steps(m, 5, 1.0f)
+    assert(!m.cmd && m.faultCode == Motor.faultNoFeedback && m.status == Pro.waiting && !m.available)
+    steps(m, 20, 1.0f)
+    m.update(1.0f)
+    assert(m.cmd)                                    // restarted once
+    steps(m, 6, 1.0f)
+    assert(!m.cmd && m.status == Pro.locked)        // no retries left
+    m.reset()
+    m.fb := true
+    m.update(1.0f)
+    assert(m.cmd && m.running && m.status == Pro.ok)
+    // feedback lost while running
+    m.retries := 0
+    m.reset()
+    m.update(1.0f)
+    m.fb := false
+    steps(m, 2, 1.0f)
+    assert(m.cmd)
+    m.update(1.0f)
+    assert(!m.cmd && m.faultCode == Motor.faultFeedbackLost && m.status == Pro.locked)
+    // feedback while stopped: alarm, no lock
+    m.reset()
+    m.request := false
+    m.fb := true
+    steps(m, 6, 1.0f)
+    assert(!m.cmd && m.faultCode == Motor.faultFeedbackStuck && m.alarm && m.available)
+    m.fb := false
+    m.update(1.0f)
+    assert(m.faultCode == 0 && !m.alarm)
+    m.checkFeedback := false
+  }
+
+  static void testMotorExercise()
+  {
+    m.reset()
+    m.request := false
+    m.minRun := 0.0f
+    m.minStop := 0.0f
+    m.exerciseHours := 1.0f
+    m.exerciseTime := 30.0f
+    m.update(1.0f)
+    steps(m, 3598, 1.0f)
+    assert(!m.cmd)
+    steps(m, 2, 1.0f)
+    assert(m.cmd)
+    steps(m, 31, 1.0f)
+    assert(!m.cmd)
+    m.exerciseHours := 0.0f
+  }
+
+  static void testPowerUp()
+  {
+    Motor x = m
+    x.reset()
+    x.uptime = 0.0f
+    x.powerUpDelay := 10.0f
+    x.request := true
+    x.update(5.0f)
+    assert(!x.cmd && x.status == Pro.waiting)
+    x.update(6.0f)
+    assert(x.cmd)
+    x.powerUpDelay := 0.0f
+  }
+
+  static void llSteps(int n, float dt) { for (int k = 0; k < n; k++) ll.update(dt) }
+
+  static void testDutyStandby()
+  {
+    ll.units := 2
+    ll.rotation := LeadLag.byRuntime
+    ll.rotateHours := 10.0f
+    ll.overlap := 5.0f
+    ll.request := true
+    ll.update(1.0f)
+    assert(ll.req1 && !ll.req2 && ll.lead == 1 && ll.running == 1 && ll.status == Pro.ok)
+    // after 10 h unit 2 takes over with an overlap
+    llSteps(36000, 1.0f)
+    assert(ll.req1 && ll.req2)
+    llSteps(5, 1.0f)
+    assert(!ll.req1 && ll.req2 && ll.lead == 2)
+    // unit 2 fails: unit 1 at once, no overlap needed
+    ll.avail2 := false
+    ll.update(0.1f)
+    assert(ll.req1 && !ll.req2 && ll.availableCount == 1 && !ll.alarm)
+    ll.avail1 := false
+    ll.update(0.1f)
+    assert(!ll.req1 && ll.alarm && ll.status == Pro.alarm)
+    ll.avail1 := true
+    ll.avail2 := true
+    ll.update(0.1f)
+    assert(ll.running == 1 && !ll.alarm)
+    ll.request := false
+    ll.update(0.1f)
+    assert(ll.running == 0 && ll.status == Pro.standby)
+  }
+
+  static void testLeadLagCascade()
+  {
+    ll.units := 3
+    ll.rotation := LeadLag.fixed
+    ll.overlap := 0.0f
+    ll.demand := 2
+    ll.update(1.0f)
+    assert(ll.req1 && ll.req2 && !ll.req3)
+    ll.demand := 3
+    ll.update(1.0f)
+    assert(ll.req3)
+    ll.demand := 1
+    ll.update(1.0f)
+    assert(ll.req1 && !ll.req2 && !ll.req3)         // last on, first off
+    ll.rotate()
+    ll.update(1.0f)
+    assert(!ll.req1 && ll.req2 && ll.lead == 2)
+    ll.demand := 2
+    ll.update(1.0f)
+    assert(ll.req2 && ll.req3 && !ll.req1)
+    // time rotation
+    ll.rotation := LeadLag.byTime
+    ll.rotateHours := 1.0f
+    ll.demand := 1
+    ll.update(1.0f)
+    int before = ll.lead
+    llSteps(3600, 1.0f)
+    assert(ll.lead != before)
+    ll.maxRun := 1
+    ll.demand := 3
+    ll.update(1.0f)
+    assert(ll.running == 1)
+    ll.maxRun := 6
+    ll.enable := false
+    ll.update(1.0f)
+    assert(ll.running == 0 && ll.status == Pro.disabled)
+    ll.enable := true
+    ll.demand := 0
+  }
+
+  static void testCascade()
+  {
+    pc.maxPumps := 3
+    pc.upAt := 95.0f
+    pc.upDelay := 10.0f
+    pc.downAt := 40.0f
+    pc.downDelay := 30.0f
+    pc.minSpeed := 30.0f
+    pc.in := 50.0f
+    pc.update(1.0f)
+    assert(pc.count == 1 && pc.speed == 50.0f)
+    pc.in := 100.0f
+    for (int k = 0; k < 9; k++) pc.update(1.0f)
+    assert(pc.count == 1)
+    pc.update(1.0f)
+    assert(pc.count == 2)
+    for (int k = 0; k < 30; k++) pc.update(1.0f)
+    assert(pc.count == 3 && pc.status == Pro.limited)
+    pc.available := 2
+    pc.update(1.0f)
+    assert(pc.count == 2)
+    pc.available := 6
+    pc.in := 10.0f
+    pc.update(1.0f)
+    assert(pc.speed == 30.0f)
+    for (int k = 0; k < 60; k++) pc.update(1.0f)
+    assert(pc.count == 1)
+    // sleep and wake
+    pc.sleep := true
+    pc.sleepDelay := 60.0f
+    pc.sp := 4.0f
+    pc.pv := 4.0f
+    for (int k = 0; k < 59; k++) pc.update(1.0f)
+    assert(pc.count == 1)
+    pc.update(1.0f)
+    assert(pc.sleeping && pc.count == 0 && pc.speed == 0.0f && pc.status == Pro.standby)
+    pc.pv := 3.8f
+    pc.update(1.0f)
+    assert(pc.sleeping)
+    pc.pv := 3.6f
+    pc.update(1.0f)
+    assert(!pc.sleeping && pc.count == 1)
+    pc.sleep := false
+  }
+}

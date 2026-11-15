@@ -1,0 +1,2 @@
+# Hardware profile: Wi-Fi station (SSID/password: idf.py menuconfig -> Sedona)
+CONFIG_SEDONA_NET_WIFI=y

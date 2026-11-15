@@ -1,0 +1,3 @@
+# Test profile: run tests.scode (sedona unit tests) instead of the platform
+CONFIG_SEDONA_NET_NONE=y
+CONFIG_SEDONA_BOOT_TESTS=y

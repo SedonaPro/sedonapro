@@ -1,0 +1,372 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Water heating coil of an air handling unit with its protections.
+** It takes the heating demand of the temperature control and drives the
+** valve and the circulation pump:
+**
+**  - minimum valve opening from the outdoor temperature in winter
+**    ("support": the coil never stands cold at -25 C), maximum opening
+**    in transition and summer;
+**  - return water low limit while running: a second loop keeps the
+**    return water above a setpoint from the outdoor temperature and
+**    takes over the valve smoothly (max select with external reset);
+**    the nearer the water gets to the trip temperature the higher its
+**    gain, and the fans are slowed down (fanLimit) - less cold air, more
+**    time for the water;
+**  - supply air low limit with the same mechanism;
+**  - standby: with the plant stopped in the cold season the return water
+**    is held warm; preheat: before the fans start the coil is warmed up
+**    to the standby setpoint, 'ready' lets the fans start;
+**  - frost trip: return water below tripReturn, supply air below tripAir
+**    or the frost thermostat for tripDelay: valve 100 %, pump on, fans
+**    stopped (fanLimit 0, frost true), automatic restart after the water
+**    is warm again (autoRestart times), then reset by hand;
+**  - compensation of the water supply temperature: when the heating
+**    network delivers colder water the valve opens in advance;
+**  - a failed return water sensor in the cold season: valve at valveOnBad.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class WaterHeater extends Component
+{
+  ** heating demand, % (SupplyTemp.heating)
+  @summary property float demand
+  ** the plant is starting: warm the coil before the fans start
+  property bool startReq
+  ** air flows through the coil (fans run)
+  property bool airflow
+  ** outdoor temperature, C
+  property float outdoor
+  ** return water of the coil, C
+  property float returnWater
+  ** supply air after the coil, C (null: no air side protection)
+  property float supplyAir = null
+  ** water supply temperature, C (null: no compensation)
+  property float waterSupply = null
+  ** air entering the coil, C (after a heat recovery; null: outdoor)
+  property float airIn = null
+  ** frost thermostat: true = frost
+  property bool frostStat
+  ** season (Season.season)
+  property byte season
+
+  ** valve minimum: at outdoor minOutdoorLo it is minLo, at minOutdoorHi it is minHi
+  @config @unit=Units.celsius property float minOutdoorLo = -25.0f
+  @config property float minLo = 25.0f
+  @config @unit=Units.celsius property float minOutdoorHi = 8.0f
+  @config property float minHi = 0.0f
+  ** the minimum also in transition (otherwise winter only)
+  @config property bool minInTransition = false
+  ** valve maximum outside winter: 100 % at maxOutdoorLo, maxHi at maxOutdoorHi
+  @config @unit=Units.celsius property float maxOutdoorLo = 5.0f
+  @config @unit=Units.celsius property float maxOutdoorHi = 15.0f
+  @config property float maxHi = 50.0f
+
+  ** return water low limit while running, C: retRunLo at minOutdoorLo, retRunHi at minOutdoorHi
+  @config @unit=Units.celsius property float retRunLo = 25.0f
+  @config @unit=Units.celsius property float retRunHi = 15.0f
+  ** return water held with the plant stopped and in preheat, C
+  @config @unit=Units.celsius property float retStandbyLo = 45.0f
+  @config @unit=Units.celsius property float retStandbyHi = 25.0f
+  ** standby and preheat also outside winter while outdoor is below this, C
+  @config @unit=Units.celsius property float standbyBelow = 8.0f
+
+  ** return water: protection gets stronger below warnReturn, trip below tripReturn, C
+  @config @unit=Units.celsius property float warnReturn = 15.0f
+  @config @unit=Units.celsius property float tripReturn = 8.0f
+  ** supply air: the same, C
+  @config @unit=Units.celsius property float warnAir = 10.0f
+  @config @unit=Units.celsius property float tripAir = 5.0f
+  @config @unit=Units.second @min=0 property float tripDelay = 3.0f
+  ** gain of the protection loop at the trip temperature: kp * (1 + boost)
+  @config @min=0 property float boost = 3.0f
+  ** fan limit at the trip temperature, %
+  @config @min=0 @max=100 property float fanMinFrost = 40.0f
+  ** fan limit returns to 100 % at this rate, % per second
+  @config @min=0.01 property float fanRecover = 0.5f
+  ** automatic restarts after a frost trip; 0 = reset by hand only
+  @config @min=0 @max=10 property int autoRestart = 2
+
+  ** protection loop: % per K, integral times up and down, s
+  @config @min=0 property float retKp = 10.0f
+  @config @unit=Units.second @min=0 property float retTi = 30.0f
+  @config @unit=Units.second @min=0 property float retTiDown = 180.0f
+  ** standby loop: % per K, integral time, s
+  @config @min=0 property float sbKp = 5.0f
+  @config @unit=Units.second @min=0 property float sbTi = 120.0f
+
+  ** preheat: at least this long, s
+  @config @unit=Units.second @min=0 property float preheatMin = 60.0f
+  ** preheat: give up after this long, s
+  @config @unit=Units.second @min=1 property float preheatMax = 900.0f
+  ** preheat: valve at least this open, %
+  @config @min=0 @max=100 property float preheatValve = 50.0f
+
+  ** open the valve in advance when the water supply is colder than waterNominal
+  @config property bool compensate = false
+  @config @unit=Units.celsius property float waterNominal = 70.0f
+  @config @min=0.1 property float compMin = 0.6f
+  @config @min=1 property float compMax = 2.0f
+  ** filter of the water supply temperature, s
+  @config @unit=Units.second @min=0 property float compFilter = 10.0f
+
+  ** valve when the return water sensor fails in the cold season, %
+  @config @min=0 @max=100 property float valveOnBad = 50.0f
+  ** pump keeps running this long after the valve closes outside the cold season, s
+  @config @unit=Units.second @min=0 property float pumpRunOn = 300.0f
+
+  ** valve, %
+  @readonly @summary @precision=1 property float valve
+  ** circulation pump
+  @readonly property bool pump
+  ** the coil is warm: the fans may start
+  @readonly property bool ready = true
+  ** highest fan speed allowed now, % (link to FanSpeed.limit)
+  @readonly property float fanLimit = 100.0f
+  ** tripped by frost: stop the fans
+  @readonly @summary property bool frost
+  ** in the warning zone (protection active)
+  @readonly property bool warning
+  ** frost, a failed sensor in the cold season, or a preheat that did not reach the setpoint
+  @readonly property bool alarm
+  ** return water setpoint now, C
+  @readonly @precision=1 property float returnSp
+  ** compensation factor applied to the demand
+  @readonly @precision=2 property float compFactor = 1.0f
+
+  define Str stateRange = "off, standby, preheat, run, protect, frost"
+  define int stOff = 0
+  define int stStandby = 1
+  define int stPreheat = 2
+  define int stRun = 3
+  define int stProtect = 4
+  define int stFrost = 5
+  @readonly @range=stateRange property byte state
+  ** frost trips since start
+  @readonly property int trips
+
+  @readonly @range=Pro.statusRange property byte status
+
+  ** clear a frost trip (if the water is warm again)
+  action void reset()
+  {
+    if (!tripCondition()) { frostLatched = false; restarts = 0 }
+  }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    bool retOk = Pro.valid(returnWater)
+    bool cold = coldSeason()
+    float out = outdoor
+    float retSb = Hvac.line(out, minOutdoorLo, retStandbyLo, minOutdoorHi, retStandbyHi)
+    float retRun = Hvac.line(out, minOutdoorLo, retRunLo, minOutdoorHi, retRunHi)
+    if (!Pro.valid(retSb)) retSb = retStandbyLo
+    if (!Pro.valid(retRun)) retRun = retRunLo
+
+    // danger depth 0..1 (return water, supply air)
+    float dW = retOk && cold ? Hvac.depth(returnWater, warnReturn, tripReturn) : 0.0f
+    float dA = airflow == true && Pro.valid(supplyAir) ? Hvac.depth(supplyAir, warnAir, tripAir) : 0.0f
+    float dMax = Pro.max(dW, dA)
+
+    // frost trip
+    if (tripCondition()) tripFor += dt
+    else tripFor = 0.0f
+    if (!frostLatched && tripFor >= tripDelay)
+    {
+      frostLatched = true
+      frostFor = 0.0f
+      trips := trips + 1
+    }
+    if (frostLatched)
+    {
+      frostFor += dt
+      if (restarts < autoRestart && frostFor >= 120.0f && retOk && returnWater >= retSb - 3.0f && !tripCondition())
+      {
+        frostLatched = false
+        restarts++
+      }
+    }
+    if (frostLatched)
+    {
+      setValve(100.0f)
+      pump := true
+      ready := false
+      fanLimit := 0.0f
+      frost := true
+      warning := true
+      alarm := true
+      returnSp := retSb
+      state := stFrost
+      status := Pro.alarm
+      return
+    }
+    frost := false
+
+    // valve range from the season and the outdoor temperature
+    float lo = 0.0f
+    float hi = 100.0f
+    if (season == Hvac.winter || (season == Hvac.transition && minInTransition))
+    {
+      lo = Hvac.line(out, minOutdoorLo, minLo, minOutdoorHi, minHi)
+      if (!Pro.valid(lo)) lo = minLo
+    }
+    if (season != Hvac.winter)
+    {
+      hi = Hvac.line(out, maxOutdoorLo, 100.0f, maxOutdoorHi, maxHi)
+      if (!Pro.valid(hi)) hi = 100.0f
+    }
+    if (hi < lo) hi = lo
+
+    bool badSensor = cold && !retOk
+    if (airflow == true)
+    {
+      // running
+      if (preheating) { preheating = false }
+      float d = Pro.valid(demand) ? demand : lo
+      d = d * compensation(dt)
+      float base = Pro.clamp(d, lo, hi)
+      float prot = 0.0f
+      if (!cold) protLoop.hold(base)
+      else if (retOk)
+      {
+        protLoop.kp = retKp * (1.0f + boost * dW)
+        protLoop.ti = retTi
+        protLoop.tiDown = retTiDown
+        protLoop.direct = false
+        prot = protLoop.run(dt, returnWater, retRun, 0.0f, 0.0f, 100.0f, valve)
+      }
+      else if (cold) prot = valveOnBad
+      float airFloor = cold ? dA * 100.0f : 0.0f
+      float v = Pro.max(base, Pro.max(prot, airFloor))
+      setValve(v)
+      sbLoop.hold(valve)
+      pump := true
+      ready := true
+      returnSp := retRun
+      bool prot_ = v > base + 0.05f
+      state := prot_ || dMax > 0.0f ? stProtect : stRun
+      status := prot_ ? Pro.limited : Pro.ok
+      offFor = 0.0f
+    }
+    else if (startReq == true || cold)
+    {
+      // preheat before a start, or standby with the plant stopped
+      bool pre = startReq == true
+      if (pre && !preheating) { preheating = true; preFor = 0.0f }
+      if (!pre) preheating = false
+      preFor += dt
+      float v = valveOnBad
+      if (retOk)
+      {
+        sbLoop.kp = sbKp
+        sbLoop.ti = sbTi
+        sbLoop.tiDown = 0.0f
+        sbLoop.direct = false
+        float floor = pre ? preheatValve : 0.0f
+        v = sbLoop.run(dt, returnWater, retSb, 0.0f, floor, 100.0f, null)
+      }
+      setValve(v)
+      protLoop.hold(valve)
+      pump := true
+      returnSp := retSb
+      if (pre)
+      {
+        bool warm = retOk && returnWater >= retSb - 3.0f
+        bool r = !cold || (warm && preFor >= preheatMin)
+        if (!r && preFor >= preheatMax && retOk && returnWater >= warnReturn) r = true
+        ready := r
+        preheatFailed = !r && preFor >= preheatMax
+        state := stPreheat
+        status := r ? Pro.ok : Pro.starting
+      }
+      else
+      {
+        ready := false
+        preheatFailed = false
+        state := stStandby
+        status := Pro.standby
+      }
+      offFor = 0.0f
+    }
+    else
+    {
+      // warm season, stopped
+      preheating = false
+      preheatFailed = false
+      setValve(0.0f)
+      sbLoop.hold(valve)
+      protLoop.hold(valve)
+      offFor += dt
+      pump := offFor < pumpRunOn
+      ready := true
+      returnSp := retRun
+      state := stOff
+      status := Pro.standby
+    }
+
+    // fan limit: down at once, back slowly
+    float target = 100.0f - dMax * (100.0f - fanMinFrost)
+    if (target < fanLimit) fanLimit := target
+    else fanLimit := Pro.min(target, fanLimit + fanRecover * dt)
+    warning := dMax > 0.0f
+    alarm := badSensor || preheatFailed
+    if (badSensor) status := Pro.inputBad
+  }
+
+  ** the cold season: winter, or outdoor below standbyBelow (unknown outdoor counts as cold outside summer)
+  bool coldSeason()
+  {
+    if (season == Hvac.winter) return true
+    if (Pro.valid(outdoor)) return outdoor < standbyBelow
+    return season != Hvac.summer
+  }
+
+  bool tripCondition()
+  {
+    if (frostStat == true) return true
+    if (Pro.valid(returnWater) && returnWater < tripReturn) return true
+    return airflow == true && Pro.valid(supplyAir) && supplyAir < tripAir
+  }
+
+  ** demand factor from the water supply temperature
+  private float compensation(float dt)
+  {
+    if (!compensate || !Pro.valid(waterSupply))
+    {
+      compFactor := 1.0f
+      return 1.0f
+    }
+    float air = Pro.valid(airIn) ? airIn : outdoor
+    if (!Pro.valid(air)) air = 0.0f
+    if (!Pro.valid(wsF)) wsF = waterSupply
+    wsF += (waterSupply - wsF) * dt / (compFilter + dt)
+    float k = compMax
+    if (wsF - air > 5.0f) k = (waterNominal - air) / (wsF - air)
+    k = Pro.clamp(k, compMin, compMax)
+    compFactor := k
+    return k
+  }
+
+  private void setValve(float v)
+  {
+    valve := Pro.clamp(v, 0.0f, 100.0f)
+  }
+
+  bool frostLatched
+  bool preheating
+  bool preheatFailed
+  int restarts
+  float tripFor
+  float frostFor
+  float preFor
+  float offFor = 1000000.0f
+  float wsF = null
+  inline PidAlgo protLoop
+  inline PidAlgo sbLoop
+  inline Ticker ticker
+}

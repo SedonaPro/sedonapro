@@ -1,0 +1,31 @@
+<module>
+  <!-- loopback: rampA -> slave holding register 0 (tcp/1502) -> master reads it back -->
+  <kit name="serial"/>
+  <kit name="sproModbusSlave"/>
+  <kit name="sproModbusMaster"/>
+  <into path="">
+    <comp name="mbSlave" type="sproModbusSlave::ModbusSlaveTcpService">
+      <prop name="enable" val="true"/>
+      <prop name="slaveAddr" val="1"/>
+      <prop name="port" val="1502"/>
+      <comp name="reg0" type="sproModbusSlave::ModbusSlavePointFloat">
+        <prop name="address" val="0"/>
+      </comp>
+    </comp>
+    <comp name="mbMastr" type="sproModbusMaster::ModbusSlaveTcpAsyncNetwork">
+      <prop name="enable" val="true"/>
+      <prop name="timeOut" val="200"/>
+      <prop name="pollPeriodMs" val="500"/>
+      <prop name="ipAddress" val="127.0.0.1"/>
+      <prop name="port" val="1502"/>
+      <comp name="dev1" type="sproModbusMaster::ModbusSlaveDevice">
+        <prop name="enable" val="true"/>
+        <prop name="address" val="1"/>
+        <comp name="reg0" type="sproModbusMaster::ModbusReadPointFloat">
+          <prop name="address" val="0"/>
+        </comp>
+      </comp>
+    </comp>
+  </into>
+  <link from="/play/rampA.out" to="/mbSlave/reg0.in"/>
+</module>

@@ -1,0 +1,39 @@
+# Large virtual board for the PC: enough channels for an air handling unit or
+# a pump station.  Inputs are set and outputs watched in the web panel
+# http://127.0.0.1:8090 (SPRO_GPIO_PORT, 0 = off).
+name    = "sim-large"
+title   = "Virtual I/O board, 8 DI / 8 DO / 8 AI / 4 AO (web panel)"
+hal     = "sim"
+targets = ["linux", "sim"]
+
+serial  = ["/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyS0", "/dev/ttyS1"]
+
+[channels]
+DI1 = { kind = "di" }
+DI2 = { kind = "di" }
+DI3 = { kind = "di" }
+DI4 = { kind = "di" }
+DI5 = { kind = "di" }
+DI6 = { kind = "di" }
+DI7 = { kind = "di" }
+DI8 = { kind = "di" }
+DO1 = { kind = "do" }
+DO2 = { kind = "do" }
+DO3 = { kind = "do" }
+DO4 = { kind = "do" }
+DO5 = { kind = "do" }
+DO6 = { kind = "do" }
+DO7 = { kind = "do" }
+DO8 = { kind = "do" }
+AI1 = { kind = "ai", range = [-40.0, 60.0], unit = "°C", initial = -10.0 }
+AI2 = { kind = "ai", range = [-40.0, 60.0], unit = "°C", initial = 20.0 }
+AI3 = { kind = "ai", range = [-40.0, 120.0], unit = "°C", initial = 40.0 }
+AI4 = { kind = "ai", range = [-40.0, 60.0], unit = "°C", initial = 21.0 }
+AI5 = { kind = "ai", range = [-40.0, 60.0], unit = "°C", initial = 21.0 }
+AI6 = { kind = "ai", range = [-40.0, 60.0], unit = "°C", initial = 5.0 }
+AI7 = { kind = "ai", range = [0.0, 1000.0], unit = "Pa", initial = 250.0 }
+AI8 = { kind = "ai", range = [0.0, 10.0], unit = "V", initial = 0.0 }
+AO1 = { kind = "ao" }
+AO2 = { kind = "ao" }
+AO3 = { kind = "ao" }
+AO4 = { kind = "ao" }

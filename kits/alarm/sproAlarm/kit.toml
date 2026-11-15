@@ -1,0 +1,2 @@
+summary = "Alarms: limits, digital alarms, protective trips with retries, common alarm, journal"
+portable_tests = true

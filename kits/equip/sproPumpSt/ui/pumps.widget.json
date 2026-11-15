@@ -1,0 +1,481 @@
+{
+ "format": "sedonapro-widget/1",
+ "id": "pumps",
+ "type": "sproPumpSt::PumpStation",
+ "title": "Pump station",
+ "size": [
+  1000,
+  540
+ ],
+ "parts": {
+  "press": [
+   "sproHal::AnalogInput"
+  ],
+  "pIn": [
+   "sproHal::AnalogInput"
+  ],
+  "dryIn": [
+   "sproHal::DigitalInput"
+  ],
+  "pid": [
+   "sproControl::Pid"
+  ],
+  "casc": [
+   "sproEquip::PumpCascade"
+  ],
+  "lead": [
+   "sproEquip::LeadLag"
+  ],
+  "dry": [
+   "sproAlarm::Trip"
+  ],
+  "alPress": [
+   "sproAlarm::LimitAlarm"
+  ],
+  "m1": [
+   "sproEquip::Motor"
+  ],
+  "m2": [
+   "sproEquip::Motor"
+  ],
+  "m3": [
+   "sproEquip::Motor"
+  ],
+  "m4": [
+   "sproEquip::Motor"
+  ]
+ },
+ "symbols": {
+  "pipe": {
+   "off": "svg/pipe.svg"
+  },
+  "pump": {
+   "off": "svg/pump-off.svg",
+   "on": "svg/pump-on.svg",
+   "fault": "svg/pump-fault.svg"
+  },
+  "pressure": {
+   "off": "svg/pressure-off.svg",
+   "fault": "svg/pressure-fault.svg"
+  },
+  "switch": {
+   "off": "svg/switch-off.svg",
+   "fault": "svg/switch-fault.svg"
+  },
+  "vfd": {
+   "off": "svg/vfd-off.svg",
+   "on": "svg/vfd-on.svg"
+  }
+ },
+ "options": [
+  {
+   "slot": "pumps",
+   "label": "Pumps"
+  },
+  {
+   "slot": "drive",
+   "label": "Drives"
+  },
+  {
+   "slot": "dryRun",
+   "label": "Dry running protection"
+  },
+  {
+   "slot": "faultInputs",
+   "label": "Pump fault inputs"
+  },
+  {
+   "slot": "feedback",
+   "label": "Pump running contacts"
+  },
+  {
+   "slot": "pressureAlarms",
+   "label": "Pressure alarms"
+  },
+  {
+   "slot": "sleepMode",
+   "label": "Sleep without draw-off"
+  },
+  {
+   "slot": "startSwitch",
+   "label": "Start switch"
+  },
+  {
+   "slot": "autoChannels",
+   "label": "Take board channels"
+  }
+ ],
+ "elements": [
+  {
+   "id": "suction",
+   "symbol": "pipe",
+   "x": 40,
+   "y": 392,
+   "w": 760,
+   "h": 14
+  },
+  {
+   "id": "outlet",
+   "symbol": "pipe",
+   "x": 120,
+   "y": 150,
+   "w": 820,
+   "h": 14
+  },
+  {
+   "id": "branch1",
+   "symbol": "pipe",
+   "x": 177,
+   "y": 164,
+   "w": 10,
+   "h": 228
+  },
+  {
+   "id": "pump1",
+   "symbol": "pump",
+   "x": 150,
+   "y": 246,
+   "w": 64,
+   "h": 64,
+   "state": "m1.running",
+   "fault": "m1.alarm",
+   "label": "Pump 1",
+   "configure": [
+    "pumps",
+    "drive",
+    "faultInputs",
+    "feedback"
+   ],
+   "values": [
+    {
+     "bind": "m1.speed",
+     "unit": "%",
+     "decimals": 0,
+     "dx": 62,
+     "dy": 8,
+     "when": "drive != 'onOff'"
+    },
+    {
+     "bind": "m1.hours",
+     "unit": "h",
+     "decimals": 0,
+     "dx": 62,
+     "dy": 32
+    }
+   ]
+  },
+  {
+   "id": "branch2",
+   "symbol": "pipe",
+   "x": 357,
+   "y": 164,
+   "w": 10,
+   "h": 228,
+   "when": "pumps >= 2"
+  },
+  {
+   "id": "pump2",
+   "symbol": "pump",
+   "x": 330,
+   "y": 246,
+   "w": 64,
+   "h": 64,
+   "state": "m2.running",
+   "fault": "m2.alarm",
+   "label": "Pump 2",
+   "configure": [
+    "pumps",
+    "drive",
+    "faultInputs",
+    "feedback"
+   ],
+   "values": [
+    {
+     "bind": "m2.speed",
+     "unit": "%",
+     "decimals": 0,
+     "dx": 62,
+     "dy": 8,
+     "when": "drive != 'onOff'"
+    },
+    {
+     "bind": "m2.hours",
+     "unit": "h",
+     "decimals": 0,
+     "dx": 62,
+     "dy": 32
+    }
+   ],
+   "when": "pumps >= 2",
+   "ghost": true
+  },
+  {
+   "id": "branch3",
+   "symbol": "pipe",
+   "x": 537,
+   "y": 164,
+   "w": 10,
+   "h": 228,
+   "when": "pumps >= 3"
+  },
+  {
+   "id": "pump3",
+   "symbol": "pump",
+   "x": 510,
+   "y": 246,
+   "w": 64,
+   "h": 64,
+   "state": "m3.running",
+   "fault": "m3.alarm",
+   "label": "Pump 3",
+   "configure": [
+    "pumps",
+    "drive",
+    "faultInputs",
+    "feedback"
+   ],
+   "values": [
+    {
+     "bind": "m3.speed",
+     "unit": "%",
+     "decimals": 0,
+     "dx": 62,
+     "dy": 8,
+     "when": "drive != 'onOff'"
+    },
+    {
+     "bind": "m3.hours",
+     "unit": "h",
+     "decimals": 0,
+     "dx": 62,
+     "dy": 32
+    }
+   ],
+   "when": "pumps >= 3",
+   "ghost": true
+  },
+  {
+   "id": "branch4",
+   "symbol": "pipe",
+   "x": 717,
+   "y": 164,
+   "w": 10,
+   "h": 228,
+   "when": "pumps >= 4"
+  },
+  {
+   "id": "pump4",
+   "symbol": "pump",
+   "x": 690,
+   "y": 246,
+   "w": 64,
+   "h": 64,
+   "state": "m4.running",
+   "fault": "m4.alarm",
+   "label": "Pump 4",
+   "configure": [
+    "pumps",
+    "drive",
+    "faultInputs",
+    "feedback"
+   ],
+   "values": [
+    {
+     "bind": "m4.speed",
+     "unit": "%",
+     "decimals": 0,
+     "dx": 62,
+     "dy": 8,
+     "when": "drive != 'onOff'"
+    },
+    {
+     "bind": "m4.hours",
+     "unit": "h",
+     "decimals": 0,
+     "dx": 62,
+     "dy": 32
+    }
+   ],
+   "when": "pumps >= 4",
+   "ghost": true
+  },
+  {
+   "id": "press",
+   "symbol": "pressure",
+   "x": 860,
+   "y": 104,
+   "w": 34,
+   "h": 34,
+   "fault": "alPress.alarm",
+   "label": "Outlet pressure",
+   "configure": [
+    "pressureAlarms"
+   ],
+   "values": [
+    {
+     "bind": "press.out",
+     "unit": "bar",
+     "decimals": 2,
+     "dx": 0,
+     "dy": -26
+    }
+   ]
+  },
+  {
+   "id": "dryIn",
+   "symbol": "switch",
+   "x": 60,
+   "y": 340,
+   "w": 34,
+   "h": 34,
+   "when": "dryRun == 'switch'",
+   "fault": "dry.alarm",
+   "label": "Dry running",
+   "configure": [
+    "dryRun"
+   ],
+   "ghost": true
+  },
+  {
+   "id": "pIn",
+   "symbol": "pressure",
+   "x": 60,
+   "y": 340,
+   "w": 34,
+   "h": 34,
+   "when": "dryRun == 'sensor'",
+   "fault": "dry.alarm",
+   "label": "Suction pressure",
+   "configure": [
+    "dryRun"
+   ],
+   "values": [
+    {
+     "bind": "pIn.out",
+     "unit": "bar",
+     "decimals": 2,
+     "dx": 0,
+     "dy": -26
+    }
+   ]
+  },
+  {
+   "id": "vfd",
+   "symbol": "vfd",
+   "x": 820,
+   "y": 250,
+   "w": 90,
+   "h": 54,
+   "when": "drive == 'commonVfd'",
+   "state": "casc.speed",
+   "label": "VFD",
+   "configure": [
+    "drive"
+   ],
+   "ghost": true,
+   "values": [
+    {
+     "bind": "casc.speed",
+     "unit": "%",
+     "decimals": 0,
+     "dx": 0,
+     "dy": 60
+    }
+   ]
+  }
+ ],
+ "texts": [
+  {
+   "text": "Suction",
+   "x": 40,
+   "y": 414
+  },
+  {
+   "text": "Outlet",
+   "x": 870,
+   "y": 172
+  }
+ ],
+ "controls": [
+  {
+   "kind": "setpoint",
+   "bind": "pid.sp",
+   "label": "Pressure setpoint",
+   "x": 40,
+   "y": 470,
+   "unit": "bar"
+  },
+  {
+   "kind": "status",
+   "bind": "casc.status",
+   "label": "Cascade",
+   "x": 240,
+   "y": 470
+  },
+  {
+   "kind": "status",
+   "bind": "dry.status",
+   "label": "Dry running",
+   "x": 400,
+   "y": 470,
+   "when": "dryRun != 'none'"
+  },
+  {
+   "kind": "mode",
+   "bind": "m1.mode",
+   "label": "Pump 1",
+   "x": 150,
+   "y": 40
+  },
+  {
+   "kind": "mode",
+   "bind": "m2.mode",
+   "label": "Pump 2",
+   "x": 330,
+   "y": 40,
+   "when": "pumps >= 2"
+  },
+  {
+   "kind": "mode",
+   "bind": "m3.mode",
+   "label": "Pump 3",
+   "x": 510,
+   "y": 40,
+   "when": "pumps >= 3"
+  },
+  {
+   "kind": "mode",
+   "bind": "m4.mode",
+   "label": "Pump 4",
+   "x": 690,
+   "y": 40,
+   "when": "pumps >= 4"
+  }
+ ],
+ "info": [
+  {
+   "bind": "ioList",
+   "label": "I/O"
+  },
+  {
+   "bind": "missing",
+   "label": "Points without a channel"
+  },
+  {
+   "bind": "parts",
+   "label": "Parts"
+  },
+  {
+   "bind": "status",
+   "label": "Configuration"
+  }
+ ],
+ "actions": [
+  {
+   "id": "build",
+   "invoke": "build",
+   "label": "Build",
+   "confirm": "Rebuild the station from these options? Blocks of the same type keep their settings; parts that are no longer needed are removed."
+  }
+ ]
+}

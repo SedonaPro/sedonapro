@@ -1,0 +1,12 @@
+<module>
+  <kit name="sproUiConnect"/>
+  <into path="service">
+    <comp name="ui" type="sproUiConnect::UIConnectService">
+      <prop name="port" val="8088"/>
+      <comp name="sum" type="sproUiConnect::UIReadWritePointFloat">
+        <prop name="dataId" val="1"/>
+      </comp>
+    </comp>
+  </into>
+  <link from="/play/adder.out" to="/service/ui/sum.val"/>
+</module>

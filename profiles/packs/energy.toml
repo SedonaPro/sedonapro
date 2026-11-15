@@ -1,0 +1,4 @@
+# energy: metering and power supply - meters with tariff zones, heat
+# meter, demand with load shedding, automatic transfer switch.
+summary = "Energy: meters with tariff zones and day/month totals, pulse counting, calculated heat meter, demand with load shedding, automatic transfer switch with generator"
+kits = ["sproBase", "sproSignal", "sproAlarm", "sproSched", "sproEnergy"]

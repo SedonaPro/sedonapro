@@ -1,0 +1,124 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Calculated heat meter: heat power and energy from the water flow and
+** the supply and return temperatures,
+**
+**   power = flow / 3600 * density(t at the flow meter) * (h(supply) - h(return))
+**
+** with the density and enthalpy of water (0..150 C, within 0.2 %).
+** Energy in kWh and Gcal, volume in m3.  Negative power (the return
+** hotter than the supply) is not counted unless allowReverse.  A failed
+** input stops the counting (status inputBad).  The totals survive a
+** restart with a RetainService.
+**
+** An estimate for operation and diagnostics, not a billing heat meter.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class HeatMeter extends Retained
+{
+  ** water flow, m3/h
+  @summary @unit=Units.cubic_meters_per_hour property float flow
+  ** supply water, C
+  @unit=Units.celsius property float supply
+  ** return water, C
+  @unit=Units.celsius property float returnTemp
+
+  define Str flowInRange = "supply, return"
+  ** where the flow meter is (the density is taken at its temperature)
+  @config @range=flowInRange property byte flowIn
+  ** count negative heat (cooling) as well
+  @config property bool allowReverse = false
+  ** flow below this counts as zero (meter noise), m3/h
+  @config @min=0 property float lowCut = 0.0f
+
+  ** heat power, kW
+  @readonly @summary @unit=Units.kilowatt @precision=1 property float power
+  ** heat energy, kWh
+  @readonly @unit=Units.kilowatt_hour @precision=1 property float energy
+  ** heat energy, Gcal
+  @readonly @precision=3 property float gcal
+  ** water volume, m3
+  @readonly @unit=Units.cubic_meter @precision=1 property float volume
+  ** supply minus return, K
+  @readonly @unit=Units.kelvin @precision=2 property float delta
+  @readonly @range=Pro.statusRange property byte status
+
+  ** set the energy (from a billing meter), kWh
+  @confirmRequired
+  action void setEnergy(float kwh)
+  {
+    if (!Pro.valid(kwh)) return
+    kwhSum = (double)kwh
+    publish()
+    Retained.retainChanged()
+  }
+
+  ** energy and volume to 0
+  @confirmRequired
+  action void resetAll()
+  {
+    kwhSum = 0.0D
+    volSum = 0.0D
+    publish()
+    Retained.retainChanged()
+  }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  ** one step of dt seconds
+  void update(float dt)
+  {
+    if (!Pro.valid(flow) || !Pro.valid(supply) || !Pro.valid(returnTemp))
+    {
+      power := null
+      delta := null
+      status := Pro.inputBad
+      return
+    }
+    float q = flow > lowCut ? flow : 0.0f
+    float t = flowIn == 0 ? supply : returnTemp
+    float p = q / 3600.0f * density(t) * (enthalpy(supply) - enthalpy(returnTemp))
+    if (p < 0.0f && !allowReverse) p = 0.0f
+    power := p
+    delta := supply - returnTemp
+    if (dt > 0.0f)
+    {
+      kwhSum += (double)(p * dt / 3600.0f)
+      volSum += (double)(q * dt / 3600.0f)
+    }
+    publish()
+    status := Pro.ok
+  }
+
+  ** density of water at t C, kg/m3
+  static float density(float t) { return 1000.2f - 0.0617f * t - 0.00356f * t * t }
+
+  ** specific enthalpy of water at t C, kJ/kg
+  static float enthalpy(float t) { return 4.177f * t + 0.0002f * t * t }
+
+  private void publish()
+  {
+    energy := (float)kwhSum
+    gcal := (float)(kwhSum * 0.000859845D)
+    volume := (float)volSum
+  }
+
+  override int retainSize() { return 16 }
+  override void saveRetain(OutStream out) { out.writeF8(kwhSum); out.writeF8(volSum) }
+  override void loadRetain(InStream in)
+  {
+    double a = in.readF8()
+    double b = in.readF8()
+    kwhSum = a == a ? a : 0.0D
+    volSum = b == b ? b : 0.0D
+    publish()
+  }
+
+  double kwhSum
+  double volSum
+  inline Ticker ticker
+}

@@ -1,0 +1,212 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+class ThermalControlTest extends Test
+{
+  static bool close(float a, float b, float tolerance)
+  { return a-b < tolerance && a-b > -tolerance }
+
+  static void testClosedCoilConservesEnergy()
+  {
+    SimClock c = SimulationTest.setup()
+    WaterCoil w = (WaterCoil)Sys.app.add(c,"coil",WaterCoil.type)
+    c.dt := 1.0f
+    w.waterFlow := 0.0f
+    w.airFlow := 0.0f
+    w.waterCapacity := 1000.0f
+    w.airCapacity := 1000.0f
+    w.initialWater := 60.0f
+    w.initialAir := 20.0f
+    c.reset()
+    c.step()
+    assert(close(w.waterOut,46.666667f,0.0001f))
+    assert(close(w.airOut,33.333333f,0.0001f))
+    assert(close(w.waterOut+w.airOut,80.0f,0.0001f))
+    assert(close(w.balanceError,0.0f,0.001f))
+    assert(w.waterPower == 0.0f && w.airPower == 0.0f)
+    for (int i=0; i<100; ++i) c.step()
+    assert(close(w.waterOut,40.0f,0.001f))
+    assert(close(w.airOut,40.0f,0.001f))
+    Sys.app.cleanupApp()
+  }
+
+  static void testCoilIndependentSteadyState()
+  {
+    SimClock c = SimulationTest.setup()
+    WaterCoil w = (WaterCoil)Sys.app.add(c,"coil",WaterCoil.type)
+    c.dt := 1.0f
+    w.waterCapacity := 1000.0f
+    w.airCapacity := 1000.0f
+    w.opening := 1.0f
+    c.reset()
+    for (int i=0; i<300; ++i) c.step()
+    float q = 45.0f/(1.0f/836.0f+1.0f/1000.0f+1.0f/503.0f)
+    assert(close(w.heat,q,1.0f))
+    assert(close(w.airOut,15.0f+q/503.0f,0.001f))
+    assert(close(w.waterOut,60.0f-q/836.0f,0.001f))
+    assert(close(w.waterPower,w.airPower,1.0f))
+    assert(w.good)
+    w.opening := 0.0f
+    for (int i=0; i<300; ++i) c.step()
+    assert(close(w.airOut,15.0f,0.001f))
+    assert(close(w.waterOut,15.0f,0.001f))
+    Sys.app.cleanupApp()
+  }
+
+  static void testInverseFeedforwardAndWaterDisturbance()
+  {
+    SimClock c = SimulationTest.setup()
+    CoilFeedforward f = (CoilFeedforward)Sys.app.add(c,"ff",CoilFeedforward.type)
+    WaterCoil w = (WaterCoil)Sys.app.add(c,"coil",WaterCoil.type)
+    f.phase := 0
+    w.phase := 3
+    w.waterCapacity := 1000.0f
+    w.airCapacity := 1000.0f
+    c.dt := 1.0f
+    assert(Sys.app.addLink(f,CoilFeedforward.out,w,WaterCoil.opening) != null)
+    c.reset()
+    for (int i=0; i<300; ++i) c.step()
+    assert(close(w.airOut,25.0f,0.001f))
+    assert(f.reachable)
+    float original = f.out
+    f.waterIn := 45.0f
+    w.waterIn := 45.0f
+    for (int i=0; i<300; ++i) c.step()
+    assert(f.out > original)
+    assert(close(w.airOut,25.0f,0.001f))
+    f.waterIn := 30.0f
+    w.waterIn := 30.0f
+    for (int i=0; i<300; ++i) c.step()
+    assert(f.out == 1.0f)
+    assert(!f.reachable)
+    assert(w.airOut < 25.0f)
+    Sys.app.cleanupApp()
+  }
+
+  static void testPidTrackingLimitsAndDisable()
+  {
+    SimClock c = SimulationTest.setup()
+    SimPid p = (SimPid)Sys.app.add(c,"pid",SimPid.type)
+    c.dt := 1.0f
+    p.sp := 20.0f
+    p.pv := 20.0f
+    p.feedforward := 0.2f
+    p.tracking := true
+    p.trackOut := 0.4f
+    c.reset()
+    c.step()
+    assert(close(p.out,0.4f,0.0001f))
+    p.tracking := false
+    c.step()
+    assert(close(p.out,0.4f,0.0001f))
+    p.useLimits := true
+    p.limitHi := 0.25f
+    p.slew := 0.001f
+    c.step()
+    assert(p.out <= 0.25f)
+    assert(p.limited)
+    p.limitLo := 0.8f
+    float previous = p.out
+    c.step()
+    assert(!p.good)
+    assert(p.out == previous)
+    p.useLimits := false
+    p.enabled := false
+    c.step()
+    assert(p.out == 0.0f)
+    assert(p.good)
+    Sys.app.cleanupApp()
+  }
+
+  static void testPidMeasurementDerivativeAndWindup()
+  {
+    SimClock c = SimulationTest.setup()
+    SimPid p = (SimPid)Sys.app.add(c,"pid",SimPid.type)
+    c.dt := 1.0f
+    p.kp := 0.1f
+    p.td := 2.0f
+    p.tf := 0.0f
+    c.reset()
+    c.step()
+    p.sp := 10.0f
+    c.step()
+    assert(p.derivative == 0.0f)
+    p.pv := 1.0f
+    c.step()
+    assert(close(p.derivative,-0.2f,0.0001f))
+    p.td := 0.0f
+    p.sp := 100.0f
+    for (int i=0; i<1000; ++i) c.step()
+    assert(p.out == 1.0f)
+    assert(p.integral < 10.0f && p.integral > -20.0f)
+    p.sp := 0.0f
+    p.pv := 0.0f
+    for (int i=0; i<50; ++i) c.step()
+    assert(p.out < 0.01f)
+    Sys.app.cleanupApp()
+  }
+  static void testRoomSteadyStateAndEnergy()
+  {
+    SimClock c = SimulationTest.setup()
+    Room r = (Room)Sys.app.add(c,"room",Room.type)
+    c.dt := 1.0f
+    r.capacity := 1000.0f
+    r.supply := 30.0f
+    r.outdoor := 10.0f
+    r.load := 500.0f
+    c.reset()
+    for (int i=0; i<100; ++i) c.step()
+    float expected = (503.0f*30.0f+100.0f*10.0f+500.0f)/603.0f
+    assert(close(r.out,expected,0.001f))
+    assert(close(r.supplyPower+r.envelopePower+500.0f,0.0f,0.01f))
+    assert(close(r.balanceError,0.0f,0.001f))
+    Sys.app.cleanupApp()
+  }
+
+  static void testLookupInterpolationAndValidation()
+  {
+    SimClock c = SimulationTest.setup()
+    Lookup5 table = (Lookup5)Sys.app.add(c,"table",Lookup5.type)
+    table.y1 := 10.0f
+    table.y2 := 20.0f
+    table.y3 := 30.0f
+    table.y4 := 40.0f
+    table.in := 1.5f
+    c.reset()
+    c.step()
+    assert(table.out == 15.0f && !table.clamped)
+    table.in := -1.0f
+    c.step()
+    assert(table.out == 0.0f && table.clamped)
+    table.in := 5.0f
+    c.step()
+    assert(table.out == 40.0f && table.clamped)
+    table.x2 := 1.0f
+    c.step()
+    assert(c.fault == 3)
+    Sys.app.cleanupApp()
+  }
+  static void testCascadeExternalResetPreventsRunaway()
+  {
+    SimClock c = SimulationTest.setup()
+    SimPid p = (SimPid)Sys.app.add(c,"master",SimPid.type)
+    c.dt := 1.0f
+    p.lo := 18.0f
+    p.hi := 35.0f
+    p.initial := 25.0f
+    p.safeOut := 18.0f
+    p.kp := 1.0f
+    p.ti := 100.0f
+    p.tt := 10.0f
+    p.sp := 23.0f
+    p.pv := 22.0f
+    p.externalReset := true
+    p.resetOut := 25.0f
+    c.reset()
+    for (int i=0; i<2000; ++i) c.step()
+    assert(p.out < 25.2f && p.out >= 25.0f)
+    p.externalReset := false
+    for (int i=0; i<2000; ++i) c.step()
+    assert(p.out == 35.0f)
+    Sys.app.cleanupApp()
+  }
+}

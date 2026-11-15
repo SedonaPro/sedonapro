@@ -1,0 +1,32 @@
+<sedonaKit
+    name="sproModbusSlave"
+    vendor="SPro"
+    description="SedonaPro Modbus Slave for RS485/232 and TCP/IP">
+  <depend on="sys 1.2+" />
+  <depend on="inet 1.2+" />
+  <depend on="sproLib 1.2+" />
+  <depend on="sproUtil 1.2+" />
+
+  <native qname="sproModbusSlave::ModbusSlavePointBoolean.setData"                 id="113::0" />
+  <native qname="sproModbusSlave::ModbusSlavePointBoolean.getData"                 id="113::1" />
+  <native qname="sproModbusSlave::ModbusSlavePointNumeric.setData"                 id="113::2" />
+  <native qname="sproModbusSlave::ModbusSlavePointNumeric.getData"                 id="113::3" />
+
+  <native qname="sproModbusSlave::ModbusSlaveService.setSlaveAddr"                 id="113::10" />
+  <native qname="sproModbusSlave::ModbusSlaveService.setQuit"                      id="113::11" />
+  <native qname="sproModbusSlave::ModbusSlaveService.getStatus"                    id="113::12" />
+  <native qname="sproModbusSlave::ModbusSlaveService.getRequests"                  id="113::13" />
+  <native qname="sproModbusSlave::ModbusSlaveService.updateRegNumber"              id="113::14" />
+  <native qname="sproModbusSlave::ModbusSlaveService.setEnable"                    id="113::15" />
+  <native qname="sproModbusSlave::ModbusSlaveService.printInternalStateNative"     id="113::16" />
+  <native qname="sproModbusSlave::ModbusSlaveService.printInternalStateNativeAll"  id="113::17" />
+
+  <native qname="sproModbusSlave::ModbusSlaveTcpService.addSlaveService"           id="113::20" />
+  <native qname="sproModbusSlave::ModbusSlaveTcpService.updateTcpSettings"         id="113::21" />
+
+  <native qname="sproModbusSlave::ModbusSlaveSerialService.addSlaveService"        id="113::30" />
+  <native qname="sproModbusSlave::ModbusSlaveSerialService.updateSerialSettings"   id="113::31" />
+
+
+  <source dir="." />
+</sedonaKit>

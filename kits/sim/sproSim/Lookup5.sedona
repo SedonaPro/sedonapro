@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Five-point piecewise-linear table with endpoint clamping.
+class Lookup5 extends SimBlock
+{
+  property float in
+  @config property float x0 = 0.0f
+  @config property float x1 = 1.0f
+  @config property float x2 = 2.0f
+  @config property float x3 = 3.0f
+  @config property float x4 = 4.0f
+  @config property float y0 = 0.0f
+  @config property float y1 = 1.0f
+  @config property float y2 = 2.0f
+  @config property float y3 = 3.0f
+  @config property float y4 = 4.0f
+  @readonly property float out
+  @readonly property bool clamped = false
+  @readonly property bool good = true
+  virtual override bool acceptsInput(Slot s) { return s == Lookup5.in }
+  virtual override bool valid()
+  {
+    return super.valid() && finite(x0) && finite(x1) && finite(x2) && finite(x3) && finite(x4) &&
+      finite(y0) && finite(y1) && finite(y2) && finite(y3) && finite(y4) && x0 < x1 && x1 < x2 && x2 < x3 && x3 < x4
+  }
+  virtual override void resetState() { out := y0; clamped := false; good := true }
+  override void tick(float dt, double time)
+  {
+    good := finite(in)
+    if (!good) return
+    clamped := in < x0 || in > x4
+    if (in <= x0) { out := y0; return }
+    if (in >= x4) { out := y4; return }
+    float a = x0
+    float b = x1
+    float ya = y0
+    float yb = y1
+    if (in > x3) { a=x3; b=x4; ya=y3; yb=y4 }
+    else if (in > x2) { a=x2; b=x3; ya=y2; yb=y3 }
+    else if (in > x1) { a=x1; b=x2; ya=y1; yb=y2 }
+    double f = ((double)in-(double)a)/((double)b-(double)a)
+    out := (float)((1.0d-f)*(double)ya+f*(double)yb)
+  }
+}

@@ -1,0 +1,289 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+class HeatTest extends Test
+{
+  static inline HeatCurve hc
+  static inline HeatingCircuit hcir
+  static inline HeatingCircuit hcir2
+  static inline DhwCircuit dhw
+  static inline MakeUp mu
+
+  static bool near(float a, float b, float tol) { return a - b <= tol && b - a <= tol }
+
+  static void testCurve()
+  {
+    hc.filter := 0.0f
+    hc.averaging := 0.0f
+    hc.roomGain := 0.0f
+    hc.outdoor := -28.0f
+    hc.update(1.0f)
+    // the design point: 95/70
+    assert(near(hc.supplySp, 95.0f, 0.05f) && near(hc.returnSp, 70.0f, 0.05f))
+    assert(hc.heating && hc.status == Pro.ok)
+    hc.outdoor := 0.0f
+    hc.update(1.0f)
+    // q = 20/48: 20 + 62.5 * q^(1/1.3) +- 12.5 * q
+    assert(near(hc.supplySp, 57.1f, 0.3f) && near(hc.returnSp, 46.7f, 0.3f))
+    // supplyMin holds at mild weather; returnSp never above supplySp
+    hc.outdoor := 16.0f
+    hc.update(1.0f)
+    assert(hc.supplySp == 35.0f && hc.returnSp <= hc.supplySp)
+    // parallel shift and setback
+    hc.outdoor := -10.0f
+    hc.update(1.0f)
+    float s0 = hc.supplySp
+    hc.shift := 3.0f
+    hc.update(1.0f)
+    assert(near(hc.supplySp, s0 + 3.0f, 0.01f))
+    hc.shift := 0.0f
+    hc.setback := true
+    hc.update(1.0f)
+    assert(hc.supplySp < s0 - 5.0f && hc.roomSpNow == 17.0f)
+    hc.setback := false
+    // room correction: 1 K too cold -> +2 K supply, limited
+    hc.roomGain := 2.0f
+    hc.room := 19.0f
+    hc.update(1.0f)
+    assert(near(hc.supplySp, s0 + 2.0f, 0.01f))
+    hc.room := 5.0f
+    hc.update(1.0f)
+    assert(near(hc.supplySp, s0 + 10.0f, 0.01f))
+    hc.room := null
+    // season with hysteresis on the average
+    hc.outdoor := 9.0f
+    hc.update(1.0f)
+    assert(hc.heating)
+    hc.outdoor := 11.0f
+    hc.update(1.0f)
+    assert(!hc.heating)
+    hc.outdoor := 9.0f
+    hc.update(1.0f)
+    assert(!hc.heating)
+    hc.outdoor := 7.0f
+    hc.update(1.0f)
+    assert(hc.heating)
+    // averaging: one warm hour does not stop the heating
+    hc.averaging := 24.0f
+    hc.outdoor := 20.0f
+    hc.update(3600.0f)
+    assert(hc.heating && hc.outdoorAvg < 8.0f)
+    // failed sensor: the average holds
+    float a = hc.outdoorAvg
+    hc.outdoor := null
+    hc.update(60.0f)
+    assert(hc.status == Pro.inputBad && hc.outdoorAvg == a)
+    hc.mode := Pro.modeOff
+    hc.update(1.0f)
+    assert(!hc.heating && hc.status == Pro.off)
+    hc.mode := Pro.modeAuto
+    hc.designSupply := 10.0f
+    hc.update(1.0f)
+    assert(hc.status == Pro.config && hc.supplySp == null)
+    hc.designSupply := 95.0f
+  }
+
+  ** heating circuit on a first-order model: supply = 15 + 0.8 * valve, 60 s
+  static void testCircuit()
+  {
+    HeatingCircuit c = hcir
+    c.supplySp := 60.0f
+    c.heating := true
+    float sup = 15.0f
+    float peak = 0.0f
+    for (int i = 0; i < 1800; i++)
+    {
+      c.supply := sup
+      c.update(1.0f)
+      sup += (15.0f + 0.8f * c.valve - sup) / 60.0f
+      if (i > 300 && sup > peak) peak = sup
+    }
+    assert(c.pump && c.status == Pro.ok && c.state == HeatingCircuit.stRun)
+    assert(near(sup, 60.0f, 0.5f) && peak < 62.0f)
+    // return limit: the return 5 K too high closes the valve
+    float v0 = c.valve
+    c.returnMax := 40.0f
+    c.returnTemp := 45.0f
+    for (int i = 0; i < 120; i++) { c.supply := sup; c.update(1.0f); sup += (15.0f + 0.8f * c.valve - sup) / 60.0f }
+    assert(c.returnLimited && c.valve < v0 - 4.0f && c.status == Pro.limited)
+    c.returnTemp := 35.0f
+    for (int i = 0; i < 1800; i++) { c.supply := sup; c.update(1.0f); sup += (15.0f + 0.8f * c.valve - sup) / 60.0f }
+    assert(!c.returnLimited && near(sup, 60.0f, 0.5f))
+    // hot water priority caps the valve
+    c.limit := 20.0f
+    c.update(1.0f)
+    assert(c.valve <= 20.0f)
+    c.limit := 100.0f
+    // no circulation: a short loss keeps the valve, then it closes; alarm after a minute
+    float v1 = c.valve
+    c.flow := false
+    c.update(1.0f)
+    assert(v1 > 0.0f && c.valve == v1 && c.status == Pro.waiting && !c.alarm)
+    c.update(10.0f)
+    assert(c.valve == 0.0f && !c.alarm)
+    c.update(61.0f)
+    assert(c.alarm)
+    // the standby pump of a twin pair runs
+    c.flow2 := true
+    c.update(1.0f)
+    assert(c.valve > 0.0f && c.status != Pro.waiting)
+    c.flow2 := false
+    c.flow := true
+    // overheat closes at once
+    c.supply := 101.0f
+    c.update(1.0f)
+    assert(c.valve == 0.0f && c.state == HeatingCircuit.stOverheat)
+    c.update(30.0f)
+    assert(c.alarm)
+    // heating off: pump runs on, then stops
+    c.supply := 50.0f
+    c.heating := false
+    c.update(1.0f)
+    assert(c.valve == 0.0f && c.pump && c.state == HeatingCircuit.stRunOn)
+    c.update(600.0f)
+    assert(!c.pump && c.state == HeatingCircuit.stOff)
+    // cold outside: the pump runs; cold water: the valve opens
+    c.outdoor := -5.0f
+    c.update(1.0f)
+    assert(c.pump && !c.frost)
+    c.supply := 6.0f
+    c.mode := Pro.modeOff
+    c.update(1.0f)
+    assert(c.frost && c.pump && c.valve > 0.0f && c.state == HeatingCircuit.stFrost)
+    c.supply := 21.0f
+    c.returnTemp := 20.0f
+    c.update(1.0f)
+    assert(!c.frost && !c.pump && c.valve == 0.0f && c.status == Pro.off)
+    // failed sensor while heating
+    c.mode := Pro.modeAuto
+    c.heating := true
+    c.supply := null
+    c.update(1.0f)
+    assert(c.valve == 30.0f && c.status == Pro.inputBad && c.alarm)
+    c.mode := Pro.modeHand
+    c.handValue := 45.0f
+    c.update(1.0f)
+    assert(c.valve == 45.0f && c.pump && c.status == Pro.hand)
+  }
+
+  ** a return far below its limit must not hold the valve at the start
+  static void testReturnLimitAtStart()
+  {
+    HeatingCircuit c = hcir2
+    c.heating := true
+    c.supplySp := 71.0f
+    c.supply := 40.0f
+    c.returnMax := 55.0f
+    c.returnTemp := 35.0f
+    for (int i = 0; i < 10; i++) c.update(1.0f)
+    assert(!c.returnLimited && c.supplySpNow == 71.0f && c.status == Pro.ok && c.valve > 5.0f)
+  }
+
+  ** hot water on a fast model: temp = 10 + 0.7 * valve, 10 s
+  static void testDhw()
+  {
+    DhwCircuit d = dhw
+    float t = 10.0f
+    for (int i = 0; i < 600; i++) { d.temp := t; d.update(1.0f); t += (10.0f + 0.7f * d.valve - t) / 10.0f }
+    assert(near(t, 60.0f, 0.5f) && d.circPump && d.status == Pro.ok && d.state == 1)
+    // disinfection from a schedule edge
+    d.disinfect := true
+    d.update(1.0f)
+    assert(d.disinfecting && d.spNow == 70.0f)
+    for (int i = 0; i < 1900; i++) { d.temp := t; d.update(1.0f); t += (10.0f + 0.7f * d.valve - t) / 10.0f }
+    assert(!d.disinfecting && d.disinfectOk && d.spNow == 60.0f)
+    // a disinfection that cannot reach its temperature fails
+    d.disinfect := false
+    d.update(1.0f)
+    d.disinfect := true
+    d.temp := 50.0f
+    d.update(1.0f)
+    d.update(181.0f * 60.0f)
+    assert(!d.disinfecting && !d.disinfectOk && d.alarm)
+    d.reset()
+    d.temp := 60.0f
+    d.update(1.0f)
+    assert(!d.alarm)
+    // scald protection
+    d.temp := 76.0f
+    d.update(1.0f)
+    assert(d.valve == 0.0f && d.state == 3)
+    d.update(30.0f)
+    assert(d.alarm)
+    // priority
+    d.usePriority := true
+    d.temp := 40.0f
+    for (int i = 0; i < 150; i++) d.update(1.0f)
+    assert(d.valve >= 95.0f && d.priority && d.heatingLimit == 30.0f)
+    d.temp := 58.0f
+    d.update(1.0f)
+    assert(!d.priority && d.heatingLimit == 100.0f)
+    // failed sensor closes
+    d.temp := null
+    d.update(1.0f)
+    assert(d.valve == 0.0f && d.status == Pro.inputBad && d.alarm)
+    d.mode := Pro.modeOff
+    d.update(1.0f)
+    assert(d.valve == 0.0f && !d.circPump && d.status == Pro.off)
+  }
+
+  static void testMakeUp()
+  {
+    MakeUp m = mu
+    m.reset()
+    m.pressure := 1.8f
+    m.update(1.0f)
+    assert(!m.out && m.status == Pro.standby)
+    m.pressure := 1.4f
+    m.update(1.0f)
+    assert(m.out && m.startsHour == 1)
+    m.update(10.0f)
+    m.pressure := 2.1f
+    m.update(1.0f)
+    assert(!m.out && near(m.fillTime, 11.0f, 0.01f))
+    // minimum pause between fills
+    m.pressure := 1.4f
+    m.update(1.0f)
+    assert(!m.out && m.status == Pro.waiting)
+    m.update(30.0f)
+    assert(m.out && m.startsHour == 2)
+    // too many fills in an hour: leak
+    for (int k = 0; k < 5; k++)
+    {
+      m.pressure := 2.1f
+      m.update(1.0f)
+      m.update(31.0f)
+      m.pressure := 1.4f
+      m.update(1.0f)
+    }
+    assert(m.leak && m.alarm && m.out && m.startsHour == 7)
+    // an hour later the fills are forgotten, the warning stays until reset
+    m.pressure := 2.1f
+    m.update(1.0f)
+    m.update(3700.0f)
+    assert(m.startsHour == 0 && m.leak)
+    m.reset()
+    assert(!m.leak)
+    // a fill that never ends
+    m.pressure := 1.4f
+    m.update(1.0f)
+    assert(m.out)
+    m.update(301.0f)
+    assert(!m.out && m.fillFault && m.alarm)
+    m.update(1.0f)
+    assert(!m.out && m.status == Pro.locked)
+    m.reset()
+    // low pressure alarm, no source
+    m.pressure := 0.5f
+    m.source := false
+    m.update(1.0f)
+    m.update(10.0f)
+    assert(m.low && !m.out && m.status == Pro.waiting)
+    m.source := true
+    m.pressure := null
+    m.update(1.0f)
+    assert(!m.out && m.status == Pro.inputBad)
+  }
+}

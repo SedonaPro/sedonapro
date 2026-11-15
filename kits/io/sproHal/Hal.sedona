@@ -1,0 +1,59 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Access to the board's channels.  A channel is a named input or output
+** (DI1, DO1, AI1, AO1, RELAY_FAN ...) described in boards/<board>.toml;
+** the native layer maps it to a pin of the HAL backend (sim, linux-gpiod,
+** linux-sysfs, esp32).  Values are already in engineering units:
+** digital 0/1 (inversion applied), analog scaled by the board file.
+**
+@palette=false
+class Hal
+{
+  define int kindNone = 0
+  define int kindDi = 1
+  define int kindDo = 2
+  define int kindAi = 3
+  define int kindAo = 4
+
+  define int ok         = 0
+  define int noChannel  = 1
+  define int wrongKind  = 2
+  define int ioError    = 3
+
+  ** number of channels on this board
+  static native int count()
+
+  ** channel index by name, or -1
+  static native int find(Str name)
+
+  ** kind of channel ch: kindNone, kindDi, kindDo, kindAi, kindAo
+  static native int kind(int ch)
+
+  ** name of channel ch
+  static native Str name(int ch)
+
+  ** configure the pin of channel ch; returns ok or ioError
+  static native int open(int ch)
+
+  ** current value of channel ch; null (NaN) on error
+  static native float read(int ch)
+
+  ** set output channel ch; returns ok, wrongKind or ioError
+  static native int write(int ch, float value)
+
+  ** board name, e.g. "esp32-s3-devkitc"
+  static native Str board()
+
+  ** HAL backend, e.g. "linux-gpiod"
+  static native Str backend()
+
+  ** number of serial ports in the board file (serial = [...])
+  static native int serialCount()
+
+  ** device of serial port i (0-based; Modbus port number = i + 1)
+  static native Str serialName(int i)
+}

@@ -1,0 +1,105 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Simulation PID: measurement derivative, filtered D, tracking back-calculation.
+class SimPid extends SimBlock
+{
+  property float sp
+  property float pv
+  property float feedforward
+  property bool enabled = true
+  property bool manual = false
+  property float manualOut
+  property bool tracking = false
+  property float trackOut
+  property bool externalReset = false
+  property float resetOut
+  property bool useLimits = false
+  property float limitLo = 0.0f
+  property float limitHi = 1.0f
+  @config property float kp = 1.0f
+  @config property float ti = 10.0f
+  @config property float td = 0.0f
+  @config property float tf = 0.1f
+  @config property float tt = 1.0f
+  @config property float beta = 1.0f
+  @config property float lo = 0.0f
+  @config property float hi = 1.0f
+  @config property float slew = 0.0f
+  @config property float initial
+  @config property float safeOut
+  @readonly property float out
+  @readonly property float integral
+  @readonly property float derivative
+  @readonly property bool limited = false
+  @readonly property bool good = true
+  private float previousPv
+  private bool primed = false
+  virtual override bool acceptsInput(Slot s)
+  {
+    return s == SimPid.sp || s == SimPid.pv || s == SimPid.feedforward || s == SimPid.enabled ||
+      s == SimPid.manual || s == SimPid.manualOut || s == SimPid.tracking || s == SimPid.trackOut ||
+      s == SimPid.externalReset || s == SimPid.resetOut || s == SimPid.useLimits || s == SimPid.limitLo || s == SimPid.limitHi
+  }
+  virtual override bool valid()
+  {
+    return super.valid() && finite(kp) && finite(ti) && ti > 0.0f && finite(td) && td >= 0.0f &&
+      finite(tf) && tf >= 0.0f && finite(tt) && tt > 0.0f && finite(beta) && beta >= 0.0f && beta <= 1.0f &&
+      finite(lo) && finite(hi) && lo <= hi && finite(slew) && slew >= 0.0f &&
+      finite(initial) && initial >= lo && initial <= hi && finite(safeOut) && safeOut >= lo && safeOut <= hi
+  }
+  virtual override void resetState()
+  {
+    out := initial
+    integral := initial
+    derivative := 0.0f
+    previousPv = 0.0f
+    primed = false
+    limited := false
+    good := true
+  }
+  override void tick(float dt, double time)
+  {
+    good := finite(sp) && finite(pv) && finite(feedforward) && (!manual || finite(manualOut)) &&
+      (!tracking || finite(trackOut)) && (!externalReset || finite(resetOut)) && (!useLimits || (finite(limitLo) && finite(limitHi)))
+    if (!good) return
+    float lower = lo
+    float upper = hi
+    if (useLimits) { lower = clamp(limitLo,lo,hi); upper = clamp(limitHi,lo,hi) }
+    if (useLimits && (limitLo > limitHi || limitLo > hi || limitHi < lo)) { good := false; return }
+    float p = kp*(beta*sp-pv)
+    float d = 0.0f
+    if (primed) d = -kp*td*(pv-previousPv)/dt
+    d = derivative+dt/(tf+dt)*(d-derivative)
+    if (!finite(p) || !finite(d)) { good := false; return }
+    float i = integral
+    float request = 0.0f
+    bool hold = !enabled || manual || tracking
+    if (hold)
+    {
+      request = safeOut
+      if (enabled && tracking) request = trackOut
+      if (enabled && manual) request = manualOut
+      request = clamp(request,lower,upper)
+      i = request-p-d-feedforward
+      if (!finite(i)) { good := false; return }
+    }
+    else
+    {
+      i += kp*(sp-pv)*dt/ti
+      float raw = p+i+d+feedforward
+      if (!finite(i) || !finite(raw)) { good := false; return }
+      request = clamp(raw,lower,upper)
+      if (slew > 0.0f) request = clamp(out+clamp(request-out,-slew*dt,slew*dt),lower,upper)
+      float feedback = request
+      if (externalReset) feedback = clamp(resetOut,lower,upper)
+      i += dt/(tt+dt)*(feedback-raw)
+      if (!finite(i)) { good := false; return }
+    }
+    limited := request <= lower || request >= upper
+    out := request
+    integral := i
+    derivative := d
+    previousPv = pv
+    primed = true
+  }
+}

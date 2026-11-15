@@ -1,0 +1,3 @@
+summary = "Closed-loop scenario tests of the pro kits on plant models (test code only)"
+portable_tests = true
+test_only = true

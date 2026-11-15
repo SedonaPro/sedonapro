@@ -1,0 +1,219 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Split range: one demand (a Pid's out) drives up to 4 actuators one
+** after another, e.g. heat recovery 0-33 %, heating valve 33-100 %.
+** out_k is 0 % at in <= lo_k and 100 % at in >= hi_k (hi_k < lo_k
+** reverses it).  With lo_k = hi_k out_k switches 0/100 at that point.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class Sequence4 extends Component
+{
+  ** demand, %
+  @summary property float in
+
+  ** outputs used, 1..4 (the others stay 0)
+  @config @min=1 @max=4 property int count = 2
+
+  @config property float lo1 = 0.0f
+  @config property float hi1 = 50.0f
+  @config property float lo2 = 50.0f
+  @config property float hi2 = 100.0f
+  @config property float lo3 = 0.0f
+  @config property float hi3 = 100.0f
+  @config property float lo4 = 0.0f
+  @config property float hi4 = 100.0f
+
+  @readonly @summary property float out1
+  @readonly property float out2
+  @readonly property float out3
+  @readonly property float out4
+
+  ** highest output above 0 (0: none)
+  @readonly property int active
+
+  ** ok, inputBad (in is null: outputs hold)
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute()
+  {
+    if (!Pro.valid(in))
+    {
+      status := Pro.inputBad
+      return
+    }
+    status := Pro.ok
+    out1 := map(1, lo1, hi1)
+    out2 := map(2, lo2, hi2)
+    out3 := map(3, lo3, hi3)
+    out4 := map(4, lo4, hi4)
+    int a = 0
+    if (out1 > 0.0f) a = 1
+    if (out2 > 0.0f) a = 2
+    if (out3 > 0.0f) a = 3
+    if (out4 > 0.0f) a = 4
+    active := a
+  }
+
+  private float map(int k, float lo, float hi)
+  {
+    if (k > count || !Pro.valid(lo) || !Pro.valid(hi)) return 0.0f
+    if (lo == hi) return in >= lo ? 100.0f : 0.0f
+    return Pro.clamp((in - lo) * 100.0f / (hi - lo), 0.0f, 100.0f)
+  }
+}
+
+**
+** Stages from a demand: electric heater sections, compressors, burner
+** stages.  Linear: stages 1..n on in turn (last on, first off).  Binary:
+** n outputs weighted 1, 2, 4 ... give 2^n - 1 equal steps (heater
+** sections of 1, 2, 4 kW give 0..7 kW).  Delays between steps and
+** minimum on/off times protect contactors and compressors; vernier is
+** the demand left over within the next step, for a modulating (SSR)
+** stage.  enable false or a bad in switches everything off at once.
+**
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class Stager extends Component
+{
+  ** demand, %
+  @summary property float in
+  @config property bool enable = true
+
+  ** outputs, 1..8
+  @config @min=1 @max=8 property int stages = 4
+
+  define Str modeRange = "linear, binary"
+  @config @range=modeRange property byte mode = 0
+
+  ** where in its band a step switches on, % of a step (100 with a vernier stage)
+  @config @min=0 @max=100 property float onAt = 50.0f
+  ** switches off this much below, % of a step
+  @config @min=0 @max=100 property float hyst = 30.0f
+
+  ** time between switching steps up, s
+  @config @unit=Units.second @min=0 property float upDelay = 30.0f
+  ** time between switching steps down, s
+  @config @unit=Units.second @min=0 property float downDelay = 30.0f
+  ** an output stays on at least this long, s
+  @config @unit=Units.second @min=0 property float minOn = 60.0f
+  ** an output stays off at least this long, s
+  @config @unit=Units.second @min=0 property float minOff = 60.0f
+
+  @readonly @summary property bool s1
+  @readonly property bool s2
+  @readonly property bool s3
+  @readonly property bool s4
+  @readonly property bool s5
+  @readonly property bool s6
+  @readonly property bool s7
+  @readonly property bool s8
+
+  ** step now: stages on (linear) or the binary value
+  @readonly property int step
+
+  ** demand left over within the next step, %
+  @readonly property float vernier
+
+  ** ok, disabled, inputBad, waiting (a delay or minimum time holds a step), limited (all on)
+  @readonly @range=Pro.statusRange property byte status
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    int n = stages
+    if (n < 1) n = 1
+    if (n > 8) n = 8
+    sinceChange += dt
+    for (int k = 0; k < 8; k++) since[k] = since[k] + dt
+
+    if (enable != true || !Pro.valid(in))
+    {
+      apply(0, n)
+      vernier := 0.0f
+      status := enable != true ? Pro.disabled : Pro.inputBad
+      return
+    }
+
+    int total = mode == 1 ? (1 << n) - 1 : n
+    float stepSize = 100.0f / (float)total
+    float d = Pro.clamp(in, 0.0f, 100.0f)
+    int want = cur
+    // up: as far as the thresholds allow; down likewise
+    while (want < total && d >= ((float)want + onAt / 100.0f) * stepSize) want++
+    while (want > 0 && d < ((float)(want - 1) + (onAt - hyst) / 100.0f) * stepSize) want--
+
+    vernier := Pro.clamp((d / stepSize - (float)cur) * 100.0f, 0.0f, 100.0f)
+    if (want == cur)
+    {
+      status := cur == total ? Pro.limited : Pro.ok
+      return
+    }
+    int next = want > cur ? cur + 1 : cur - 1
+    float delay = want > cur ? upDelay : downDelay
+    if (sinceChange < delay || !allowed(next, n))
+    {
+      status := Pro.waiting
+      return
+    }
+    apply(next, n)
+    sinceChange = 0.0f
+    vernier := Pro.clamp((d / stepSize - (float)cur) * 100.0f, 0.0f, 100.0f)
+    status := cur == total ? Pro.limited : Pro.ok
+  }
+
+  ** outputs of a step
+  private int bits(int st)
+  {
+    if (mode == 1) return st
+    return (1 << st) - 1
+  }
+
+  ** minimum on/off times of the outputs that would change
+  private bool allowed(int st, int n)
+  {
+    int a = bits(cur)
+    int b = bits(st)
+    for (int k = 0; k < n; k++)
+    {
+      int m = 1 << k
+      if ((a & m) != 0 && (b & m) == 0 && since[k] < minOn) return false
+      if ((a & m) == 0 && (b & m) != 0 && since[k] < minOff) return false
+    }
+    return true
+  }
+
+  private void apply(int st, int n)
+  {
+    int a = bits(cur)
+    int b = bits(st)
+    for (int k = 0; k < 8; k++)
+    {
+      int m = 1 << k
+      if ((a & m) != (b & m)) since[k] = 0.0f
+    }
+    cur = st
+    step := st
+    s1 := (b & 1) != 0
+    s2 := (b & 2) != 0
+    s3 := (b & 4) != 0
+    s4 := (b & 8) != 0
+    s5 := (b & 16) != 0
+    s6 := (b & 32) != 0
+    s7 := (b & 64) != 0
+    s8 := (b & 128) != 0
+  }
+
+  int cur
+  float sinceChange = 1000000.0f
+  inline float[8] since
+  inline Ticker ticker
+
+  override void start()
+  {
+    for (int k = 0; k < 8; k++) since[k] = 1000000.0f
+  }
+}

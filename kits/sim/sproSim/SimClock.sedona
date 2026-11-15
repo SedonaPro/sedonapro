@@ -1,0 +1,141 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Owns direct SimBlock children. No recursive application execution.
+class SimClock extends Component
+{
+  ** 0 independent; positive ID selects exactly one SimSession.
+  @config property int sessionId = 0
+  @readonly property long generation = 0L
+  property bool run = false
+  @config property bool autoRun = false
+  @config property float dt = 0.1f
+  @config property float rate = 1.0f
+  @config property int maxSteps = 100
+  @readonly property double time = 0.0d
+  @readonly property long steps = 0L
+  @readonly property double backlog = 0.0d
+  @readonly property bool overloaded = false
+  ** 0 OK; 1 clock configuration; 2 topology; 3 block configuration.
+  @readonly property int fault = 0
+  private long lastWall = 0L
+  private double pending = 0.0d
+  private float fixedDt = 0.0f
+
+  virtual override bool allowChildExecute() { return false }
+  virtual override void start()
+  {
+    reset()
+    if (sessionId == 0) run := autoRun
+  }
+  virtual override void execute()
+  {
+    if (sessionId != 0)
+    {
+      int owners=0
+      for (int i=1; i<=Sys.app.maxId(); i++)
+      {
+        Component c=Sys.app.lookup(i)
+        if (c != null && c.type.is(SimSession.type) && ((SimSession)c).sessionId == sessionId) owners++
+      }
+      if (sessionId < 0 || owners != 1) { run := false; fault := 4 }
+      return
+    }
+    long now = Sys.ticks()
+    if (lastWall == 0L) { lastWall = now; return }
+    double elapsed = (double)(now - lastWall) / 1000000000.0d
+    lastWall = now
+    advance(elapsed)
+  }
+
+  ** Wall time injection also supports deterministic host-independent testing.
+  void advance(double elapsed)
+  {
+    if (!validate()) return
+    if (!run) return
+    if (elapsed != elapsed || elapsed < 0.0d || elapsed > 3600.0d) { fault := 1; return }
+    pending += elapsed * (double)rate
+    int count = 0
+    while (pending + 0.000000001d >= (double)dt && count < maxSteps)
+    {
+      substep()
+      pending -= (double)dt
+      if (pending < 0.0d) pending = 0.0d
+      count++
+    }
+    backlog := pending
+    overloaded := pending + 0.000000001d >= (double)dt
+  }
+
+  action void step()
+  {
+    if (run || !validate()) return
+    substep()
+  }
+
+  ** Reset pauses the context; no automatic restart or retained wall-time debt.
+  action void reset()
+  {
+    run := false
+    time := 0.0d
+    steps := 0L
+    fixedDt = 0.0f
+    pending = 0.0d
+    backlog := 0.0d
+    overloaded := false
+    lastWall = Sys.ticks()
+    if (!validate()) return
+    for (Component c = Sys.app.lookup(children); c != null; c = Sys.app.lookup(c.nextSibling))
+      ((SimBlock)c).resetState()
+  }
+
+  bool validate() { return validateFor(false) }
+  bool validateReset() { return validateFor(true) }
+  private bool validateFor(bool resetting)
+  {
+    fault := 0
+    if (!SimBlock.finite(dt) || dt < 0.0001f || dt > 60.0f ||
+        !SimBlock.finite(rate) || rate < 0.0f || rate > 10000.0f || maxSteps < 1 || maxSteps > 1000 || (!resetting && fixedDt != 0.0f && dt != fixedDt))
+    { fault := 1; return false }
+    int blocks = 0
+    for (Component c = Sys.app.lookup(children); c != null; c = Sys.app.lookup(c.nextSibling))
+    {
+      if (!(c.type.is(SimBlock.type)) || c.children != nullId || blocks++ >= 128)
+      { fault := 2; return false }
+      if (!((SimBlock)c).valid()) { fault := 3; return false }
+      for (Link link = c.linksTo; link != null; link = link.nextTo)
+      {
+        Component source = Sys.app.lookup(link.fromComp)
+        if (source == null) { fault := 2; return false }
+        Slot from = source.type.slot(link.fromSlot)
+        Slot to = c.type.slot(link.toSlot)
+        if (source == null || source.parent != id || from == null || to == null ||
+            !from.isProp() || !to.isProp() || to.isConfig() || from.type != to.type ||
+            !((SimBlock)c).acceptsInput(to))
+        { fault := 2; return false }
+      }
+    }
+    return true
+  }
+
+  ** Session owns scheduling; this bypasses the local pause gate.
+  void sessionStep() { substep() }
+
+  private void substep()
+  {
+    fixedDt = dt
+    for (int phase = 0; phase < 8; ++phase)
+      for (Component c = Sys.app.lookup(children); c != null; c = Sys.app.lookup(c.nextSibling))
+      {
+        SimBlock b = (SimBlock)c
+        if (b.phase != phase) continue
+        for (Link link = b.linksTo; link != null; link = link.nextTo) link.propagate()
+        b.tick(dt, time)
+      }
+    time := time + (double)dt
+    steps := steps + 1L
+  }
+}
+
+
+
+

@@ -1,0 +1,174 @@
+{
+  "sourceJar": "C:\\MCSconfigurator_Windows_03_03_2026\\MCSconfigurator\\modules\\kitPxMcs4svg-wb.jar",
+  "jarSha256": "a2315cac6558181341e0193d3f450ba54dae685720a01d9e86bb740b13320205",
+  "sourceSvgCount": 973,
+  "objects": [
+    {
+      "key": "inlet",
+      "resource": "Ductwork/Duct_Horz_End_Left.svg",
+      "sha256": "3f790cc0a429b00f87f83471e434e3fae3c2ca79a5600be189e40d6f6c8ca1f9",
+      "x": 50,
+      "y": 228,
+      "width": 120.0,
+      "height": 90.0,
+      "scale": 1
+    },
+    {
+      "key": "damper",
+      "resource": "Dampers/Damper_Horz_Parallel/Damper_Horz_Parallel_0.svg",
+      "sha256": "562a9f2c41b9fe76da61ec0ef6fb60bbc641792e2089b41d75167921bc1f50f4",
+      "x": 170,
+      "y": 228,
+      "width": 80.0,
+      "height": 90.0,
+      "scale": 1
+    },
+    {
+      "key": "duct1",
+      "resource": "Ductwork/Duct_Horz_Short.svg",
+      "sha256": "62904eb97990f359ccbcf680f15fddbf99f3fa0d9362e70e9caba0f0bd5fb492",
+      "x": 250,
+      "y": 228,
+      "width": 170.0,
+      "height": 90.0,
+      "scale": 1
+    },
+    {
+      "key": "filter",
+      "resource": "Filters/Filter_Double/Filter_Double_0.svg",
+      "sha256": "69ee57dea164aa1fbfd4f4100cf8b237372763f01a703705ea49a592e3853fa7",
+      "x": 420,
+      "y": 228,
+      "width": 80.0,
+      "height": 90.0,
+      "scale": 1
+    },
+    {
+      "key": "duct2",
+      "resource": "Ductwork/Duct_Horz_Short.svg",
+      "sha256": "62904eb97990f359ccbcf680f15fddbf99f3fa0d9362e70e9caba0f0bd5fb492",
+      "x": 500,
+      "y": 228,
+      "width": 170.0,
+      "height": 90.0,
+      "scale": 1
+    },
+    {
+      "key": "heater",
+      "resource": "Coils/Coils_Heating/Coils_Heating_0.svg",
+      "sha256": "08795008ee66fb32eefed90974cd42a82ed9dbc1e2f034287caf1ea037dc10df",
+      "x": 670,
+      "y": 228,
+      "width": 80.0,
+      "height": 90.0,
+      "scale": 1
+    },
+    {
+      "key": "duct3",
+      "resource": "Ductwork/Duct_Horz_Short.svg",
+      "sha256": "62904eb97990f359ccbcf680f15fddbf99f3fa0d9362e70e9caba0f0bd5fb492",
+      "x": 750,
+      "y": 228,
+      "width": 170.0,
+      "height": 90.0,
+      "scale": 1
+    },
+    {
+      "key": "fan",
+      "resource": "Fans/Fans_Horz/Fans_Horz_Right/Fans_Horz_Right_Off.svg",
+      "sha256": "8963d394212851670ade5fa168008d75f176e34742415aa31c411bc68ab65054",
+      "x": 920,
+      "y": 228,
+      "width": 130.0,
+      "height": 90.0,
+      "scale": 1
+    },
+    {
+      "key": "outlet",
+      "resource": "Ductwork/Duct_Horz_End_Right.svg",
+      "sha256": "0299cd4bbabc5c85a85c5f2dceb2c7644054e0c63dfbd2b46bbbe650af21a915",
+      "x": 1050,
+      "y": 228,
+      "width": 130.19,
+      "height": 90.0,
+      "scale": 1
+    }
+  ],
+  "bindings": [
+    {
+      "label": "Положение клапана",
+      "path": "app/sim/cascade/valve",
+      "slot": "out",
+      "type": "sys::float",
+      "kind": "value",
+      "verifiedFrom": "device snapshot",
+      "readOnlyDuringAcceptance": true
+    },
+    {
+      "label": "Воздух после нагрева",
+      "path": "app/sim/cascade/coil",
+      "slot": "airOut",
+      "type": "sys::float",
+      "kind": "value",
+      "verifiedFrom": "device snapshot",
+      "readOnlyDuringAcceptance": true
+    },
+    {
+      "label": "Температура помещения",
+      "path": "app/sim/cascade/room",
+      "slot": "out",
+      "type": "sys::float",
+      "kind": "value",
+      "verifiedFrom": "device snapshot",
+      "readOnlyDuringAcceptance": true
+    },
+    {
+      "label": "Расчёт модели",
+      "path": "app/sim/cascade",
+      "slot": "run",
+      "type": "sys::bool",
+      "kind": "indicator",
+      "verifiedFrom": "device snapshot",
+      "readOnlyDuringAcceptance": true
+    },
+    {
+      "label": "Температура воды",
+      "path": "app/sim/cascade/water",
+      "slot": "out",
+      "type": "sys::float",
+      "kind": "value",
+      "verifiedFrom": "device snapshot",
+      "readOnlyDuringAcceptance": true
+    },
+    {
+      "label": "Задание на нагрев",
+      "path": "app/sim/cascade/master",
+      "slot": "out",
+      "type": "sys::float",
+      "kind": "value",
+      "verifiedFrom": "device snapshot",
+      "readOnlyDuringAcceptance": true
+    },
+    {
+      "label": "Цель после шага",
+      "path": "app/sim/cascade/setpt",
+      "slot": "after",
+      "type": "sys::float",
+      "kind": "setpoint",
+      "verifiedFrom": "device snapshot",
+      "readOnlyDuringAcceptance": true
+    },
+    {
+      "label": "PID: признак good",
+      "path": "app/sim/cascade/master",
+      "slot": "good",
+      "type": "sys::bool",
+      "kind": "indicator",
+      "verifiedFrom": "device snapshot",
+      "readOnlyDuringAcceptance": true
+    }
+  ],
+  "packageBytes": 52953,
+  "deviceWrites": false,
+  "staticEquipmentNotStateBindings": true
+}

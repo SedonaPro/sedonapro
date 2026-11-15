@@ -1,0 +1,9 @@
+# Wecon PI8070 HMI/controller as supported by the old sproIoWecon kit:
+# serial ports only.
+name    = "wecon-pi8070"
+title   = "Wecon PI8070 (serial ports)"
+hal     = "linux-sysfs"
+targets = ["linux"]
+# port 1, 2 = USB adapters; COM1 RS-232 (3), COM1 RS-485/422 (4),
+# COM2 RS-232 / console (5), COM2 RS-485 pins 1,6 (6), COM2 RS-485 pins 7,8 (7)
+serial  = ["/dev/ttyUSB0", "/dev/ttyUSB1", "/dev/ttyO0", "/dev/ttyO1", "/dev/ttyO2", "/dev/ttyO3", "/dev/ttyO4"]

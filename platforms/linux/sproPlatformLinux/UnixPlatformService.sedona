@@ -1,0 +1,44 @@
+// Hey, emacs! -*- c++ -*-
+//
+// Copyright 2017 Andrey Skvortsov <andrej.skvortzov@gmail.com>
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+class UnixPlatformService extends PlatformService
+{
+
+	/*
+	 * Returns true if the platform wants to the App to invoke work() again on
+	 * all Services during free time before the next App execute needs to begin.
+	 */
+	override bool workDuringFreeTime(long nsUntilDeadline)
+	{
+		bool ret;
+		ret = (nsUntilDeadline > 30000000L);
+		if (ret) {
+			Sys.sleep(2000000L);
+		}
+		return ret;
+	}
+
+	/*
+	 * Action to reboot the entire host platform.  This typically
+	 * means to reboot the entire operating system.
+	 */
+	@confirmRequired
+	override action void reboot() {
+		rebootSystem();
+	}
+
+	internal static native void rebootSystem();
+}

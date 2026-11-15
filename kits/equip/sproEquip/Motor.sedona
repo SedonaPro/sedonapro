@@ -1,0 +1,309 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** A pump, fan or compressor: turns a run request into a contactor
+** command and watches the equipment.
+**
+**  - auto/hand/off; in auto it runs on 'request' after startDelay and
+**    keeps running for stopDelay after it (run-on);
+**  - minRun and minStop protect against short cycling, powerUpDelay
+**    staggers the starts after a power failure;
+**  - 'fault' (thermal relay, VFD fault) stops it at once and, with
+**    latchFault, keeps it stopped until reset;
+**  - 'permit' false stops it at once without a latch (fire alarm, no
+**    water) - also in hand;
+**  - with checkFeedback: no feedback within fbDelay of a start, or a
+**    loss for fbLossDelay while running, is a fault; it is restarted
+**    up to 'retries' times after retryDelay, then locked; feedback
+**    while stopped (a welded contactor) is an alarm;
+**  - available tells a LeadLag whether it can be used;
+**  - run hours and starts (kept by a RetainService);
+**  - exercise: after exerciseHours without running it runs for
+**    exerciseTime (pumps and valves do not seize in summer).
+**
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class Motor extends Retained
+{
+  ** run request in auto
+  @summary property bool request
+  ** running feedback (contactor auxiliary, flow or pressure switch)
+  property bool fb
+  ** equipment fault: stops at once
+  property bool fault
+  ** permission: false stops at once (no latch)
+  property bool permit = true
+  ** speed demand for a VFD, %
+  property float speedIn = 100.0f
+
+  ** auto, hand, off
+  @config @range=Pro.modeRange property byte mode = 0
+  ** speed in hand, %
+  @config property float handSpeed = 100.0f
+
+  ** wait after a request before starting, s
+  @config @unit=Units.second @min=0 property float startDelay = 0.0f
+  ** keep running after the request ends, s
+  @config @unit=Units.second @min=0 property float stopDelay = 0.0f
+  ** shortest run, s
+  @config @unit=Units.second @min=0 property float minRun = 0.0f
+  ** shortest stop, s
+  @config @unit=Units.second @min=0 property float minStop = 0.0f
+  ** no start this long after the controller starts, s
+  @config @unit=Units.second @min=0 property float powerUpDelay = 0.0f
+
+  ** a fault input keeps the motor stopped until reset
+  @config property bool latchFault = true
+
+  ** check the running feedback fb
+  @config property bool checkFeedback = false
+  ** feedback must come this long after a start, s
+  @config @unit=Units.second @min=0 property float fbDelay = 10.0f
+  ** feedback lost this long while running is a fault, s
+  @config @unit=Units.second @min=0 property float fbLossDelay = 3.0f
+  ** restarts after a feedback fault before it locks
+  @config @min=0 @max=10 property int retries = 0
+  ** pause before a restart, s
+  @config @unit=Units.second @min=0 property float retryDelay = 60.0f
+
+  ** speed range while running, %
+  @config property float speedMin = 0.0f
+  @config property float speedMax = 100.0f
+
+  ** run after this many hours stopped (0 = no exercise), h
+  @config @unit=Units.hour @min=0 property float exerciseHours = 0.0f
+  ** exercise run, s
+  @config @unit=Units.second @min=0 property float exerciseTime = 30.0f
+
+  ** contactor command
+  @readonly @summary property bool cmd
+  ** runs (cmd and, with checkFeedback, fb)
+  @readonly property bool running
+  ** speed command, % (0 when stopped)
+  @readonly property float speed
+  ** can be started in auto (no fault, permitted, not off)
+  @readonly property bool available
+  ** a fault or an alarm is active or latched
+  @readonly property bool alarm
+
+  define Str faultRange = "none, external, noFeedback, feedbackLost, feedbackStuck"
+  define int faultNone = 0
+  define int faultExternal = 1
+  define int faultNoFeedback = 2
+  define int faultFeedbackLost = 3
+  define int faultFeedbackStuck = 4
+  ** the last fault (stays until reset or a good run)
+  @readonly @range=faultRange property byte faultCode
+
+  @readonly @unit=Units.hour @precision=2 property float hours
+  @readonly property int starts
+
+  ** ok (running), standby, starting, stopping, waiting, hand, off, disabled (no permit), fault, locked
+  @readonly @range=Pro.statusRange property byte status
+
+  ** clear a latched fault (if its cause is gone)
+  action void reset()
+  {
+    locked = false
+    retryWait = 0.0f
+    retryLeft = retries
+    if (fault != true) faultCode := faultNone
+    alarm := false
+  }
+
+  @confirmRequired
+  action void resetCounters()
+  {
+    runNs = 0L
+    starts := 0
+    hours := 0.0f
+    Retained.retainChanged()
+  }
+
+  @confirmRequired
+  action void setHours(float h)
+  {
+    if (!Pro.valid(h) || h < 0.0f) return
+    runNs = (long)(h * 3600.0f) * 1sec
+    hours := h
+    Retained.retainChanged()
+  }
+
+  override void start() { retryLeft = retries }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    uptime += dt
+    if (cmd) onFor += dt
+    else offFor += dt
+
+    bool permitted = permit == true
+    bool ext = fault == true
+    if (ext)
+    {
+      faultCode := faultExternal
+      if (latchFault) locked = true
+    }
+
+    // feedback while stopped: welded contactor or a pump turned by hand
+    if (checkFeedback && !cmd && fb == true && offFor >= fbDelay)
+      faultCode := faultFeedbackStuck
+    else if (faultCode == faultFeedbackStuck && fb != true)
+      faultCode := faultNone
+
+    if (locked || ext)
+    {
+      stopNow()
+      finish(dt, ext && !locked ? Pro.fault : Pro.locked)
+      return
+    }
+    if (retryWait > 0.0f)
+    {
+      retryWait -= dt
+      stopNow()
+      finish(dt, Pro.waiting)
+      if (retryWait <= 0.0f) faultCode := faultNone
+      return
+    }
+
+    // what is wanted
+    bool want = false
+    if (mode == Pro.modeHand) want = true
+    else if (mode == Pro.modeAuto) want = request == true || exercising
+    if (!permitted) want = false
+
+    // exercise after a long stop
+    if (mode == Pro.modeAuto && !cmd && !want && exerciseHours > 0.0f && permitted)
+    {
+      idleFor += dt
+      if (idleFor >= exerciseHours * 3600.0f) { exercising = true; want = true }
+    }
+    if (cmd) idleFor = 0.0f
+    if (exercising && cmd && onFor >= exerciseTime) { exercising = false; want = request == true && mode == Pro.modeAuto && permitted }
+
+    int st = Pro.standby
+    if (want && !cmd)
+    {
+      reqFor += dt
+      if (uptime < powerUpDelay) st = Pro.waiting
+      else if ((mode == Pro.modeHand || reqFor >= startDelay) && offFor >= minStop) startNow()
+      else st = Pro.waiting
+    }
+    else if (!want && cmd)
+    {
+      noReqFor += dt
+      if (mode != Pro.modeAuto || !permitted || (noReqFor >= stopDelay && onFor >= minRun)) stopNow()
+      else st = Pro.stopping
+    }
+    if (want) noReqFor = 0.0f
+    else reqFor = 0.0f
+
+    // feedback
+    if (cmd && checkFeedback)
+    {
+      if (fb == true)
+      {
+        fbSeen = true
+        fbBadFor = 0.0f
+        goodFor += dt
+        if (goodFor >= 600.0f) retryLeft = retries
+      }
+      else
+      {
+        fbBadFor += dt
+        goodFor = 0.0f
+        if (!fbSeen && onFor >= fbDelay) { trip(faultNoFeedback); finish(dt, status); return }
+        if (fbSeen && fbBadFor >= fbLossDelay) { trip(faultFeedbackLost); finish(dt, status); return }
+      }
+    }
+
+    if (cmd)
+      st = checkFeedback && fb != true ? Pro.starting : (st == Pro.stopping ? Pro.stopping : Pro.ok)
+    if (mode == Pro.modeHand) st = Pro.hand
+    else if (mode == Pro.modeOff) st = Pro.off
+    else if (!permitted) st = Pro.disabled
+    finish(dt, st)
+  }
+
+  private void trip(int code)
+  {
+    faultCode := code
+    stopNow()
+    if (retryLeft > 0)
+    {
+      retryLeft--
+      retryWait = retryDelay > 0.0f ? retryDelay : 0.001f
+      status := Pro.waiting
+    }
+    else
+    {
+      locked = true
+      status := Pro.locked
+    }
+  }
+
+  private void startNow()
+  {
+    cmd := true
+    onFor = 0.0f
+    fbSeen = false
+    fbBadFor = 0.0f
+    goodFor = 0.0f
+  }
+
+  private void stopNow()
+  {
+    if (cmd) offFor = 0.0f
+    cmd := false
+    exercising = false
+  }
+
+  ** outputs and counters at the end of a step
+  private void finish(float dt, int st)
+  {
+    status := st
+    bool r = cmd && (!checkFeedback || fb == true)
+    if (r && !running) starts := starts + 1
+    running := r
+    if (r && dt > 0.0f)
+    {
+      runNs += (long)(dt * 1000000.0f) * 1000L
+      hours := (float)(runNs / 1000000L) / 3600000.0f
+    }
+    float s = mode == Pro.modeHand ? handSpeed : speedIn
+    if (!Pro.valid(s)) s = speedMax
+    speed := cmd ? Pro.clamp(s, speedMin, speedMax) : 0.0f
+    available := !locked && fault != true && retryWait <= 0.0f && permit == true && mode == Pro.modeAuto
+    alarm := locked || fault == true || retryWait > 0.0f || faultCode != faultNone
+  }
+
+  override int retainSize() { return 12 }
+  override void saveRetain(OutStream out) { out.writeI8(runNs); out.writeI4(starts) }
+  override void loadRetain(InStream in)
+  {
+    runNs = in.readS8()
+    if (runNs < 0L) runNs = 0L
+    starts := in.readS4()
+    hours := (float)(runNs / 1000000L) / 3600000.0f
+  }
+
+  long runNs
+  float uptime
+  float onFor = 1000000.0f
+  float offFor = 1000000.0f
+  float reqFor
+  float noReqFor
+  float fbBadFor
+  float goodFor
+  float idleFor
+  float retryWait
+  int retryLeft
+  bool fbSeen
+  bool locked
+  bool exercising
+  inline Ticker ticker
+}

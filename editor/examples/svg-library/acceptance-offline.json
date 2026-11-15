@@ -1,0 +1,14 @@
+{
+  "result": "PASS",
+  "objects": 9,
+  "widgets": 8,
+  "mode": "OFFLINE SNAPSHOT",
+  "checks": [
+    "all library objects rendered without PC catalogue",
+    "three bound objects honestly show Unknown",
+    "offline write disabled",
+    "no device connection or mutation requests",
+    "no browser errors"
+  ],
+  "live184Recheck": "No response from DASP hello; ping timed out"
+}

@@ -1,0 +1,51 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Simulation PI: conditional integration anti-windup and manual tracking.
+** phase=1 recommended. Positive kp for heating, negative kp for cooling.
+class SimPi extends SimBlock
+{
+  property float sp
+  property float pv
+  property float feedforward
+  property bool manual = false
+  property float manualOut
+  @config property float kp = 1.0f
+  @config property float ti = 10.0f
+  @config property float lo = 0.0f
+  @config property float hi = 1.0f
+  @config property float initial
+  @readonly property float out
+  @readonly property float integral
+  @readonly property bool good = true
+  virtual override bool acceptsInput(Slot slot)
+  { return slot == SimPi.sp || slot == SimPi.pv || slot == SimPi.feedforward || slot == SimPi.manual || slot == SimPi.manualOut }
+  virtual override bool valid()
+  {
+    return super.valid() && finite(kp) && finite(ti) && ti > 0.0f && finite(lo) && finite(hi) &&
+      lo <= hi && finite(initial) && initial >= lo && initial <= hi
+  }
+  virtual override void resetState() { out := initial; integral := initial; good := true }
+  override void tick(float dt, double time)
+  {
+    good := finite(sp) && finite(pv) && finite(feedforward) && (!manual || finite(manualOut))
+    if (!good) return
+    float p = kp*(sp-pv)
+    if (!finite(p)) { good := false; return }
+    if (manual)
+    {
+      float tracked = clamp(manualOut, lo, hi)-p-feedforward
+      if (!finite(tracked)) { good := false; return }
+      out := clamp(manualOut, lo, hi)
+      integral := tracked
+      return
+    }
+    float delta = p*dt/ti
+    float candidate = p+integral+delta+feedforward
+    if (!finite(delta) || !finite(candidate) || !finite(integral+delta)) { good := false; return }
+    if ((candidate <= hi || delta < 0.0f) && (candidate >= lo || delta > 0.0f))
+      integral := integral+delta
+    out := clamp(p+integral+feedforward, lo, hi)
+  }
+}
+
+

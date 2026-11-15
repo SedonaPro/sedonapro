@@ -1,0 +1,6 @@
+# Interpreter loop in IRAM: no flash-cache misses in the hot path
+[mapping:sedona_vm]
+archive: libsedona.a
+entries:
+    if SEDONA_VM_IN_IRAM = y:
+        vm (noflash)

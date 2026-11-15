@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 SedonaPro contributors
+** Reproducible boolean event for fault injection and operating modes.
+class BoolStep extends SimBlock
+{
+  @config property bool before = false
+  @config property bool after = true
+  @config property float at = 10.0f
+  @readonly property bool out
+  virtual override bool valid() { return super.valid() && finite(at) && at >= 0.0f }
+  virtual override void resetState() { out := before }
+  override void tick(float dt, double time)
+  {
+    if (time >= (double)at) out := after
+    else out := before
+  }
+}

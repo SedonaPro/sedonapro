@@ -1,0 +1,3 @@
+# pumps: pump stations, duty/standby, cascades; also fans and compressors.
+summary = "Pumps and equipment: motor protections, duty/standby and lead/lag rotation, pump cascade with sleep, alarms and trips, pump station configurator"
+kits = ["sproBase", "sproSignal", "sproControl", "sproEquip", "sproAlarm", "sproPumpSt"]

@@ -1,0 +1,15 @@
+{
+  "result": "PASS",
+  "device": "192.0.2.10:11876",
+  "folder": "app/sim/cascade",
+  "widgets": 8,
+  "checks": [
+    "original MCS library SVG rendered by web editor",
+    "native size library objects / no per-object scaling",
+    "all eight bindings resolve against actual device schema",
+    "live SSE cache values displayed",
+    "no property/program/device-package writes",
+    "no browser errors"
+  ],
+  "deviceWrites": 0
+}

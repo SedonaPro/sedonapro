@@ -1,0 +1,291 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Lead/lag of up to 6 equal units (pumps, fans, compressors, boilers):
+** decides which units run so that 'demand' of them run, rotates them
+** and replaces a failed unit at once.
+**
+**  - duty/standby: link 'request' (one unit), units = 2;
+**  - a cascade: link 'demand' from a PumpCascade or a Stager;
+**  - availN from Motor.available, reqN to Motor.request;
+**  - rotation 'runtime' evens out run hours: an idle unit takes over
+**    when a running one has rotateHours more; 'time' moves the lead to
+**    the next unit every rotateHours of running; 'fixed' keeps the order
+**    1, 2, 3 ... (the rotate action still moves it);
+**  - at a changeover the new unit starts 'overlap' seconds before the
+**    old one stops (no pressure dip, no water hammer).
+** Run times are counted here and kept by a RetainService.
+**
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class LeadLag extends Retained
+{
+  ** units wanted
+  @summary property int demand
+  ** one unit wanted (duty/standby)
+  property bool request
+  @config property bool enable = true
+
+  ** the unit can run (Motor.available); unlinked = available
+  property bool avail1 = true
+  property bool avail2 = true
+  property bool avail3 = true
+  property bool avail4 = true
+  property bool avail5 = true
+  property bool avail6 = true
+
+  ** units in the group, 1..6
+  @config @min=1 @max=6 property int units = 2
+  ** most units running at once
+  @config @min=1 @max=6 property int maxRun = 6
+
+  define Str rotationRange = "runtime, time, fixed"
+  define int byRuntime = 0
+  define int byTime = 1
+  define int fixed = 2
+  @config @range=rotationRange property byte rotation = 0
+  ** see rotation, h
+  @config @unit=Units.hour @min=0.01 property float rotateHours = 24.0f
+  ** both units run this long at a changeover, s
+  @config @unit=Units.second @min=0 property float overlap = 5.0f
+
+  ** run requests to the units
+  @readonly @summary property bool req1
+  @readonly property bool req2
+  @readonly property bool req3
+  @readonly property bool req4
+  @readonly property bool req5
+  @readonly property bool req6
+
+  ** the lead unit (runs first), 1..6
+  @readonly property int lead
+  ** units requested now
+  @readonly property int running
+  ** units available
+  @readonly property int availableCount
+  ** fewer units can run than wanted
+  @readonly property bool alarm
+  ** ok, standby (nothing wanted), alarm (demand not met), disabled
+  @readonly @range=Pro.statusRange property byte status
+
+  ** run hours of unit 1..6 counted by the group
+  float unitHours(int i) { return (float)(runMs[i - 1] / 1000L) / 3600.0f }
+
+  ** move the lead to the next unit now
+  action void rotate()
+  {
+    offset = (offset + 1) % count()
+    leadTime = 0.0f
+    swapPending = true
+    Retained.retainChanged()
+  }
+
+  virtual override void execute() { update(ticker.next()) }
+
+  void update(float dt)
+  {
+    int n = count()
+    int want = 0
+    if (enable == true)
+    {
+      want = demand
+      if (request == true && want < 1) want = 1
+      if (want > maxRun) want = maxRun
+      if (want > n) want = n
+      if (want < 0) want = 0
+    }
+
+    long ms = (long)(dt * 1000.0f)
+    int active = 0
+    int avail = 0
+    for (int i = 0; i < n; i++)
+    {
+      if (isAvail(i)) avail++
+      if (req[i])
+      {
+        runMs[i] = runMs[i] + ms
+        // a failed unit is dropped at once; a replacement starts below
+        if (!isAvail(i)) { req[i] = false; if (swapOut == i) swapOut = -1 }
+        else active++
+      }
+    }
+    for (int i = n; i < 6; i++) req[i] = false
+
+    // a changeover in progress: the old unit stops after the overlap
+    if (swapOut >= 0)
+    {
+      overlapLeft -= dt
+      if (overlapLeft <= 0.0f || !req[swapOut])
+      {
+        if (req[swapOut]) active--
+        req[swapOut] = false
+        swapOut = -1
+      }
+    }
+    int extra = swapOut >= 0 ? 1 : 0
+
+    while (active < want)
+    {
+      int b = bestIdle(n)
+      if (b < 0) break
+      req[b] = true
+      active++
+    }
+    while (active > want + extra)
+    {
+      int w = worstRunning(n, -1)
+      if (w < 0) break
+      req[w] = false
+      if (swapOut == w) { swapOut = -1; extra = 0 }
+      active--
+    }
+
+    // rotation
+    if (active > 0) leadTime += dt
+    if (rotation == byTime && leadTime >= rotateHours * 3600.0f)
+    {
+      offset = (offset + 1) % n
+      leadTime = 0.0f
+      swapPending = true
+    }
+    if (swapOut < 0 && active > 0 && want > 0)
+    {
+      int w = worstRunning(n, -1)
+      int b = bestIdle(n)
+      bool swap = false
+      if (w >= 0 && b >= 0)
+      {
+        if (rotation == byRuntime)
+          swap = runMs[w] - runMs[b] >= (long)(rotateHours * 3600.0f) * 1000L || swapPending
+        else
+          swap = swapPending && rank(b, n) < rank(w, n)
+      }
+      if (swap)
+      {
+        req[b] = true
+        swapOut = w
+        overlapLeft = overlap
+        if (overlap <= 0.0f) { req[w] = false; swapOut = -1 }
+      }
+      swapPending = false
+    }
+    else if (active == 0)
+      swapPending = false
+
+    // outputs
+    int r = 0
+    for (int i = 0; i < n; i++) if (req[i]) r++
+    running := r
+    availableCount := avail
+    req1 := req[0]
+    req2 := req[1]
+    req3 := req[2]
+    req4 := req[3]
+    req5 := req[4]
+    req6 := req[5]
+    lead := leadUnit(n) + 1
+    alarm := r - (swapOut >= 0 ? 1 : 0) < want
+    if (enable != true) status := Pro.disabled
+    else if (alarm) status := Pro.alarm
+    else if (want == 0) status := Pro.standby
+    else status := Pro.ok
+  }
+
+  private int count()
+  {
+    if (units < 1) return 1
+    if (units > 6) return 6
+    return units
+  }
+
+  private bool isAvail(int i)
+  {
+    switch (i)
+    {
+      case 0: return avail1 == true
+      case 1: return avail2 == true
+      case 2: return avail3 == true
+      case 3: return avail4 == true
+      case 4: return avail5 == true
+    }
+    return avail6 == true
+  }
+
+  ** place of unit i in the start order (0 = first)
+  private int rank(int i, int n) { return (i - offset + n) % n }
+
+  ** unit a comes before unit b in the start order
+  private bool before(int a, int b, int n)
+  {
+    if (rotation == byRuntime) return runMs[a] < runMs[b]
+    return rank(a, n) < rank(b, n)
+  }
+
+  ** the idle available unit to start next, -1 if none
+  private int bestIdle(int n)
+  {
+    int best = -1
+    for (int i = 0; i < n; i++)
+    {
+      if (req[i] || !isAvail(i)) continue
+      if (best < 0) { best = i; continue }
+      if (before(i, best, n)) best = i
+    }
+    return best
+  }
+
+  ** the running unit to stop first, -1 if none
+  private int worstRunning(int n, int skip)
+  {
+    int worst = -1
+    for (int i = 0; i < n; i++)
+    {
+      if (!req[i] || i == skip || i == swapOut) continue
+      if (worst < 0) { worst = i; continue }
+      if (before(worst, i, n)) worst = i
+    }
+    return worst
+  }
+
+  ** the unit that started first among the running ones, or the next to start
+  private int leadUnit(int n)
+  {
+    int l = -1
+    for (int i = 0; i < n; i++)
+    {
+      if (!req[i] || i == swapOut) continue
+      if (l < 0) l = i
+      else if (before(i, l, n)) l = i
+    }
+    if (l < 0) l = bestIdle(n)
+    return l < 0 ? 0 : l
+  }
+
+  override int retainSize() { return 52 }
+  override void saveRetain(OutStream out)
+  {
+    for (int i = 0; i < 6; i++) out.writeI8(runMs[i])
+    out.writeI4(offset)
+  }
+  override void loadRetain(InStream in)
+  {
+    for (int i = 0; i < 6; i++)
+    {
+      long v = in.readS8()
+      runMs[i] = v < 0L ? 0L : v
+    }
+    offset = in.readS4()
+    if (offset < 0 || offset > 5) offset = 0
+  }
+
+  inline bool[6] req
+  inline long[6] runMs
+  int offset
+  float leadTime
+  int swapOut = -1
+  float overlapLeft
+  bool swapPending
+  inline Ticker ticker
+}

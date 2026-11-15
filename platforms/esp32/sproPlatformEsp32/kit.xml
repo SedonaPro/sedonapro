@@ -1,0 +1,19 @@
+<!--
+  -  Sedona Kit: platform support for ESP32-S3 (ESP-IDF, FreeRTOS)
+  -->
+<sedonaKit
+ name = "sproPlatformEsp32"
+ vendor = "SPro"
+ description = "Platform support for ESP32 controllers (ESP-IDF)"
+ includeSource = "false"
+ doc = "true"
+>
+  <depend on="sys 1.2+" />
+
+  <source dir="."/>
+
+  <native qname="sproPlatformEsp32::Esp32PlatformService.rebootSystem"  id="121::0" />
+  <native qname="sproPlatformEsp32::Esp32PlatformService.heapMinFree"   id="121::1" />
+  <native qname="sproPlatformEsp32::Esp32PlatformService.uptimeSec"     id="121::2" />
+  <native qname="sproPlatformEsp32::Esp32PlatformService.chipResetReason"   id="121::3" />
+</sedonaKit>

@@ -1,0 +1,209 @@
+//
+// Copyright 2026 SedonaPro contributors
+// Licensed under the Apache License, Version 2.0
+//
+
+**
+** Publishes a boolean as onText / offText ("true" / "false"; "ON" / "OFF"
+** for Home Assistant).
+**
+@niagaraIcon="module://icons/x16/control/booleanPoint.png"
+class MqttPubBool extends MqttPub
+{
+  property bool in
+
+  @config @asStr property Buf(12) onText = "true"
+  @config @asStr property Buf(12) offText = "false"
+
+  override bool differs() { return in != last }
+
+  override int format(Buf buf)
+  {
+    buf.copyFromStr(in ? onText.toStr() : offText.toStr())
+    return buf.toStr().length()
+  }
+
+  override void sent() { last = in }
+
+  bool last
+}
+
+**
+** Publishes an integer as text.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class MqttPubInt extends MqttPub
+{
+  property int in
+
+  override bool differs() { return in != last }
+
+  override int format(Buf buf) { return Mqtt.fmtInt(buf.bytes, buf.bytesLen, in) }
+
+  override void sent() { last = in }
+
+  int last
+}
+
+**
+** Publishes a number as text; changes smaller than deadband are not sent.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class MqttPubFloat extends MqttPub
+{
+  property float in
+
+  ** digits after the point, -1 = as needed (up to 7 significant)
+  @config @min=-1 @max=9 property int decimals = -1
+
+  ** minimal change to publish (0 = every change)
+  @config @min=0.0 property float deadband = 0.0
+
+  override bool differs()
+  {
+    if (in == null || last == null)
+      return !(in == null && last == null)
+    float d = in - last
+    if (d < 0.0) d = -d
+    return deadband > 0.0 ? d >= deadband : d != 0.0
+  }
+
+  override int format(Buf buf) { return Mqtt.fmtFloat(buf.bytes, buf.bytesLen, in, decimals) }
+
+  override void sent() { last = in }
+
+  float last = null
+}
+
+**
+** Publishes a string.
+**
+@niagaraIcon="module://icons/x16/control/stringPoint.png"
+class MqttPubStr extends MqttPub
+{
+  @asStr property Buf(64) in = ""
+
+  override virtual void changed(Slot slot)
+  {
+    super.changed(slot)
+    if (slot == MqttPubStr.in)
+      modified = true
+  }
+
+  override bool differs() { return modified }
+
+  override int format(Buf buf)
+  {
+    buf.copyFromStr(in.toStr())
+    return buf.toStr().length()
+  }
+
+  override void sent() { modified = false }
+
+  bool modified = true
+}
+
+**
+** Publishes up to eight numbers as one JSON object: keys "temp,hum,setpoint"
+** and inputs in1..in8 give {"temp":21.5,"hum":40,"setpoint":21}.
+**
+@niagaraIcon="module://icons/x16/control/numericPoint.png"
+class MqttPubJson extends MqttPub
+{
+  ** comma separated names of in1..in8
+  @config @asStr property Buf(96) keys = "value"
+
+  @config @min=-1 @max=9 property int decimals = -1
+
+  ** minimal change of any input to publish (0 = every change)
+  @config @min=0.0 property float deadband = 0.0
+
+  property float in1
+  property float in2
+  property float in3
+  property float in4
+  property float in5
+  property float in6
+  property float in7
+  property float in8
+
+  float get(int i)
+  {
+    switch (i)
+    {
+      case 0: return in1
+      case 1: return in2
+      case 2: return in3
+      case 3: return in4
+      case 4: return in5
+      case 5: return in6
+      case 6: return in7
+    }
+    return in8
+  }
+
+  override bool differs()
+  {
+    for (int i = 0; i < 8; ++i)
+    {
+      float a = get(i)
+      float b = last[i]
+      if (a == null || b == null)
+      {
+        if (!(a == null && b == null))
+          return true
+        continue
+      }
+      float d = a - b
+      if (d < 0.0) d = -d
+      if (deadband > 0.0 ? d >= deadband : d != 0.0)
+        return true
+    }
+    return false
+  }
+
+  override Buf out() { return json }
+
+  override int format(Buf buf)
+  {
+    // split keys at commas into key, add each with its input
+    byte[] k = keys.bytes
+    int len = 0
+    int i = 0
+    int field = 0
+    while (field < 8)
+    {
+      int n = 0
+      while (k[i] != 0 && k[i] != ',' && n < 31)
+      {
+        if (k[i] != ' ')
+          key.bytes[n++] = k[i]
+        i++
+      }
+      key.bytes[n] = 0
+      if (n > 0)
+      {
+        len = Mqtt.jsonPut(buf.bytes, buf.bytesLen, len, key.toStr(), get(field), decimals)
+        if (len < 0)
+          return -1
+      }
+      field++
+      if (k[i] != ',')
+        break
+      i++
+    }
+    if (len == 0)
+      return -1
+    return len
+  }
+
+  override void sent()
+  {
+    for (int i = 0; i < 8; ++i)
+      last[i] = get(i)
+  }
+
+  inline float[8] last
+  inline Buf(256) json
+  inline Buf(32) key
+}

@@ -1,0 +1,81 @@
+<module replaces="hal">
+  <!-- Level 3: power supply of a building: an automatic transfer switch with
+       two inputs and a generator, an energy meter with a three-zone tariff
+       and a 30-minute demand limit that sheds two loads.
+       Inputs (sim-large panel): DI1 input 1 voltage good, DI2 input 2, DI3
+       generator voltage, AI7 power (the panel's 0..1000 read as kW).
+       Outputs: DO1 breaker 1, DO2 breaker 2, DO3 generator breaker, DO4
+       generator start, DO5 / DO6 shed load 1 / 2.
+       The breakers have no contacts here (ats.useFeedback false): set DI1,
+       DO1 closes after 3 s; clear DI1 with DI2 set: DO1 opens, DO2 closes;
+       clear both: DO4 starts the generator, set DI3: DO3 after 15 s.
+       Raise AI7 above 600: the demand prediction passes the limit and DO5,
+       then DO6 shed.  meter.today, thisMonth, peakTotal ... need the clock.
+       Build: spro build sim, options pack=energy board=sim-large
+       example=energy (see README.md) -->
+  <kit name="sproEnergy"/>
+  <kit name="sproBase"/>
+  <kit name="sproHal"/>
+  <into path="">
+    <comp name="power" type="sys::Folder">
+      <comp name="ok1" type="sproHal::DigitalInput">
+        <prop name="channel" val="DI1"/>
+      </comp>
+      <comp name="ok2" type="sproHal::DigitalInput">
+        <prop name="channel" val="DI2"/>
+      </comp>
+      <comp name="okG" type="sproHal::DigitalInput">
+        <prop name="channel" val="DI3"/>
+      </comp>
+      <comp name="kw" type="sproHal::AnalogInput">
+        <prop name="channel" val="AI7"/>
+      </comp>
+      <comp name="ats" type="sproEnergy::Ats">
+        <prop name="sources" val="2"/>
+        <prop name="useFeedback" val="false"/>
+        <prop name="returnDelay" val="20.0"/>
+        <prop name="genCooldown" val="30.0"/>
+      </comp>
+      <comp name="meter" type="sproEnergy::EnergyMeter">
+        <prop name="night" val="23:00-07:00"/>
+        <prop name="peak" val="07:00-10:00, 17:00-21:00"/>
+      </comp>
+      <comp name="demand" type="sproEnergy::PeakDemand">
+        <prop name="limit" val="600.0"/>
+        <prop name="loads" val="2"/>
+        <prop name="stepDelay" val="20.0"/>
+        <prop name="minOff" val="60.0"/>
+      </comp>
+      <comp name="retain" type="sproBase::RetainService"/>
+      <comp name="br1" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO1"/>
+      </comp>
+      <comp name="br2" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO2"/>
+      </comp>
+      <comp name="brG" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO3"/>
+      </comp>
+      <comp name="gen" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO4"/>
+      </comp>
+      <comp name="shed1" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO5"/>
+      </comp>
+      <comp name="shed2" type="sproHal::DigitalOutput">
+        <prop name="channel" val="DO6"/>
+      </comp>
+    </comp>
+  </into>
+  <link from="/power/ok1.out" to="/power/ats.ok1"/>
+  <link from="/power/ok2.out" to="/power/ats.ok2"/>
+  <link from="/power/okG.out" to="/power/ats.okG"/>
+  <link from="/power/ats.close1" to="/power/br1.in"/>
+  <link from="/power/ats.close2" to="/power/br2.in"/>
+  <link from="/power/ats.closeG" to="/power/brG.in"/>
+  <link from="/power/ats.genStart" to="/power/gen.in"/>
+  <link from="/power/kw.out" to="/power/meter.power"/>
+  <link from="/power/kw.out" to="/power/demand.power"/>
+  <link from="/power/demand.shed1" to="/power/shed1.in"/>
+  <link from="/power/demand.shed2" to="/power/shed2.in"/>
+</module>

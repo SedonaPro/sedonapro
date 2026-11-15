@@ -1,0 +1,15 @@
+<sedonaKit
+    name="sproExpr"
+    vendor="SPro"
+    description="calculating floating and logical expressions">
+  <depend on="sys 1.2+" />
+
+  <native qname="sproExpr::ExpressionFloat.doParse"                      id="116::0"/>
+  <native qname="sproExpr::ExpressionFloat.doFree"                       id="116::1"/>
+  <native qname="sproExpr::ExpressionFloat.doCalc"                       id="116::2"/>
+  <native qname="sproExpr::ExpressionBool.doParse"                       id="116::3"/>
+  <native qname="sproExpr::ExpressionBool.doFree"                        id="116::4"/>
+  <native qname="sproExpr::ExpressionBool.doCalc"                        id="116::5"/>
+
+  <source dir="." />
+</sedonaKit>
